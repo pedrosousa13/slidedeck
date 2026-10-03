@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "vite/client"],
+    "tsBuildInfoFile": "../../node_modules/.cache/tsbuildinfo/proto-scroll-snap.tsbuildinfo"
+  },
+  "include": ["src", "measure", "vite.config.ts", "playwright.config.ts"]
+}
