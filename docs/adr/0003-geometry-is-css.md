@@ -23,10 +23,9 @@ supported; elsewhere a layout effect moves there before the browser paints. No
 layout shift either way. Where several slides share a snap point, the first
 paint may correct after hydration: server HTML can only start at a slide.
 
-A second accepted exception: the server cannot measure, so Prev and Next
-always render in server HTML, and hydration removes them when every slide fits.
-Layout shifts only in that case.
-
-A third, for the same reason: the server cannot count snap points, so Dots
-render an empty group and Counter an empty span in server HTML, and hydration
-fills them. Layout shifts when they take up space.
+A second accepted exception: the server cannot measure, so it renders the
+controls as if each slide were a page and the slides overflow. Prev and Next
+always render, and Dots and Counter count one page per slide. Layout shifts
+only where that is wrong: hydration removes the controls when every slide
+fits, and corrects Dots and Counter to the snap points when several slides
+share one.

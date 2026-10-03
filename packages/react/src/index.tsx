@@ -1,6 +1,7 @@
 import {
   Children,
   createContext,
+  Fragment,
   isValidElement,
   use,
   useEffect,
@@ -10,6 +11,7 @@ import {
   useState,
   type ComponentProps,
   type CSSProperties,
+  type ReactNode,
   type Ref,
   type RefObject
 } from 'react';
@@ -25,6 +27,10 @@ interface DeckContextValue {
   count: number | null;
   /** The current slide; null until the viewport has been measured. */
   slide: number | null;
+  /** The slides in Deck.Viewport, for the first render only, before any
+   * measurement: Dots and Counter then count a page per slide. Null after, or
+   * where Root cannot see Viewport's children. */
+  slides: number | null;
   initialIndex: number;
   viewportRef: RefObject<HTMLDivElement | null>;
   engineRef: RefObject<DeckEngine | null>;
@@ -163,8 +169,14 @@ export function Root({
     []
   );
 
+  // Only the first render is unmeasured, so the walk runs once, and on the
+  // server.
+  const slides = state.count === null ? slidesIn(props.children) : null;
+
   return (
-    <DeckContext value={{ ...state, initialIndex, viewportRef, engineRef }}>
+    <DeckContext
+      value={{ ...state, slides, initialIndex, viewportRef, engineRef }}
+    >
       <div
         role="region"
         aria-roledescription="carousel"
@@ -176,6 +188,22 @@ export function Root({
       />
     </DeckContext>
   );
+}
+
+/** The slides in the first Deck.Viewport among `children`, looking through
+ * elements and fragments but not into components, which Root cannot render
+ * ahead of time; null if none is found. Counted as Viewport counts them. */
+function slidesIn(children: ReactNode): number | null {
+  for (const child of Children.toArray(children)) {
+    if (!isValidElement<{ children?: ReactNode }>(child)) continue;
+    if (child.type === Viewport) {
+      return Children.toArray(child.props.children).length;
+    }
+    if (typeof child.type !== 'string' && child.type !== Fragment) continue;
+    const found = slidesIn(child.props.children);
+    if (found !== null) return found;
+  }
+  return null;
 }
 
 /** Warns about controlled-deck mistakes, as React does for an input's
@@ -381,14 +409,23 @@ export function Next(props: ComponentProps<'button'>) {
   );
 }
 
+/** The pages Dots and Counter show: the snap points, once measured. Before,
+ * as on the server, a page per slide, the common case, so server HTML is exact
+ * there; a deck whose snap points differ corrects at hydration (ADR-0003).
+ * `count` is null only where Root cannot see Viewport's slides. */
+function usePages(primitive: string) {
+  const { index, count, slides, initialIndex, engineRef } = useDeck(primitive);
+  if (count !== null || slides === null) return { index, count, engineRef };
+  return { index: clampSlide(initialIndex, slides), count: slides, engineRef };
+}
+
 /** A labelled group of buttons, one per page: one per snap point, so with
  * several slides in a page a dot stands for the page, not a slide (ADR-0004).
  * The current one carries `aria-current`; the group's data attributes are the
- * deck's state, which a consumer's cannot overwrite. Empty until the viewport is
- * measured, as the server cannot count snap points; absent when every slide
+ * deck's state, which a consumer's cannot overwrite. Absent when every slide
  * fits. */
 export function Dots(props: Omit<ComponentProps<'div'>, 'children'>) {
-  const { index, count, engineRef } = useDeck('Dots');
+  const { index, count, engineRef } = usePages('Dots');
   if (everySlideFits(count)) return null;
   return (
     <div
@@ -413,23 +450,22 @@ export function Dots(props: Omit<ComponentProps<'div'>, 'children'>) {
   );
 }
 
-/** The current page and the total, as "3 / 10": counts snap points, as Dots
- * do. Empty until the viewport is measured, as the server cannot count snap
- * points; absent when every slide fits. Not a live region: each slide is
- * already labelled "n of m". Its data attributes are the deck's state, which
+/** The current page and the total, as "3 / 10": counts pages, as Dots do.
+ * Absent when every slide fits. Not a live region: each slide is already
+ * labelled "n of m". Its data attributes are the deck's state, which
  * a consumer's cannot overwrite. */
 export function Counter(props: Omit<ComponentProps<'span'>, 'children'>) {
-  const { index, count } = useDeck('Counter');
+  const { index, count } = usePages('Counter');
   if (everySlideFits(count)) return null;
-  const measured = count !== null;
+  const known = count !== null;
   return (
     <span
       {...props}
       data-slidedeck-counter=""
-      data-index={measured ? index : undefined}
-      data-count={measured ? count : undefined}
+      data-index={known ? index : undefined}
+      data-count={known ? count : undefined}
     >
-      {measured && `${index + 1} / ${count}`}
+      {known && `${index + 1} / ${count}`}
     </span>
   );
 }
