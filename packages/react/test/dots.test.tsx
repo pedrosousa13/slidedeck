@@ -3,7 +3,13 @@ import { render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
-import { expectSettledTo, TestDeck, viewportOf, WIDTH } from './fixtures';
+import {
+  expectSettledTo,
+  setReducedMotion,
+  TestDeck,
+  viewportOf,
+  WIDTH
+} from './fixtures';
 
 type DeckProps = ComponentProps<typeof TestDeck>;
 
@@ -122,6 +128,43 @@ describe('Dots', () => {
 
     expect(screen.queryByRole('group', { name: 'Choose page' })).toBeNull();
   });
+});
+
+describe('Dots with other moves', () => {
+  afterEach(() => setReducedMotion(false));
+
+  test('quick moves compose: Next steps on from a dot still in flight', async () => {
+    const { viewport, dots, onIndexChange } = renderDeck();
+    const next = screen.getByRole('button', { name: 'Next' });
+
+    next.click();
+    dots()[3].click();
+    next.click();
+
+    await expectSettledTo(() => viewport.scrollLeft, 4 * WIDTH);
+    expect(currentDots(dots())).toEqual([4]);
+    expect(onIndexChange.mock.calls).toEqual([[4]]);
+  });
+
+  test('with reduced motion, a dot jumps instead of scrolling smoothly', async () => {
+    await setReducedMotion(true);
+    const { viewport, dots } = renderDeck();
+
+    dots()[3].click();
+
+    expect(viewport.scrollLeft).toBe(3 * WIDTH);
+  });
+});
+
+test('Dots outside a Root name the missing primitive', () => {
+  const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    expect(() => render(<Deck.Dots />)).toThrow(
+      'Deck.Dots must be inside Deck.Root'
+    );
+  } finally {
+    spy.mockRestore();
+  }
 });
 
 describe('Dots accessibility', () => {

@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import { expectSettledTo, TestDeck, viewportOf, WIDTH } from './fixtures';
@@ -69,3 +69,26 @@ test.each([1, 0])(
     expect(document.querySelector('[data-slidedeck-counter]')).toBeNull();
   }
 );
+
+test('the counter follows a change in the slide count', async () => {
+  const { rerender } = render(<TestDeck controls={<Deck.Counter />} />);
+  const counter = () => document.querySelector('[data-slidedeck-counter]');
+  expect(counter()?.textContent).toBe('1 / 5');
+
+  rerender(<TestDeck slides={3} controls={<Deck.Counter />} />);
+  await expect.poll(() => counter()?.textContent).toBe('1 / 3');
+
+  rerender(<TestDeck slides={7} controls={<Deck.Counter />} />);
+  await expect.poll(() => counter()?.textContent).toBe('1 / 7');
+});
+
+test('a Counter outside a Root names the missing primitive', () => {
+  const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    expect(() => render(<Deck.Counter />)).toThrow(
+      'Deck.Counter must be inside Deck.Root'
+    );
+  } finally {
+    spy.mockRestore();
+  }
+});
