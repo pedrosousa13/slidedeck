@@ -197,18 +197,24 @@ describe('a controlled deck', () => {
 
   test('ends at the latest index when the parent changes it mid-flight', async () => {
     const onIndexChange = vi.fn();
-    let setIndex!: (index: number) => void;
     function Parent() {
-      const [index, set] = useState(0);
-      setIndex = set;
+      const [index, setIndex] = useState(0);
       return (
-        <TestDeck
-          index={index}
-          onIndexChange={(next) => {
-            onIndexChange(next);
-            set(next);
-          }}
-        />
+        <>
+          <button type="button" onClick={() => setIndex(3)}>
+            Go to 4
+          </button>
+          <button type="button" onClick={() => setIndex(0)}>
+            Go to 1
+          </button>
+          <TestDeck
+            index={index}
+            onIndexChange={(next) => {
+              onIndexChange(next);
+              setIndex(next);
+            }}
+          />
+        </>
       );
     }
     render(<Parent />);
@@ -216,9 +222,9 @@ describe('a controlled deck', () => {
       screen.getByRole('region', { name: 'Test deck' })
     );
 
-    act(() => setIndex(3));
+    act(() => screen.getByRole('button', { name: 'Go to 4' }).click());
     await sleep(30);
-    act(() => setIndex(0));
+    act(() => screen.getByRole('button', { name: 'Go to 1' }).click());
 
     await expectSettledTo(() => viewport.scrollLeft, 0);
     await sleep(600);
