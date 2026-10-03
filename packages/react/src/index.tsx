@@ -141,12 +141,13 @@ export function Root({
 
   // Controlled, the deck rests at `index`: it follows a new one, and returns
   // to it after a scroll the parent did not take, as a controlled input
-  // reverts an edit its parent ignores.
+  // reverts an edit its parent ignores. Compared with where a scroll in
+  // flight is heading, if any, so an `index` changed back mid-flight wins.
   useLayoutEffect(() => {
-    if (index !== undefined && state.count !== null) {
-      if (clampSlide(index, state.count) !== state.index) {
-        engineRef.current?.scrollTo(index);
-      }
+    const engine = engineRef.current;
+    if (index !== undefined && state.count !== null && engine) {
+      const heading = engine.target() ?? state.index;
+      if (clampSlide(index, state.count) !== heading) engine.scrollTo(index);
     }
   }, [index, state.index, state.count]);
 

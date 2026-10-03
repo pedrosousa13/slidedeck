@@ -6,6 +6,7 @@ import type * as Deck from '@slidedeck/react';
 import {
   expectSettledTo,
   setReducedMotion,
+  sleep,
   TestDeck,
   viewportOf,
   WIDTH
@@ -179,6 +180,37 @@ describe('a controlled deck', () => {
     await expectSettledTo(() => viewport.scrollLeft, WIDTH);
 
     expect(onIndexChange.mock.calls).toEqual([[2], [1]]);
+  });
+
+  test('ends at the latest index when the parent changes it mid-flight', async () => {
+    const onIndexChange = vi.fn();
+    let setIndex!: (index: number) => void;
+    function Parent() {
+      const [index, set] = useState(0);
+      setIndex = set;
+      return (
+        <TestDeck
+          index={index}
+          onIndexChange={(next) => {
+            onIndexChange(next);
+            set(next);
+          }}
+        />
+      );
+    }
+    render(<Parent />);
+    const viewport = viewportOf(
+      screen.getByRole('region', { name: 'Test deck' })
+    );
+
+    act(() => setIndex(3));
+    await sleep(30);
+    act(() => setIndex(0));
+
+    await expectSettledTo(() => viewport.scrollLeft, 0);
+    await sleep(600);
+    expect(viewport.scrollLeft).toBe(0);
+    expect(onIndexChange).not.toHaveBeenCalled();
   });
 
   test('goes to index once slides arrive in a deck that had none', async () => {

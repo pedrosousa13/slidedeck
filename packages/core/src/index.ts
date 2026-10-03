@@ -22,6 +22,9 @@ export interface DeckEngine {
   scrollTo(index: number): void;
   next(): void;
   prev(): void;
+  /** The snap point a scroll the engine started is heading to, until it
+   * ends; null when none is in flight. */
+  target(): number | null;
   /** Re-reads the snap points, as after slides are added or removed. */
   refresh(): void;
   destroy(): void;
@@ -81,6 +84,18 @@ export function createDeck(
     settle();
   };
 
+  // Chromium can fire `scrollsnapchange` as a scroll the engine started
+  // begins, before the viewport moves: that is not the scroll's end, and
+  // clearing the target then would lose where it is heading. `scrollend`
+  // still ends any scroll, including one a user interrupts.
+  const onSnapChange = () => {
+    if (target !== null) {
+      const { points } = snapPoints(viewport);
+      if (Math.abs(viewport.scrollLeft - points[target]) >= 1) return;
+    }
+    scrollEnded();
+  };
+
   const refresh = () => {
     if (!scrolling && target === null) settle();
   };
@@ -115,7 +130,7 @@ export function createDeck(
   // `scrollsnapchange` reports a settled snap target where it exists, no
   // later than `scrollend`; `publish` drops whichever report comes second.
   viewport.addEventListener('scroll', onScroll, { passive: true });
-  viewport.addEventListener('scrollsnapchange', scrollEnded);
+  viewport.addEventListener('scrollsnapchange', onSnapChange);
   viewport.addEventListener('scrollend', scrollEnded);
   // A resize can add or remove snap points without any scroll, and only
   // Chromium reports that through `scrollsnapchange`.
@@ -129,12 +144,13 @@ export function createDeck(
     scrollTo,
     next: () => step(1),
     prev: () => step(-1),
+    target: () => target,
     refresh,
     destroy() {
       clearTimeout(quiet);
       resizes.disconnect();
       viewport.removeEventListener('scroll', onScroll);
-      viewport.removeEventListener('scrollsnapchange', scrollEnded);
+      viewport.removeEventListener('scrollsnapchange', onSnapChange);
       viewport.removeEventListener('scrollend', scrollEnded);
     }
   };
