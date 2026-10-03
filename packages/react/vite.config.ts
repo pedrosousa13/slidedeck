@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   build: {
     lib: { entry: 'src/index.tsx', formats: ['es'], fileName: 'index' },
-    rollupOptions: { external: ['react', 'react/jsx-runtime'] },
+    rollupOptions: { external: ['react', 'react/jsx-runtime', 'react-dom'] },
     sourcemap: true,
     emptyOutDir: false
   }

@@ -4,8 +4,7 @@
     "composite": true,
     "noEmit": true,
     "types": ["node"],
-    "paths": { "@slidedeck/core": ["./src/index.ts"] },
     "tsBuildInfoFile": "dist/.tsbuildinfo.test"
   },
-  "include": ["src", "test", "vite.config.ts"]
+  "include": ["src", "vite.config.ts"]
 }

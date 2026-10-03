@@ -31,22 +31,23 @@ const failures = [];
 // Turbo replays a cached build, so this costs nothing after `pnpm build`.
 pnpm(['exec', 'turbo', 'run', 'build', '--filter=./packages/*']);
 
-for (const pkg of packages) {
+for (const { manifest } of packages) {
+  const { name } = manifest;
   const destination = mkdtempSync(join(tmpdir(), 'slidedeck-pack-'));
   try {
-    pnpm(['--filter', pkg.name, 'pack', '--pack-destination', destination]);
+    pnpm(['--filter', name, 'pack', '--pack-destination', destination]);
     const tarball = join(destination, readdirSync(destination)[0]);
 
-    console.log(`\n--- publint: ${pkg.name} ---`);
+    console.log(`\n--- publint: ${name} ---`);
     if (!passes(['exec', 'publint', 'run', '--strict', tarball])) {
-      failures.push(`publint failed for ${pkg.name}`);
+      failures.push(`publint failed for ${name}`);
     }
 
     // ESM only by design: the esm-only profile stops attw reporting the
     // CommonJS and node10 resolution modes these packages do not support.
-    console.log(`\n--- attw: ${pkg.name} ---`);
+    console.log(`\n--- attw: ${name} ---`);
     if (!passes(['exec', 'attw', '--pack', tarball, '--profile', 'esm-only'])) {
-      failures.push(`attw failed for ${pkg.name}`);
+      failures.push(`attw failed for ${name}`);
     }
   } finally {
     rmSync(destination, { recursive: true, force: true });

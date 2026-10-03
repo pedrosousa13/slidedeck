@@ -29,7 +29,9 @@ for (const step of STEPS) {
   try {
     execFileSync('pnpm', [step], { cwd: repoRoot, stdio: 'inherit' });
   } catch (error) {
-    const status = typeof error?.status === 'number' ? error.status : 1;
+    const code = /** @type {{ status?: unknown } | undefined} */ (error)
+      ?.status;
+    const status = typeof code === 'number' ? code : 1;
     console.error(`\nverify: step \`${step}\` failed (exit ${status})`);
     process.exit(status);
   }

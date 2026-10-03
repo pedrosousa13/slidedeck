@@ -15,13 +15,14 @@ const rows = publishablePackages(repoRoot).map((pkg) => {
   const entry = pkg.manifest.exports['.'].default;
   const source = readFileSync(join(pkg.path, entry));
   return {
-    name: pkg.name,
+    name: pkg.manifest.name,
     raw: source.length,
     gzip: gzipSync(source).length
   };
 });
 
 const width = Math.max(...rows.map((row) => row.name.length));
+/** @param {number} bytes */
 const kb = (bytes) => `${(bytes / 1024).toFixed(2)} KB`.padStart(9);
 
 console.log(

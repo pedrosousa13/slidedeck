@@ -2,9 +2,6 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  // `storybook dev` compiles each story on first request, which can push the
-  // first interaction on a slow CI runner past a tight budget.
-  timeout: 30_000,
   retries: process.env.CI ? 2 : 0,
   use: { baseURL: 'http://127.0.0.1:4173' },
   webServer: {
