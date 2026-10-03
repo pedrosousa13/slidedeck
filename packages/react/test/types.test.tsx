@@ -39,3 +39,12 @@ test('the ref is the div, and handleRef is a RootHandle', () => {
     ((index: number) => void) | undefined
   >();
 });
+
+test('Dots and Counter render their own content, so take no children', () => {
+  void (<Deck.Dots aria-label="Pick a photo" />);
+  void (<Deck.Counter className="counter" />);
+  // @ts-expect-error -- Dots render one button per page
+  void (<Deck.Dots>dots</Deck.Dots>);
+  // @ts-expect-error -- Counter renders "n / m"
+  void (<Deck.Counter>1 of 5</Deck.Counter>);
+});

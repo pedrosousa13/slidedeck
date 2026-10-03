@@ -387,7 +387,7 @@ export function Next(props: ComponentProps<'button'>) {
  * deck's state, which a consumer's cannot overwrite. Empty until the viewport is
  * measured, as the server cannot count snap points; absent when every slide
  * fits. */
-export function Dots(props: ComponentProps<'div'>) {
+export function Dots(props: Omit<ComponentProps<'div'>, 'children'>) {
   const { index, count, engineRef } = useDeck('Dots');
   if (everySlideFits(count)) return null;
   return (
@@ -417,7 +417,7 @@ export function Dots(props: ComponentProps<'div'>) {
  * do. Empty until the viewport is measured, as the server cannot count snap
  * points. Not a live region: each slide is already labelled "n of m". Its
  * data attributes are the deck's state, which a consumer's cannot overwrite. */
-export function Counter(props: ComponentProps<'span'>) {
+export function Counter(props: Omit<ComponentProps<'span'>, 'children'>) {
   const { index, count } = useDeck('Counter');
   const measured = count !== null;
   return (
