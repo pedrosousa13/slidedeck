@@ -1,6 +1,7 @@
 import {
   Children,
   createContext,
+  Fragment,
   isValidElement,
   use,
   useEffect,
@@ -10,6 +11,7 @@ import {
   useState,
   type ComponentProps,
   type CSSProperties,
+  type ReactNode,
   type Ref,
   type RefObject
 } from 'react';
@@ -25,6 +27,10 @@ interface DeckContextValue {
   count: number | null;
   /** The current slide; null until the viewport has been measured. */
   slide: number | null;
+  /** The slides in Deck.Viewport, for the first render only, before any
+   * measurement: Dots and Counter then count a page per slide. Null after, or
+   * where Root cannot see Viewport's children. */
+  slides: number | null;
   initialIndex: number;
   viewportRef: RefObject<HTMLDivElement | null>;
   engineRef: RefObject<DeckEngine | null>;
@@ -90,7 +96,11 @@ export function Root({
   handleRef,
   ...props
 }: RootProps) {
-  const [initialIndex] = useState(index ?? defaultIndex ?? 0);
+  // Core starts a non-finite index at 0; so must the first render.
+  const [initialIndex] = useState(() => {
+    const start = index ?? defaultIndex ?? 0;
+    return Number.isFinite(start) ? start : 0;
+  });
   if (process.env.NODE_ENV !== 'production') {
     // eslint-disable-next-line react-hooks/rules-of-hooks -- the condition is constant for a build
     useDevWarnings(index, defaultIndex, onIndexChange);
@@ -163,8 +173,14 @@ export function Root({
     []
   );
 
+  // Only the first render is unmeasured, so the walk runs once, and on the
+  // server.
+  const slides = state.count === null ? slidesIn(props.children) : null;
+
   return (
-    <DeckContext value={{ ...state, initialIndex, viewportRef, engineRef }}>
+    <DeckContext
+      value={{ ...state, slides, initialIndex, viewportRef, engineRef }}
+    >
       <div
         role="region"
         aria-roledescription="carousel"
@@ -176,6 +192,22 @@ export function Root({
       />
     </DeckContext>
   );
+}
+
+/** The slides in the first Deck.Viewport among `children`, looking through
+ * elements and fragments but not into components, which Root cannot render
+ * ahead of time; null if none is found. Counted as Viewport counts them. */
+function slidesIn(children: ReactNode): number | null {
+  for (const child of Children.toArray(children)) {
+    if (!isValidElement<{ children?: ReactNode }>(child)) continue;
+    if (child.type === Viewport) {
+      return Children.toArray(child.props.children).length;
+    }
+    if (typeof child.type !== 'string' && child.type !== Fragment) continue;
+    const found = slidesIn(child.props.children);
+    if (found !== null) return found;
+  }
+  return null;
 }
 
 /** Warns about controlled-deck mistakes, as React does for an input's
@@ -311,11 +343,11 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
   );
 }
 
-/** One snap point means there is nowhere to step to. The server cannot
- * measure, so it renders Prev and Next as if the slides overflow, the common
- * case: a deck whose slides all fit drops them at hydration, which shifts
- * layout. */
-const everySlideFits = (count: number | null) => count === 1;
+/** One snap point, or none, means there is nowhere to go: Prev, Next, Dots
+ * and Counter are then absent. The server cannot measure, so it renders Prev
+ * and Next as if the slides overflow, the common case: a deck whose slides all
+ * fit drops them at hydration, which shifts layout. */
+const everySlideFits = (count: number | null) => count !== null && count <= 1;
 
 interface StepButtonProps extends ComponentProps<'button'> {
   atEnd: boolean;
@@ -378,5 +410,66 @@ export function Next(props: ComponentProps<'button'>) {
       step={() => engineRef.current?.next()}
       label="Next"
     />
+  );
+}
+
+/** The pages Dots and Counter show: the snap points, once measured. Before,
+ * as on the server, a page per slide, the common case, so server HTML is exact
+ * there; a deck whose snap points differ corrects at hydration (ADR-0003).
+ * `count` is null only where Root cannot see Viewport's slides. */
+function usePages(primitive: string) {
+  const { index, count, slides, initialIndex, engineRef } = useDeck(primitive);
+  if (count !== null || slides === null) return { index, count, engineRef };
+  return { index: clampSlide(initialIndex, slides), count: slides, engineRef };
+}
+
+/** A labelled group of buttons, one per page: one per snap point, so with
+ * several slides in a page a dot stands for the page, not a slide (ADR-0004).
+ * The current one carries `aria-current`; the group's data attributes are the
+ * deck's state, which a consumer's cannot overwrite. Absent when every slide
+ * fits. */
+export function Dots(props: Omit<ComponentProps<'div'>, 'children'>) {
+  const { index, count, engineRef } = usePages('Dots');
+  if (everySlideFits(count)) return null;
+  return (
+    <div
+      role="group"
+      aria-label="Choose page"
+      {...props}
+      data-slidedeck-dots=""
+      data-index={count === null ? undefined : index}
+      data-count={count ?? undefined}
+    >
+      {Array.from({ length: count ?? 0 }, (_, i) => (
+        <button
+          key={i}
+          type="button"
+          aria-label={`Go to page ${i + 1}`}
+          aria-current={i === index ? 'true' : undefined}
+          data-index={i}
+          onClick={() => engineRef.current?.scrollTo(i)}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** The current page and the total, as "3 / 10": counts pages, as Dots do.
+ * Absent when every slide fits. Not a live region: each slide is already
+ * labelled "n of m". Its data attributes are the deck's state, which
+ * a consumer's cannot overwrite. */
+export function Counter(props: Omit<ComponentProps<'span'>, 'children'>) {
+  const { index, count } = usePages('Counter');
+  if (everySlideFits(count)) return null;
+  const known = count !== null;
+  return (
+    <span
+      {...props}
+      data-slidedeck-counter=""
+      data-index={known ? index : undefined}
+      data-count={known ? count : undefined}
+    >
+      {known && `${index + 1} / ${count}`}
+    </span>
   );
 }

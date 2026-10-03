@@ -308,6 +308,13 @@ describe('Prev and Next', () => {
     }
   });
 
+  test('both are absent with no slides, so no snap points', () => {
+    render(<TestDeck slides={0} />);
+
+    expect(screen.queryByRole('button', { name: 'Previous' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+  });
+
   test('both appear once the slides stop fitting', async () => {
     const removeStyle = styleSheet(`.fits > * { width: 25%; }`);
     try {

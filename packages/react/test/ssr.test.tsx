@@ -2,6 +2,7 @@ import { act, type ComponentProps } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { afterEach, expect, test, vi } from 'vitest';
+import * as Deck from '@slidedeck/react';
 import { nextFrame, TestDeck, viewportOf, WIDTH } from './fixtures';
 
 type DeckProps = ComponentProps<typeof TestDeck>;
@@ -108,3 +109,100 @@ test.each([
     expect(index).toBe(String(expected));
   }
 );
+
+const controls = (
+  <>
+    <Deck.Dots />
+    <Deck.Counter />
+  </>
+);
+
+const readControls = (viewport: HTMLElement) => {
+  const root = viewport.closest('[data-index]')!;
+  return {
+    dots: root.querySelectorAll('[data-slidedeck-dots] > button').length,
+    current: root.querySelector('[aria-current="true"]')?.ariaLabel,
+    counter: root.querySelector('[data-slidedeck-counter]')?.textContent
+  };
+};
+
+// The server counts slides, not snap points, so its Dots and Counter are
+// exact where a page is a slide, the common case.
+test('with one slide per snap point, Dots and Counter render in server HTML without shift', async () => {
+  let server: ReturnType<typeof readControls> | undefined;
+  const { viewport } = await hydrate(
+    { defaultIndex: 2, controls },
+    (viewport) => (server = readControls(viewport))
+  );
+
+  const expected = { dots: 5, current: 'Go to page 3', counter: '3 / 5' };
+  expect(server).toEqual(expected);
+  expect(readControls(viewport)).toEqual(expected);
+});
+
+test('server HTML clamps defaultIndex in Dots and Counter, as in slides', async () => {
+  let server: ReturnType<typeof readControls> | undefined;
+  await hydrate(
+    { defaultIndex: 10, controls },
+    (viewport) => (server = readControls(viewport))
+  );
+
+  expect(server).toEqual({
+    dots: 5,
+    current: 'Go to page 5',
+    counter: '5 / 5'
+  });
+});
+
+// Where several slides share a snap point, hydration corrects the server's
+// one-per-slide Dots and Counter to the snap points (ADR-0003).
+test('with snap points shared by several slides, Dots and Counter correct on hydration', async () => {
+  const style = document.createElement('style');
+  style.textContent = `.centred > * { width: calc(100% / 3.5); scroll-snap-align: center; }`;
+  document.head.append(style);
+  removeStyle = () => style.remove();
+
+  let server: ReturnType<typeof readControls> | undefined;
+  const { viewport } = await hydrate(
+    { viewportClassName: 'centred', controls },
+    (viewport) => (server = readControls(viewport)),
+    { mayCorrect: true }
+  );
+
+  expect(server).toEqual({
+    dots: 5,
+    current: 'Go to page 1',
+    counter: '1 / 5'
+  });
+  expect(readControls(viewport)).toEqual({
+    dots: 3,
+    current: 'Go to page 1',
+    counter: '1 / 3'
+  });
+});
+
+// Core ignores a non-finite index and starts at 0; Root, Dots and Counter
+// must agree with it from the server HTML on.
+test('index={NaN} renders and hydrates as index 0', async () => {
+  const consoleError = vi.spyOn(console, 'error');
+  let server: ReturnType<typeof readControls> | undefined;
+  let serverIndex: string | null | undefined;
+  const { viewport, index } = await hydrate(
+    { index: NaN, onIndexChange: () => {}, controls },
+    (viewport) => {
+      server = readControls(viewport);
+      serverIndex = viewport
+        .closest('[data-index]')
+        ?.getAttribute('data-index');
+    }
+  );
+
+  const expected = { dots: 5, current: 'Go to page 1', counter: '1 / 5' };
+  expect(serverIndex).toBe('0');
+  expect(server).toEqual(expected);
+  expect(index).toBe('0');
+  expect(readControls(viewport)).toEqual(expected);
+  // `hydrate` itself logs React's act-environment notice; only NaN matters.
+  expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining('NaN'));
+  consoleError.mockRestore();
+});

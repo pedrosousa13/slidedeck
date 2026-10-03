@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { expect } from 'vitest';
 import { cdp } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
@@ -9,12 +9,15 @@ export const WIDTH = 300;
 type TestDeckProps = ComponentProps<typeof Deck.Root> & {
   slides?: number;
   viewportClassName?: string;
+  /** Rendered after Next, as more of the deck's controls. */
+  controls?: ReactNode;
 };
 
 /** A deck with no stylesheet: only the consumer's viewport width. */
 export function TestDeck({
   slides = 5,
   viewportClassName,
+  controls,
   ...props
 }: TestDeckProps) {
   return (
@@ -28,6 +31,7 @@ export function TestDeck({
         ))}
       </Deck.Viewport>
       <Deck.Next />
+      {controls}
     </Deck.Root>
   );
 }

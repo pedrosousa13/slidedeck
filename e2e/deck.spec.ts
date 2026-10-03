@@ -56,3 +56,22 @@ test('a controlled deck follows the index its parent sets', async ({
   });
   await expect(deck).toHaveAttribute('data-index', '3');
 });
+
+test('a dot moves the deck to its page and the counter follows', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--default&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const dots = deck.getByRole('group', { name: 'Choose page' });
+  await expect(deck.getByText('1 / 6')).toBeVisible();
+
+  await dots.getByRole('button', { name: 'Go to page 3' }).click();
+
+  await expect(deck.getByRole('group', { name: '3 of 6' })).toBeInViewport({
+    ratio: 1
+  });
+  await expect(
+    dots.getByRole('button', { name: 'Go to page 3' })
+  ).toHaveAttribute('aria-current', 'true');
+  await expect(deck.getByText('3 / 6')).toBeVisible();
+});

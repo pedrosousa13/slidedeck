@@ -23,6 +23,12 @@ supported; elsewhere a layout effect moves there before the browser paints. No
 layout shift either way. Where several slides share a snap point, the first
 paint may correct after hydration: server HTML can only start at a slide.
 
-A second accepted exception: the server cannot measure, so Prev and Next
-always render in server HTML, and hydration removes them when every slide fits.
-Layout shifts only in that case.
+A second accepted exception: the server cannot measure, so it renders the
+controls as if each slide were a page and the slides overflow. Prev and Next
+always render, and Dots and Counter count one page per slide. Layout shifts
+only where that is wrong: hydration removes the controls when every slide
+fits, and corrects Dots and Counter to the snap points when several slides
+share one. Where Root cannot see the Viewport's slides (a Viewport inside a
+custom component, or one child component that renders several slides), the
+server count is a guess: Dots and Counter render empty, or count the slides
+Root can see, and correct at hydration.
