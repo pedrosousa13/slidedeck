@@ -13,7 +13,9 @@ export default tseslint.config(
       'test-results/**',
       // Gitignored, but flat config does not read .gitignore, so without this
       // the scratch files a session writes are linted as project source.
-      '.scratch/**'
+      '.scratch/**',
+      // Gitignored output of the throwaway prototype's measure suite (#3).
+      'prototypes/scroll-snap/measure-results/**'
     ]
   },
   js.configs.recommended,

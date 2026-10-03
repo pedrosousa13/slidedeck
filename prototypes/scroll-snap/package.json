@@ -1,0 +1,18 @@
+{
+  "name": "@slidedeck/proto-scroll-snap",
+  "version": "0.0.0",
+  "private": true,
+  "description": "THROWAWAY prototype for ADR-0001's engine gate (#3). Delete after the go/no-go.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "serve": "vite build && vite preview --host 0.0.0.0 --port 4317 --strictPort",
+    "measure": "node -e \"fs.rmSync('measure-results',{recursive:true,force:true})\" && playwright test -c playwright.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "vite": "8.3.1"
+  }
+}

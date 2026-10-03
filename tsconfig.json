@@ -6,6 +6,7 @@
     { "path": "./packages/react" },
     { "path": "./packages/react/tsconfig.test.json" },
     { "path": "./apps/storybook" },
+    { "path": "./prototypes/scroll-snap" },
     { "path": "./e2e" },
     { "path": "./scripts" }
   ]
