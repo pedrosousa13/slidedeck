@@ -18,7 +18,8 @@ export interface DeckOptions {
 }
 
 export interface DeckEngine {
-  /** Scrolls to a snap point, clamped to the snap points there are. */
+  /** Scrolls to a snap point, clamped to the snap points there are. Does
+   * nothing for a non-finite index, or while there are no snap points. */
   scrollTo(index: number): void;
   next(): void;
   prev(): void;
@@ -102,6 +103,8 @@ export function createDeck(
 
   const scrollTo = (index: number) => {
     const { points } = snapPoints(viewport);
+    // Nowhere to scroll to: a target set now would never clear either.
+    if (!Number.isFinite(index) || points.length === 0) return;
     const next = clamp(index, points.length);
     // A scroll to where the viewport already rests ends no scroll, so a
     // target set for it would never clear and would block every refresh.

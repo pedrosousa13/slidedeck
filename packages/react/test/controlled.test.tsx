@@ -226,6 +226,41 @@ describe('a controlled deck', () => {
     await expectSettledTo(() => viewport.scrollLeft, 2 * WIDTH);
   });
 
+  // These wait without reading layout: a layout read can itself unstick a
+  // deck that would otherwise stay put.
+  test('goes to index once slides arrive late in a deck that had none', async () => {
+    const { rerender } = render(<TestDeck slides={0} index={2} />);
+    const viewport = viewportOf(
+      screen.getByRole('region', { name: 'Test deck' })
+    );
+    await sleep(300);
+
+    rerender(<TestDeck slides={5} index={2} />);
+    await sleep(1500);
+
+    expect(viewport.scrollLeft).toBe(2 * WIDTH);
+  });
+
+  test('ignores an index that is not a number, so Next still steps', async () => {
+    const onIndexChange = vi.fn();
+    // One slide: nothing to scroll, so no scroll event clears a bad target.
+    const { rerender } = render(
+      <TestDeck slides={1} index={NaN} onIndexChange={onIndexChange} />
+    );
+    const viewport = viewportOf(
+      screen.getByRole('region', { name: 'Test deck' })
+    );
+    await sleep(300);
+    rerender(<TestDeck slides={5} index={NaN} onIndexChange={onIndexChange} />);
+    await sleep(500);
+
+    act(() => screen.getByRole('button', { name: 'Next' }).click());
+    await sleep(1500);
+
+    expect(viewport.scrollLeft).toBe(WIDTH);
+    expect(onIndexChange).toHaveBeenLastCalledWith(1);
+  });
+
   test('with reduced motion, an index change jumps', async () => {
     await setReducedMotion(true);
     const { viewport } = renderControlled();
