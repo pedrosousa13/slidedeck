@@ -51,8 +51,10 @@ export function Root({ defaultIndex = 0, onIndexChange, ...props }: RootProps) {
   });
 
   useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) throw new Error('Deck.Root must contain a Deck.Viewport');
     let index = initialIndex;
-    const engine = createDeck(viewportRef.current!, {
+    const engine = createDeck(viewport, {
       index,
       onChange(next) {
         setState(next);
@@ -80,7 +82,9 @@ export function Root({ defaultIndex = 0, onIndexChange, ...props }: RootProps) {
   );
 }
 
-const SlideContext = createContext({ index: 0, count: 0 });
+const SlideContext = createContext<{ index: number; count: number } | null>(
+  null
+);
 
 const viewportStyle: CSSProperties = {
   display: 'flex',
@@ -124,8 +128,10 @@ const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;
 
 /** One slide, labelled "n of m". Its size and alignment are consumer CSS. */
 export function Slide({ style, ...props }: ComponentProps<'div'>) {
-  const { index, count } = use(SlideContext);
   const { initialIndex } = useDeck('Slide');
+  const slide = use(SlideContext);
+  if (!slide) throw new Error('Deck.Slide must be inside Deck.Viewport');
+  const { index, count } = slide;
   return (
     <div
       role="group"

@@ -2,6 +2,7 @@ import { Profiler } from 'react';
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
+import * as Deck from '@slidedeck/react';
 import {
   expectSettledTo,
   gestureScroll,
@@ -309,4 +310,36 @@ test('scrolling re-renders React only when the current index changes', async () 
   await expectSettledTo(() => viewport.scrollLeft, WIDTH);
   expect(scrolls).toBeGreaterThan(5);
   expect(commits).toBe(1);
+});
+
+describe('misuse fails loudly', () => {
+  // React logs the error it rethrows; keep the run's output readable.
+  const quiet = () => vi.spyOn(console, 'error').mockImplementation(() => {});
+
+  test('a Root with no Viewport names the missing primitive', () => {
+    const spy = quiet();
+    try {
+      expect(() => render(<Deck.Root aria-label="Empty" />)).toThrow(
+        'Deck.Root must contain a Deck.Viewport'
+      );
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test('a Slide outside a Viewport names the missing primitive', () => {
+    const spy = quiet();
+    try {
+      expect(() =>
+        render(
+          <Deck.Root aria-label="Stray">
+            <Deck.Slide />
+            <Deck.Viewport />
+          </Deck.Root>
+        )
+      ).toThrow('Deck.Slide must be inside Deck.Viewport');
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });

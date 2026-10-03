@@ -4,7 +4,7 @@ import type { StorybookConfig } from '@storybook/react-vite';
 const config: StorybookConfig = {
   stories: ['../stories/**/*.stories.tsx'],
   framework: '@storybook/react-vite',
-  // Stories run the packages' source, not its built `dist`, so `storybook dev`
+  // Stories run the packages' source, not their built `dist`, so `storybook dev`
   // reflects an edit without a rebuild.
   viteFinal: (viteConfig) => ({
     ...viteConfig,
