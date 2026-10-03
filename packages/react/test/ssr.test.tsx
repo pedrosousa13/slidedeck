@@ -2,6 +2,7 @@ import { act, type ComponentProps } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { afterEach, expect, test, vi } from 'vitest';
+import * as Deck from '@slidedeck/react';
 import { nextFrame, TestDeck, viewportOf, WIDTH } from './fixtures';
 
 type DeckProps = ComponentProps<typeof TestDeck>;
@@ -108,3 +109,39 @@ test.each([
     expect(index).toBe(String(expected));
   }
 );
+
+// The server cannot count snap points: Dots render an empty group and the
+// counter an empty span, which hydration fills (ADR-0003's accepted shifts).
+test('Dots and Counter are empty in server HTML and fill on hydration', async () => {
+  const controls = (
+    <>
+      <Deck.Dots />
+      <Deck.Counter />
+    </>
+  );
+  let server: { dots: number; counter: string | null } | undefined;
+  const { viewport } = await hydrate(
+    { defaultIndex: 2, controls },
+    (viewport) => {
+      const root = viewport.closest('[data-index]')!;
+      server = {
+        dots: root.querySelectorAll('[aria-label="Choose page"] > button')
+          .length,
+        counter: root.querySelector('[data-slidedeck-counter]')!.textContent
+      };
+    },
+    { mayCorrect: true }
+  );
+
+  expect(server).toEqual({ dots: 0, counter: '' });
+  const root = viewport.closest('[data-index]')!;
+  expect(
+    root.querySelector('[aria-label="Choose page"]')!.children
+  ).toHaveLength(5);
+  expect(
+    root.querySelector('[aria-current="true"]')!.getAttribute('aria-label')
+  ).toBe('Go to page 3');
+  expect(root.querySelector('[data-slidedeck-counter]')!.textContent).toBe(
+    '3 / 5'
+  );
+});

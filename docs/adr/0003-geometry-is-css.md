@@ -26,3 +26,7 @@ paint may correct after hydration: server HTML can only start at a slide.
 A second accepted exception: the server cannot measure, so Prev and Next
 always render in server HTML, and hydration removes them when every slide fits.
 Layout shifts only in that case.
+
+A third, for the same reason: the server cannot count snap points, so Dots
+render an empty group and Counter an empty span in server HTML, and hydration
+fills them. Layout shifts when they take up space.
