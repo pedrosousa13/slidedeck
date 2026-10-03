@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "types": ["node", "@vitest/browser-playwright"],
+    "paths": { "@slidedeck/react": ["./src/index.tsx"] },
+    "tsBuildInfoFile": "dist/.tsbuildinfo.test"
+  },
+  "include": ["src", "test", "vite.config.ts"]
+}
