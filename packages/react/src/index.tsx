@@ -50,21 +50,28 @@ export interface RootHandle {
 
 export interface RootProps extends Omit<ComponentProps<'div'>, 'ref'> {
   ref?: Ref<RootHandle>;
+  /** The snap point to rest at, controlled like a React input's `value`: the
+   * deck scrolls to it when it changes. A scroll that settles elsewhere
+   * calls `onIndexChange`, and the deck returns to `index` unless the parent
+   * takes the new one. */
+  index?: number;
   /** The snap point to start at, clamped to the snap points there are.
    * Read once, on mount. */
   defaultIndex?: number;
-  /** Called once each time the viewport settles on a new snap point. */
+  /** Called once each time the viewport settles on a new snap point; never
+   * for a move to a controlled `index`. */
   onIndexChange?: (index: number) => void;
 }
 
 /** One deck: a labelled carousel region holding a viewport and its controls. */
 export function Root({
+  index,
   defaultIndex = 0,
   onIndexChange,
   ref,
   ...props
 }: RootProps) {
-  const [initialIndex] = useState(defaultIndex);
+  const [initialIndex] = useState(index ?? defaultIndex);
   const [state, setState] = useState<{
     index: number;
     count: number | null;
@@ -73,24 +80,33 @@ export function Root({
   const viewportRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<DeckEngine>(null);
   const onIndexChangeRef = useRef(onIndexChange);
+  const indexRef = useRef(index);
 
   useLayoutEffect(() => {
     onIndexChangeRef.current = onIndexChange;
+    indexRef.current = index;
   });
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) throw new Error('Deck.Root must contain a Deck.Viewport');
     // The first report is where the deck starts, not a change.
-    let index: number | undefined;
+    let settled: number | undefined;
     const engine = createDeck(viewport, {
       index: initialIndex,
       onChange(next) {
         setState(next);
-        if (index !== undefined && next.index !== index) {
+        // Controlled, a change is a settle anywhere but `index`, so a move
+        // to `index` never calls back.
+        const controlled = indexRef.current;
+        const from =
+          controlled === undefined
+            ? settled
+            : clampSlide(controlled, next.count);
+        if (settled !== undefined && next.index !== from) {
           onIndexChangeRef.current?.(next.index);
         }
-        index = next.index;
+        settled = next.index;
       }
     });
     engineRef.current = engine;
@@ -99,6 +115,17 @@ export function Root({
       engineRef.current = null;
     };
   }, [initialIndex]);
+
+  // Controlled, the deck rests at `index`: it follows a new one, and returns
+  // to it after a scroll the parent did not take, as a controlled input
+  // reverts an edit its parent ignores.
+  useLayoutEffect(() => {
+    if (index !== undefined && state.count !== null) {
+      if (clampSlide(index, state.count) !== state.index) {
+        engineRef.current?.scrollTo(index);
+      }
+    }
+  }, [index, state.index, state.count]);
 
   useImperativeHandle(
     ref,
