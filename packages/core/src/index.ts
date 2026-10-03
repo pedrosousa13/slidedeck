@@ -66,8 +66,15 @@ export function createDeck(
   // Set by any scroll, cleared when it ends. A position read mid-scroll is
   // not a settled one, so a refresh then waits for the scroll's end.
   let scrolling = false;
+  // Where `scrollend` is missing, a scroll has ended once no scroll event has
+  // come for this long (ADR-0006).
+  const hasScrollEnd = 'onscrollend' in window;
+  let quiet: ReturnType<typeof setTimeout> | undefined;
   const onScroll = () => {
     scrolling = true;
+    if (hasScrollEnd) return;
+    clearTimeout(quiet);
+    quiet = setTimeout(scrollEnded, SCROLL_END_DEBOUNCE_MS);
   };
 
   const scrollEnded = () => {
@@ -114,6 +121,7 @@ export function createDeck(
     prev: () => step(-1),
     refresh,
     destroy() {
+      clearTimeout(quiet);
       resizes.disconnect();
       viewport.removeEventListener('scroll', onScroll);
       viewport.removeEventListener('scrollsnapchange', scrollEnded);
@@ -121,6 +129,8 @@ export function createDeck(
     }
   };
 }
+
+const SCROLL_END_DEBOUNCE_MS = 100;
 
 const clamp = (index: number, count: number) =>
   Math.min(Math.max(index, 0), count - 1);
