@@ -11,10 +11,18 @@ import {
   WIDTH
 } from './fixtures';
 
-const renderWithRef = (props: Parameters<typeof TestDeck>[0] = {}) => {
+/** A deck with a ref, uncontrolled or, given `index`, controlled by a parent
+ * that never takes a new index. */
+const renderWithRef = ({ index }: { index?: number } = {}) => {
   const ref = createRef<Deck.RootHandle>();
   const onIndexChange = vi.fn();
-  render(<TestDeck ref={ref} onIndexChange={onIndexChange} {...props} />);
+  render(
+    index === undefined ? (
+      <TestDeck ref={ref} onIndexChange={onIndexChange} />
+    ) : (
+      <TestDeck ref={ref} index={index} onIndexChange={onIndexChange} />
+    )
+  );
   const root = screen.getByRole('region', { name: 'Test deck' });
   return { ref, viewport: viewportOf(root), onIndexChange };
 };
@@ -156,12 +164,14 @@ describe('a controlled deck', () => {
   });
 
   test('goes to index once slides arrive in a deck that had none', async () => {
-    const { rerender } = render(<TestDeck slides={0} index={2} />);
+    const { rerender } = render(
+      <TestDeck slides={0} index={2} onIndexChange={() => {}} />
+    );
     const viewport = viewportOf(
       screen.getByRole('region', { name: 'Test deck' })
     );
 
-    rerender(<TestDeck slides={5} index={2} />);
+    rerender(<TestDeck slides={5} index={2} onIndexChange={() => {}} />);
 
     await expectSettledTo(() => viewport.scrollLeft, 2 * WIDTH);
   });
@@ -213,6 +223,7 @@ describe('mixing controlled and uncontrolled warns in development', () => {
     const errors = spyOnErrors();
     const both = { index: 1, defaultIndex: 2, onIndexChange: () => {} };
 
+    // @ts-expect-error -- the types forbid both; a JS caller can pass them
     render(<TestDeck {...both} />);
 
     expect(errors).toHaveBeenCalledOnce();

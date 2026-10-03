@@ -53,20 +53,32 @@ export interface RootHandle {
   prev(): void;
 }
 
-export interface RootProps extends Omit<ComponentProps<'div'>, 'ref'> {
+interface RootBaseProps extends Omit<ComponentProps<'div'>, 'ref'> {
   ref?: Ref<RootHandle>;
-  /** The snap point to rest at, controlled like a React input's `value`: the
-   * deck scrolls to it when it changes. A scroll that settles elsewhere
-   * calls `onIndexChange`, and the deck returns to `index` unless the parent
-   * takes the new one. */
-  index?: number;
+}
+
+/** Controlled like a React input's `value`: the deck scrolls to `index` when
+ * it changes. A scroll that settles elsewhere calls `onIndexChange`, and the
+ * deck returns to `index` unless the parent takes the new one. */
+interface ControlledProps {
+  /** The snap point to rest at. */
+  index: number;
+  defaultIndex?: never;
+  /** Called once each time the viewport settles on a snap point other than
+   * `index`; never for a move to `index`. */
+  onIndexChange: (index: number) => void;
+}
+
+interface UncontrolledProps {
+  index?: never;
   /** The snap point to start at, clamped to the snap points there are.
    * Read once, on mount. */
   defaultIndex?: number;
-  /** Called once each time the viewport settles on a new snap point; never
-   * for a move to a controlled `index`. */
+  /** Called once each time the viewport settles on a new snap point. */
   onIndexChange?: (index: number) => void;
 }
+
+export type RootProps = RootBaseProps & (ControlledProps | UncontrolledProps);
 
 /** One deck: a labelled carousel region holding a viewport and its controls. */
 export function Root({
