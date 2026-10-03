@@ -177,7 +177,10 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
   );
 }
 
-/** One snap point means there is nowhere to step to. */
+/** One snap point means there is nowhere to step to. The server cannot
+ * measure, so it renders Prev and Next as if the slides overflow, the common
+ * case: a deck whose slides all fit drops them at hydration, which shifts
+ * layout. */
 const everySlideFits = (count: number | null) => count === 1;
 
 interface StepButtonProps extends ComponentProps<'button'> {
