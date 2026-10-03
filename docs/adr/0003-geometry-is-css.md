@@ -15,11 +15,14 @@ with no stylesheet. Appearance ships as an optional `theme.css`.
 Slide width and snap alignment are geometry, yet a deck with no stylesheet
 still needs them. They ship as zero-specificity `:where()` defaults, injected
 through React 19's `<style precedence>`, not inline: an inline style would
-beat consumer CSS, which owns geometry. React state also changes when the
-slide count changes, never on scroll.
+beat consumer CSS, which owns geometry. React state changes only when the
+current index or the slide count changes, never per scroll frame.
 
-The first server-rendered paint shows slide 0; a layout effect moves to
-`defaultIndex` before the browser paints, using `scroll-initial-target` where
-supported. No layout shift either way. Where several slides share a snap point,
-the first paint may correct after hydration: server HTML can only start at a
-slide.
+Server HTML rests at slide `defaultIndex` where `scroll-initial-target` is
+supported; elsewhere a layout effect moves there before the browser paints. No
+layout shift either way. Where several slides share a snap point, the first
+paint may correct after hydration: server HTML can only start at a slide.
+
+A second accepted exception: the server cannot measure, so Prev and Next
+always render in server HTML, and hydration removes them when every slide fits.
+Layout shifts only in that case.

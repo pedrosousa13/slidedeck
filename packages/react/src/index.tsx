@@ -85,6 +85,7 @@ export function Root({ defaultIndex = 0, onIndexChange, ...props }: RootProps) {
       <div
         role="region"
         aria-roledescription="carousel"
+        // Raw defaultIndex until measured: clamping needs the slide count.
         data-index={state.index}
         {...props}
       />
