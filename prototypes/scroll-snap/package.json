@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "measure": "playwright test -c playwright.config.ts"
+    "measure": "node -e \"fs.rmSync('measure-results',{recursive:true,force:true})\" && playwright test -c playwright.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
