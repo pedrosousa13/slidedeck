@@ -6,7 +6,7 @@ const stories = [
   'deck--peek',
   'deck--starting-index',
   'deck--controlled',
-  'deck--groups'
+  'deck--pages'
 ];
 
 for (const id of stories) {
@@ -79,10 +79,10 @@ test('a dot moves the deck to its page and the counter follows', async ({
   await expect(deck.getByText('3 / 6')).toBeVisible();
 });
 
-test('a grouped deck steps a page at a time, its group size set per breakpoint', async ({
+test('a paged deck steps a page at a time, its page size set per breakpoint', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--groups&viewMode=story');
+  await page.goto('/iframe.html?id=deck--pages&viewMode=story');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   await expect(deck.getByText('1 / 4')).toBeVisible();
 

@@ -96,13 +96,13 @@ export const Controlled: Story = { render: () => <ControlledDeck /> };
  * and Counter count pages. Each slide is still labelled "n of 10".
  *
  * Here one slide per page on narrow screens, and three in view, three to a
- * page, from 640px. Give both rules of a group size the same specificity, as
+ * page, from 640px. Give both rules of a page size the same specificity, as
  * below, so the one in a later media query overrides every slide's alignment.
  * Slidedeck re-reads the pages when the window resizes. The server cannot
- * measure, so it renders a page per slide, and a grouped deck corrects its
+ * measure, so it renders a page per slide, and a paged deck corrects its
  * Dots and Counter at hydration.
  */
-export const Groups: Story = {
+export const Pages: Story = {
   decorators: [
     (Story) => (
       <>
