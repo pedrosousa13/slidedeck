@@ -153,8 +153,40 @@ describe('Dots accessibility', () => {
 });
 
 describe('Dots state as data attributes', () => {
-  test('each dot carries data-index, and the current one data-current', async () => {
-    const { viewport, dots } = renderDeck();
+  test('the group carries data-slidedeck-dots, data-index and data-count', async () => {
+    const { viewport, group, dots } = renderDeck();
+    expect(group.getAttribute('data-slidedeck-dots')).toBe('');
+    expect(group.getAttribute('data-count')).toBe('5');
+    expect(group.getAttribute('data-index')).toBe('0');
+
+    await userEvent.click(dots()[3]);
+
+    await expectSettledTo(() => viewport.scrollLeft, 3 * WIDTH);
+    expect(group.getAttribute('data-index')).toBe('3');
+  });
+
+  test("a consumer's data attributes cannot overwrite the group's state", () => {
+    const { group } = renderDeck({
+      controls: (
+        <Deck.Dots
+          {...{
+            'data-index': 'x',
+            'data-count': 'y',
+            'data-slidedeck-dots': 'z'
+          }}
+        />
+      )
+    });
+
+    expect(group.getAttribute('data-index')).toBe('0');
+    expect(group.getAttribute('data-count')).toBe('5');
+    expect(group.getAttribute('data-slidedeck-dots')).toBe('');
+  });
+
+  // data-current marks the current slide (CONTEXT.md); a dot is a page, and
+  // the current one is styled with [aria-current].
+  test('each dot carries data-index, and none data-current', () => {
+    const { dots } = renderDeck();
 
     expect(dots().map((dot) => dot.getAttribute('data-index'))).toEqual([
       '0',
@@ -163,14 +195,6 @@ describe('Dots state as data attributes', () => {
       '3',
       '4'
     ]);
-    await userEvent.click(dots()[3]);
-    await expectSettledTo(() => viewport.scrollLeft, 3 * WIDTH);
-    expect(dots().map((dot) => dot.hasAttribute('data-current'))).toEqual([
-      false,
-      false,
-      false,
-      true,
-      false
-    ]);
+    expect(dots().some((dot) => dot.hasAttribute('data-current'))).toBe(false);
   });
 });
