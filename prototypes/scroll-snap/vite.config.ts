@@ -12,6 +12,7 @@ export default defineConfig({
     rolldownOptions: {
       input: {
         index: page('index'),
+        'loop-clone-jump': page('loop-clone-jump'),
         drag: page('drag')
       }
     }
