@@ -5,7 +5,8 @@ const stories = [
   'deck--default',
   'deck--peek',
   'deck--starting-index',
-  'deck--controlled'
+  'deck--controlled',
+  'deck--groups'
 ];
 
 for (const id of stories) {
@@ -13,7 +14,9 @@ for (const id of stories) {
     await page.goto(`/iframe.html?id=${id}&viewMode=story`);
     const deck = page.getByRole('region', { name: 'Featured slides' });
     await expect(deck).toBeVisible();
-    await expect(deck.getByRole('group', { name: '1 of 6' })).toBeAttached();
+    await expect(
+      deck.getByRole('group', { name: /^1 of \d+$/ })
+    ).toBeAttached();
 
     // Axe's default rule set, scoped to the deck rather than Storybook's own
     // iframe chrome, which is not ours to fix.
@@ -74,4 +77,23 @@ test('a dot moves the deck to its page and the counter follows', async ({
     dots.getByRole('button', { name: 'Go to page 3' })
   ).toHaveAttribute('aria-current', 'true');
   await expect(deck.getByText('3 / 6')).toBeVisible();
+});
+
+test('a grouped deck steps a page at a time, its group size set per breakpoint', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--groups&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  await expect(deck.getByText('1 / 4')).toBeVisible();
+
+  await deck.getByRole('button', { name: 'Next' }).click();
+
+  await expect(deck.getByRole('group', { name: '4 of 10' })).toBeInViewport({
+    ratio: 1
+  });
+  await expect(deck.getByText('2 / 4')).toBeVisible();
+
+  // Below the breakpoint, one slide per page.
+  await page.setViewportSize({ width: 400, height: 720 });
+  await expect(deck.getByText(/ \/ 10$/)).toBeVisible();
 });
