@@ -30,7 +30,12 @@ export const commonControls: Control[] = [
   { key: 'vertical', label: 'Vertical', values: ['0', '1'] },
   { key: 'rtl', label: 'RTL', values: ['0', '1'] },
   { key: 'drag', label: 'Mouse drag', values: ['1', '0'] },
-  { key: 'handoff', label: 'Drag handoff', values: ['scripted', 'restore'] }
+  { key: 'handoff', label: 'Drag handoff', values: ['scripted', 'restore'] },
+  {
+    key: 'guard',
+    label: 'Settle only on a snap point',
+    values: ['1', '0']
+  }
 ];
 
 export function param(control: Control): string {
@@ -53,6 +58,8 @@ export interface Technique {
   scroll?(): void;
   /** Extra HUD lines. */
   status?(): string;
+  /** Jump instantly to real slide `index`; defaults to its start edge. */
+  goTo?(index: number): void;
   /** Whether hitting the physical scroll edge mid-motion counts as a fault. */
   loops: boolean;
 }
@@ -79,8 +86,16 @@ export interface Metrics {
   /** Signed visual distance moved, in slides. */
   travel: number;
   settles: number;
+  /** Settles ignored because the scroller was not on a snap point. */
+  deferred: number;
   /** Clone jumps or rotations the technique performed. */
   corrections: number;
+  /**
+   * Largest visual shift a correction caused, in slides, measured in the
+   * same task as the correction. 0 means the jump landed on identical
+   * content; anything else is a visible jump.
+   */
+  correctionError: number;
   /** Times focus fell to <body> because the technique moved a node. */
   focusLost: number;
 }
@@ -98,6 +113,7 @@ export interface Probe {
   idleFor(): number;
   pageExtent(): number;
   by(px: number): void;
+  goTo(index: number): void;
   n: number;
   pageSize: number;
   settleSource: string;
@@ -196,14 +212,27 @@ export function setupPage(spec: PageSpec): void {
     edgeHits: 0,
     travel: 0,
     settles: 0,
+    deferred: 0,
     corrections: 0,
+    correctionError: 0,
     focusLost: 0
   };
   const technique = spec.build(deck, value, m);
+  const snapError = () =>
+    Math.min(...snapPoints(deck).map((p) => Math.abs(p - deck.axis.pos)));
 
   let drag: Drag | undefined;
+  // A settle event can arrive while the scroller is between snap points
+  // (WebKit fires `scrollend` mid wheel flick). A correction there is a
+  // programmatic scroll, which the browser snaps: a visible jump. With the
+  // guard on, wait for a settle that rests on a snap point.
+  const guard = value('guard') === '1';
   const emit = () => {
     m.settles++;
+    if (guard && snapError() > 1) {
+      m.deferred++;
+      return;
+    }
     technique.settle();
   };
   if (value('drag') === '1') {
@@ -267,7 +296,9 @@ export function setupPage(spec: PageSpec): void {
       edgeHits: 0,
       travel: 0,
       settles: 0,
+      deferred: 0,
       corrections: 0,
+      correctionError: 0,
       focusLost: 0
     });
     last = technique.logical();
@@ -280,11 +311,18 @@ export function setupPage(spec: PageSpec): void {
     focal: technique.focal,
     pos: () => axis.pos,
     max: () => axis.max,
-    snapError: () =>
-      Math.min(...snapPoints(deck).map((p) => Math.abs(p - axis.pos))),
+    snapError,
     idleFor: () => performance.now() - lastScroll,
     pageExtent,
     by: (px) => axis.smoothBy(px),
+    goTo:
+      technique.goTo ??
+      ((index) => {
+        const el = deck.track.querySelector(
+          `.slide[data-index="${index}"]:not([data-clone])`
+        )!;
+        axis.pos = axis.pos + axis.offset(el);
+      }),
     n: deck.n,
     pageSize: deck.pageSize,
     settleSource,
@@ -305,14 +343,14 @@ export function setupPage(spec: PageSpec): void {
     `moveBefore ${'moveBefore' in Element.prototype ? 'yes' : 'no'}`,
     `scroll-driven animations ${CSS.supports('animation-timeline: scroll()') ? 'yes' : 'no'}`
   ].join(' · ');
-  const suspect = () => m.maxAccel > 0.25 || m.edgeHits > 0;
+  const suspect = () => m.correctionError > 0.005 || m.edgeHits > 0;
   setInterval(() => {
     const release = drag?.lastRelease;
     hud.classList.toggle('warn', suspect());
     hud.textContent = [
       `slide ${technique.focal() + 1} / ${deck.n} · logical ${technique.logical().toFixed(2)}`,
-      `settles ${m.settles} · corrections ${m.corrections} · focus lost ${m.focusLost}`,
-      `max step ${m.maxStep.toFixed(2)} · max accel ${m.maxAccel.toFixed(2)} · edge hits ${m.edgeHits}${suspect() ? '  << POSSIBLE JUMP' : ''}`,
+      `settles ${m.settles} (deferred ${m.deferred}) · corrections ${m.corrections} · focus lost ${m.focusLost}`,
+      `correction error ${m.correctionError.toFixed(3)} · edge hits ${m.edgeHits} · max step ${m.maxStep.toFixed(2)}${suspect() ? '  << JUMP' : ''}`,
       release
         ? `last drag release ${release.velocity.toFixed(2)} px/ms → ${release.target ?? 'browser snap'}`
         : 'no drag yet',
@@ -328,3 +366,17 @@ export function setupPage(spec: PageSpec): void {
 export const focalIndex = (deck: Deck) =>
   Number(nearestSlide(deck).dataset.index);
 export const logicalOf = (deck: Deck) => logicalPosition(deck);
+
+/**
+ * Run a loop correction (`change` returns whether it changed anything) and
+ * record how far it moved the content visually.
+ */
+export function measured(deck: Deck, m: Metrics, change: () => boolean) {
+  const before = logicalPosition(deck);
+  if (!change()) return;
+  m.corrections++;
+  const half = deck.n / 2;
+  const d = logicalPosition(deck) - before;
+  const shift = Math.abs(((((d + half) % deck.n) + deck.n) % deck.n) - half);
+  m.correctionError = Math.max(m.correctionError, shift);
+}

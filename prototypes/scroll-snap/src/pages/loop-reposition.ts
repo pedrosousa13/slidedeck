@@ -11,7 +11,7 @@
 // reading order disagree.
 
 import { makeSlide, nearestSlide, type Deck } from '../deck';
-import { focalIndex, logicalOf, setupPage } from '../page';
+import { focalIndex, logicalOf, measured, setupPage } from '../page';
 
 setupPage({
   title: 'Loop: reposition',
@@ -37,13 +37,14 @@ setupPage({
     };
 
     /** Rotate so the focal slot is the middle; `slack` slots of tolerance. */
-    const rotate = (slack: number) => {
+    const rotate = (slack: number) => measured(deck, m, () => turn(slack));
+    const turn = (slack: number) => {
       const focal = nearestSlide(deck, order);
       const slot = order.indexOf(focal);
       let shift = slot - center;
-      if (Math.abs(shift) <= slack) return;
+      if (Math.abs(shift) <= slack) return false;
       shift = Math.trunc(shift / pageSize) * pageSize;
-      if (shift === 0) return;
+      if (shift === 0) return false;
       const hadFocus = track.contains(document.activeElement);
       const before = axis.offset(focal);
       if (shift > 0) {
@@ -60,8 +61,8 @@ setupPage({
       }
       if (byOrder) place();
       axis.pos = axis.pos + axis.offset(focal) - before;
-      m.corrections++;
       if (hadFocus && document.activeElement === document.body) m.focusLost++;
+      return true;
     };
 
     axis.pos = axis.pos + axis.offset(real[0]);
