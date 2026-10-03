@@ -311,11 +311,11 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
   );
 }
 
-/** One snap point means there is nowhere to step to. The server cannot
- * measure, so it renders Prev and Next as if the slides overflow, the common
- * case: a deck whose slides all fit drops them at hydration, which shifts
- * layout. */
-const everySlideFits = (count: number | null) => count === 1;
+/** One snap point, or none, means there is nowhere to go: Prev, Next, Dots
+ * and Counter are then absent. The server cannot measure, so it renders Prev
+ * and Next as if the slides overflow, the common case: a deck whose slides all
+ * fit drops them at hydration, which shifts layout. */
+const everySlideFits = (count: number | null) => count !== null && count <= 1;
 
 interface StepButtonProps extends ComponentProps<'button'> {
   atEnd: boolean;
@@ -415,10 +415,12 @@ export function Dots(props: Omit<ComponentProps<'div'>, 'children'>) {
 
 /** The current page and the total, as "3 / 10": counts snap points, as Dots
  * do. Empty until the viewport is measured, as the server cannot count snap
- * points. Not a live region: each slide is already labelled "n of m". Its
- * data attributes are the deck's state, which a consumer's cannot overwrite. */
+ * points; absent when every slide fits. Not a live region: each slide is
+ * already labelled "n of m". Its data attributes are the deck's state, which
+ * a consumer's cannot overwrite. */
 export function Counter(props: Omit<ComponentProps<'span'>, 'children'>) {
   const { index, count } = useDeck('Counter');
+  if (everySlideFits(count)) return null;
   const measured = count !== null;
   return (
     <span

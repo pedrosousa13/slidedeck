@@ -116,6 +116,12 @@ describe('Dots', () => {
 
     expect(screen.queryByRole('group', { name: 'Choose page' })).toBeNull();
   });
+
+  test('are absent with no slides, so no snap points', () => {
+    render(<TestDeck slides={0} controls={<Deck.Dots />} />);
+
+    expect(screen.queryByRole('group', { name: 'Choose page' })).toBeNull();
+  });
 });
 
 describe('Dots accessibility', () => {

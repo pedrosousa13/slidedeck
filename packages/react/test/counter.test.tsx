@@ -59,3 +59,13 @@ test("a consumer's data attributes cannot overwrite the counter's state", () => 
   expect(counter.getAttribute('data-count')).toBe('5');
   expect(counter.getAttribute('data-slidedeck-counter')).toBe('');
 });
+
+// As Prev, Next and Dots are: "1 / 1" and "1 / 0" say nothing.
+test.each([1, 0])(
+  'the counter is absent when every slide fits, as with %i slide(s)',
+  (slides) => {
+    render(<TestDeck slides={slides} controls={<Deck.Counter />} />);
+
+    expect(document.querySelector('[data-slidedeck-counter]')).toBeNull();
+  }
+);
