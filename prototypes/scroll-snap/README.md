@@ -32,8 +32,20 @@ pnpm --filter @slidedeck/proto-scroll-snap preview  # serve dist/ on :4173
 ```
 
 `dist/` is plain HTML, JS and CSS with relative asset paths: it works served
-from any origin root or subpath. To open it on a phone on the same network,
-add `--host` to `dev` or `preview`.
+from any origin root or subpath.
+
+### On a phone (local network only)
+
+The prototype is not deployed anywhere. To open it on an iPhone, run this in
+`~/apps/slidedeck`:
+
+```sh
+pnpm --filter @slidedeck/proto-scroll-snap serve
+```
+
+It builds `dist/` and serves it on port 4317 on all interfaces. On the
+iPhone, on the same Wi-Fi, open `http://<machine LAN IP>:4317/`. Find the
+LAN IP with `hostname -I` (Linux) or `ipconfig getifaddr en0` (macOS).
 
 ## Measure it
 
