@@ -10,12 +10,8 @@ export interface DeckState {
 }
 
 export interface DeckOptions {
-  /**
-   * The child of the viewport to start at. The deck starts at the snap point
-   * that slide rests at, which is where `scroll-initial-target` on it puts
-   * the viewport; several slides can share one snap point.
-   */
-  start: number;
+  /** The snap point to start at, clamped to the snap points there are. */
+  index: number;
   /** Called when the current index, the snap point count or the current
    * slide changes. */
   onChange: (state: DeckState) => void;
@@ -97,10 +93,12 @@ export function createDeck(
     });
   };
 
-  // Where the server HTML already rests if the browser honoured
-  // `scroll-initial-target`; scrolling there is then a no-op.
-  const { points, slides } = snapPoints(viewport);
-  const start = points[Math.max(slides[options.start] ?? 0, 0)] ?? 0;
+  // With one slide per snap point, server HTML already rests here where the
+  // browser honours `scroll-initial-target`, and this scroll is a no-op.
+  // Where slides share snap points, slide `index` may rest at another snap
+  // point, so the first paint may correct: server HTML cannot measure.
+  const { points } = snapPoints(viewport);
+  const start = points[clamp(options.index, points.length)] ?? 0;
   if (Math.abs(viewport.scrollLeft - start) >= 1) {
     viewport.scrollTo({ left: start, behavior: 'instant' });
   }

@@ -35,11 +35,8 @@ function useDeck(primitive: string): DeckContextValue {
 }
 
 export interface RootProps extends ComponentProps<'div'> {
-  /**
-   * The slide to start at, clamped to the slides there are: the deck starts
-   * at the snap point that slide rests at. With one slide per snap point,
-   * that is the snap point at this index. Read once, on mount.
-   */
+  /** The snap point to start at, clamped to the snap points there are.
+   * Read once, on mount. */
   defaultIndex?: number;
   /** Called once each time the viewport settles on a new snap point. */
   onIndexChange?: (index: number) => void;
@@ -67,7 +64,7 @@ export function Root({ defaultIndex = 0, onIndexChange, ...props }: RootProps) {
     // The first report is where the deck starts, not a change.
     let index: number | undefined;
     const engine = createDeck(viewport, {
-      start: clampSlide(initialIndex, viewport.children.length),
+      index: initialIndex,
       onChange(next) {
         setState(next);
         if (index !== undefined && next.index !== index) {
@@ -169,6 +166,7 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
         flexShrink: 0,
         // Server HTML paints at defaultIndex before any script runs, where
         // supported; elsewhere Root's layout effect scrolls before paint.
+        // Exact with one slide per snap point; see createDeck's mount.
         ...(start && initialTarget),
         ...style
       }}

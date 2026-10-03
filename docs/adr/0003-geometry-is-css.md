@@ -20,4 +20,6 @@ slide count changes, never on scroll.
 
 The first server-rendered paint shows slide 0; a layout effect moves to
 `defaultIndex` before the browser paints, using `scroll-initial-target` where
-supported. No layout shift either way.
+supported. No layout shift either way. Where several slides share a snap point,
+the first paint may correct after hydration: server HTML can only start at a
+slide.

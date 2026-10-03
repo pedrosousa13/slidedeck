@@ -49,10 +49,9 @@ counter count pages; with one slide per snap point, a page is a slide.
 _Avoid_: group, set
 
 **Current index**:
-The index of the snap point the viewport is resting at. What `index` and
-`onIndexChange` refer to. `defaultIndex` names a slide instead, because server
-HTML can only start at a slide: the deck starts at the snap point that slide
-rests at. With one slide per snap point the two are the same.
+The index of the snap point the viewport is resting at. What `index`,
+`defaultIndex` and `onIndexChange` refer to. Where several slides share a snap
+point, the first paint of a server-rendered `defaultIndex` may correct.
 _Avoid_: active slide, selected slide
 
 **Current slide**:
