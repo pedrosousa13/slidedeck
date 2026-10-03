@@ -171,6 +171,19 @@ describe('a controlled deck', () => {
     expect(onIndexChange.mock.calls).toEqual([[1]]);
   });
 
+  test('Prev and Next fire onIndexChange and return to index when the parent ignores it', async () => {
+    const { viewport, onIndexChange } = renderWithRef({ index: 2 });
+
+    act(() => screen.getByRole('button', { name: 'Next' }).click());
+    await expect.poll(() => onIndexChange.mock.calls).toEqual([[3]]);
+    await expectSettledTo(() => viewport.scrollLeft, 2 * WIDTH);
+    act(() => screen.getByRole('button', { name: 'Previous' }).click());
+    await expect.poll(() => onIndexChange.mock.calls).toEqual([[3], [1]]);
+    await expectSettledTo(() => viewport.scrollLeft, 2 * WIDTH);
+
+    expect(onIndexChange.mock.calls).toEqual([[3], [1]]);
+  });
+
   test('the handle moves it and fires onIndexChange for the parent to take', async () => {
     const { ref, viewport, onIndexChange } = renderControlled();
 
