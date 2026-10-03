@@ -250,6 +250,33 @@ describe('mixing controlled and uncontrolled warns in development', () => {
     );
   });
 
+  test('once per deck, when given index without onIndexChange', () => {
+    const errors = spyOnErrors();
+    const first = render(<TestDeck index={1} />);
+    const second = render(<TestDeck index={1} />);
+
+    first.rerender(<TestDeck index={2} />);
+    second.rerender(<TestDeck index={2} />);
+
+    expect(errors).toHaveBeenCalledTimes(2);
+    for (const [message] of errors.mock.calls) {
+      expect(message).toMatch(/index without onIndexChange/);
+    }
+  });
+
+  test('once for each kind of mistake, not once in all', () => {
+    const errors = spyOnErrors();
+    const { rerender } = render(<TestDeck />);
+
+    rerender(<TestDeck index={1} />);
+    rerender(<TestDeck index={2} />);
+
+    expect(errors.mock.calls.map(([message]) => message)).toEqual([
+      expect.stringMatching(/uncontrolled deck to be controlled/),
+      expect.stringMatching(/index without onIndexChange/)
+    ]);
+  });
+
   test('not at all for a deck that stays one or the other', () => {
     const errors = spyOnErrors();
     const { rerender } = render(<TestDeck defaultIndex={1} />);

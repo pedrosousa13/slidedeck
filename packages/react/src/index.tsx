@@ -66,8 +66,9 @@ interface ControlledProps {
   index: number;
   defaultIndex?: never;
   /** Called once each time the viewport settles on a snap point other than
-   * `index`; never for a move to `index`. */
-  onIndexChange: (index: number) => void;
+   * `index`; never for a move to `index`. Without it, every scroll returns
+   * to `index`, and development warns. */
+  onIndexChange?: (index: number) => void;
 }
 
 interface UncontrolledProps {
@@ -92,7 +93,7 @@ export function Root({
   const [initialIndex] = useState(index ?? defaultIndex ?? 0);
   if (process.env.NODE_ENV !== 'production') {
     // eslint-disable-next-line react-hooks/rules-of-hooks -- the condition is constant for a build
-    useMixedUsageWarning(index, defaultIndex);
+    useDevWarnings(index, defaultIndex, onIndexChange);
   }
   const [state, setState] = useState<{
     index: number;
@@ -172,35 +173,54 @@ export function Root({
   );
 }
 
-/** Warns, once per deck, about mixing controlled and uncontrolled usage, as
- * React does for an input's `value` and `defaultValue`. */
-function useMixedUsageWarning(
+/** Warns about controlled-deck mistakes, as React does for an input's
+ * `value`: once per deck instance for each kind, so one warning never hides
+ * another. */
+function useDevWarnings(
   index: number | undefined,
-  defaultIndex: number | undefined
+  defaultIndex: number | undefined,
+  onIndexChange: ((index: number) => void) | undefined
 ) {
   const controlled = index !== undefined;
   const [wasControlled] = useState(controlled);
   const both = controlled && defaultIndex !== undefined;
-  const warned = useRef(false);
+  const switched = controlled !== wasControlled;
+  const readOnly = controlled && onIndexChange === undefined;
+  const warned = useRef(new Set<string>());
   useEffect(() => {
-    if (warned.current) return;
-    const message = both
-      ? 'Deck.Root takes either index or defaultIndex, not both. Pass index ' +
-        'with onIndexChange for a controlled deck, or defaultIndex for an ' +
-        'uncontrolled one.'
-      : controlled !== wasControlled
-        ? `Deck.Root is changing ${
-            wasControlled
-              ? 'a controlled deck to be uncontrolled'
-              : 'an uncontrolled deck to be controlled'
-          }. A deck should not switch between the two: choose index or ` +
-          'defaultIndex for its whole life.'
-        : null;
-    if (message) {
-      warned.current = true;
+    const warn = (kind: string, message: string) => {
+      if (warned.current.has(kind)) return;
+      warned.current.add(kind);
       console.error(message);
+    };
+    if (both) {
+      warn(
+        'both',
+        'Deck.Root takes either index or defaultIndex, not both. Pass index ' +
+          'with onIndexChange for a controlled deck, or defaultIndex for an ' +
+          'uncontrolled one.'
+      );
     }
-  }, [both, controlled, wasControlled]);
+    if (switched) {
+      warn(
+        'switched',
+        `Deck.Root is changing ${
+          wasControlled
+            ? 'a controlled deck to be uncontrolled'
+            : 'an uncontrolled deck to be controlled'
+        }. A deck should not switch between the two: choose index or ` +
+          'defaultIndex for its whole life.'
+      );
+    }
+    if (readOnly) {
+      warn(
+        'readOnly',
+        'Deck.Root was given index without onIndexChange, so a scroll will ' +
+          'return the deck to index. Pass onIndexChange to follow the ' +
+          'scroll, or defaultIndex for an uncontrolled deck.'
+      );
+    }
+  }, [both, switched, readOnly, wasControlled]);
 }
 
 const SlideContext = createContext<{ index: number; count: number } | null>(

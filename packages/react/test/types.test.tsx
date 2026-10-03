@@ -8,16 +8,16 @@ import * as Deck from '@slidedeck/react';
 const noop = (index: number) => void index;
 const Root = Deck.Root;
 
-test('a deck is uncontrolled, or controlled with onIndexChange', () => {
+test('a deck is uncontrolled, or controlled', () => {
   void (<Root />);
   void (<Root defaultIndex={1} />);
   void (<Root defaultIndex={1} onIndexChange={noop} />);
   void (<Root index={1} onIndexChange={noop} />);
+  // Allowed, as a read-only input is: development warns instead.
+  void (<Root index={1} />);
 
   // @ts-expect-error -- index and defaultIndex are either-or
   void (<Root index={1} defaultIndex={1} onIndexChange={noop} />);
-  // @ts-expect-error -- a controlled deck needs onIndexChange
-  void (<Root index={1} />);
   // @ts-expect-error -- an index is a number
   void (<Root index="1" onIndexChange={noop} />);
 });
