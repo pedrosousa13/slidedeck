@@ -7,5 +7,6 @@
     "paths": { "@slidedeck/react": ["./src/index.tsx"] },
     "tsBuildInfoFile": "dist/.tsbuildinfo.test"
   },
+  "references": [{ "path": "../core" }],
   "include": ["src", "test", "vite.config.ts"]
 }

@@ -24,13 +24,15 @@ export default defineConfig({
   },
   test: {
     include: ['packages/*/test/**/*.test.{ts,tsx}'],
+    setupFiles: ['packages/react/test/setup.ts'],
     // A real browser, not a DOM emulation: a scroll-snap carousel is layout
     // and scrolling, which happy-dom and jsdom do not implement.
     browser: {
       enabled: true,
       headless: true,
       instances: [{ browser: 'chromium' }],
-      provider: playwright()
+      // Touch-enabled so a test can swipe with real CDP touch events.
+      provider: playwright({ contextOptions: { hasTouch: true } })
     }
   }
 });

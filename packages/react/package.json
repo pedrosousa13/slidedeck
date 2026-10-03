@@ -25,6 +25,9 @@
     "access": "public",
     "provenance": true
   },
+  "dependencies": {
+    "@slidedeck/core": "workspace:*"
+  },
   "peerDependencies": {
     "react": ">=19 <20",
     "react-dom": ">=19 <20"

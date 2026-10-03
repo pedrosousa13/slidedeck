@@ -4,7 +4,7 @@ import type { StorybookConfig } from '@storybook/react-vite';
 const config: StorybookConfig = {
   stories: ['../stories/**/*.stories.tsx'],
   framework: '@storybook/react-vite',
-  // Stories run the package source, not its built `dist`, so `storybook dev`
+  // Stories run the packages' source, not their built `dist`, so `storybook dev`
   // reflects an edit without a rebuild.
   viteFinal: (viteConfig) => ({
     ...viteConfig,
@@ -12,6 +12,9 @@ const config: StorybookConfig = {
       ...viteConfig.resolve,
       alias: {
         ...viteConfig.resolve?.alias,
+        '@slidedeck/core': fileURLToPath(
+          new URL('../../../packages/core/src/index.ts', import.meta.url)
+        ),
         '@slidedeck/react': fileURLToPath(
           new URL('../../../packages/react/src/index.tsx', import.meta.url)
         )

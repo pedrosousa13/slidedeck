@@ -1,0 +1,110 @@
+import { act, type ComponentProps } from 'react';
+import { hydrateRoot } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
+import { afterEach, expect, test, vi } from 'vitest';
+import { nextFrame, TestDeck, viewportOf, WIDTH } from './fixtures';
+
+type DeckProps = ComponentProps<typeof TestDeck>;
+
+const rectsOf = (elements: Element[]) =>
+  elements.map((el) => el.getBoundingClientRect().toJSON());
+
+/**
+ * Paints the server HTML for `props`, then hydrates it, checking that
+ * nothing moved unless `mayCorrect`. `atServer` reads the viewport before
+ * any script has run.
+ */
+async function hydrate(
+  props: DeckProps,
+  atServer: (v: HTMLElement) => void = () => {},
+  { mayCorrect = false } = {}
+) {
+  const container = document.createElement('div');
+  container.innerHTML = renderToString(<TestDeck {...props} />);
+  document.body.append(container);
+  const viewport = viewportOf(container);
+  atServer(viewport);
+  await nextFrame();
+  const slides = [...viewport.children];
+  const before = rectsOf([container, ...slides]);
+
+  const shifts: PerformanceEntry[] = [];
+  const observer = new PerformanceObserver((list) =>
+    shifts.push(...list.getEntries())
+  );
+  observer.observe({ type: 'layout-shift' });
+  const onRecoverableError = vi.fn();
+  const onIndexChange = vi.fn();
+
+  await act(async () => {
+    hydrateRoot(
+      container,
+      <TestDeck {...props} onIndexChange={onIndexChange} />,
+      { onRecoverableError }
+    );
+  });
+  await nextFrame();
+  await nextFrame();
+  shifts.push(...observer.takeRecords());
+  observer.disconnect();
+
+  expect(onRecoverableError).not.toHaveBeenCalled();
+  if (!mayCorrect) {
+    expect(shifts).toEqual([]);
+    expect(rectsOf([container, ...slides])).toEqual(before);
+  }
+  expect(onIndexChange).not.toHaveBeenCalled();
+  return {
+    viewport,
+    index: viewport.closest('[data-index]')?.getAttribute('data-index')
+  };
+}
+
+test('server-rendered output starting at defaultIndex shows no layout shift', async () => {
+  const { viewport, index } = await hydrate({ defaultIndex: 2 }, (viewport) =>
+    // Before any script runs, the server HTML alone is at defaultIndex.
+    expect(viewport.scrollLeft).toBe(2 * WIDTH)
+  );
+
+  expect(viewport.scrollLeft).toBe(2 * WIDTH);
+  expect(index).toBe('2');
+});
+
+let removeStyle = () => {};
+afterEach(() => removeStyle());
+
+// 3.5 centred slides in view: slides 0 and 1 both rest at scroll 0, and
+// slides 3 and 4 at the end of the range, so 5 slides give 3 snap points.
+// Server HTML can only start at slide `defaultIndex`, so the first paint may
+// correct; the deck must still end on snap point `defaultIndex`, silently.
+test.each([
+  { defaultIndex: 1, index: 1 },
+  { defaultIndex: 10, index: 2 }
+])(
+  'with snap points shared by several slides, defaultIndex $defaultIndex ends on snap point $index',
+  async ({ defaultIndex, index: expected }) => {
+    const style = document.createElement('style');
+    style.textContent = `.centred > * { width: calc(100% / 3.5); scroll-snap-align: center; }`;
+    document.head.append(style);
+    removeStyle = () => style.remove();
+
+    const { viewport, index } = await hydrate(
+      { defaultIndex, viewportClassName: 'centred' },
+      undefined,
+      { mayCorrect: true }
+    );
+
+    // Snap points 0, 1 and 2 are scroll 0, slide 2 centred, and the end.
+    const max = viewport.scrollWidth - viewport.clientWidth;
+    const box = viewport.children[2].getBoundingClientRect();
+    const centred =
+      viewport.scrollLeft +
+      box.left +
+      box.width / 2 -
+      viewport.getBoundingClientRect().left -
+      WIDTH / 2;
+    const points = [0, centred, max];
+    expect(Math.abs(viewport.scrollLeft - points[expected])).toBeLessThan(1);
+    expect(index).toBe(String(expected));
+  }
+);

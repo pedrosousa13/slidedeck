@@ -50,7 +50,13 @@ _Avoid_: group, set
 
 **Current index**:
 The index of the snap point the viewport is resting at. What `index`,
-`defaultIndex` and `onIndexChange` refer to.
+`defaultIndex` and `onIndexChange` refer to. Where several slides share a snap
+point, the first paint of a server-rendered `defaultIndex` may correct.
+_Avoid_: active slide, selected slide
+
+**Current slide**:
+The first slide resting at the current index's snap point, marked
+`data-current`. With one slide per snap point, the slide at the current index.
 _Avoid_: active slide, selected slide
 
 **Focal slide**:
