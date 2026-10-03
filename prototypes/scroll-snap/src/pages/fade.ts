@@ -1,8 +1,8 @@
 // THROWAWAY (#3). Fade that keeps native scrolling.
 //
 // Empty snap targets, one per slide, give the viewport its scroll length
-// and snap points. The slides are stacked in one grid cell with
-// `position: sticky`, so they never leave the viewport; each slide's
+// and snap points. The slides are stacked with `position: sticky` in a grid
+// area spanning the whole track, so they never leave the viewport; each slide's
 // opacity follows scroll progress: 1 - |progress - index|.
 //
 // `js` sets opacity from a scroll listener. `css` uses a view timeline per
@@ -42,11 +42,15 @@ setupPage({
       const target = document.createElement('div');
       target.className = 'target';
       target.setAttribute('aria-hidden', 'true');
-      target.style[vertical ? 'gridRow' : 'gridColumn'] = String(i + 1);
+      target.style.gridArea = vertical ? `${i + 1} / 1` : `1 / ${i + 1}`;
       targets.push(target);
       slides.push(makeSlide(i, deck));
     }
     track.append(...targets, ...slides);
+    track.style.setProperty('--slides', String(n));
+    for (const slide of slides) {
+      slide.style[vertical ? 'gridRow' : 'gridColumn'] = `1 / span ${n}`;
+    }
 
     const progress = () => axis.pos / axis.viewSize;
     const css = value('driver') === 'css' && cssTimelines;
@@ -104,6 +108,9 @@ setupPage({
       logical: progress,
       focal,
       settle: hide,
+      goTo: (index) => {
+        axis.pos = index * axis.viewSize;
+      },
       status: () => describe(deck, css, value('driver'))
     };
   }

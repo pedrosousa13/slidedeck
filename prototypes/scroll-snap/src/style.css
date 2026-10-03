@@ -143,32 +143,41 @@ h1 {
 
 /* Fade: snap targets give the scroll length; the slides are stacked in one
    grid cell and stuck to the viewport's start edge. */
+/* The track is as long as the scroll range: a sticky box is held inside its
+   parent's box, and an overflowing grid does not grow that box. */
 .fade .track {
   display: grid;
-  grid-auto-flow: column;
+  width: calc(100% * var(--slides));
+  grid-template-columns: repeat(var(--slides), 1fr);
   grid-template-rows: 100%;
-  grid-auto-columns: 100%;
 }
 .fade.vertical .track {
-  grid-auto-flow: row;
-  grid-template-rows: none;
+  width: auto;
+  height: calc(100% * var(--slides));
   grid-template-columns: 100%;
-  grid-auto-rows: 100%;
+  grid-template-rows: repeat(var(--slides), 1fr);
 }
 .fade .target {
   scroll-snap-align: start;
 }
+/* A sticky grid item sticks within its grid area, so each slide's area spans
+   every column (JS sets the span) and the slide is one column wide. */
 .fade .slide {
-  grid-area: 1 / 1;
+  grid-row: 1;
+  justify-self: start;
   position: sticky;
   inset-inline-start: 0;
-  width: 100%;
+  width: calc(100% / var(--slides));
   height: 100%;
   scroll-snap-align: none;
 }
 .fade.vertical .slide {
+  grid-column: 1;
+  align-self: start;
   inset-inline-start: auto;
   top: 0;
+  width: 100%;
+  height: calc(100% / var(--slides));
 }
 @keyframes fade-through {
   0%,
