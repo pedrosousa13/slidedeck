@@ -9,3 +9,6 @@ playwright-report/
 test-results/
 *.tsbuildinfo
 .turbo/
+# Written by vitest browser mode when a test fails.
+.vitest-attachments/
+__screenshots__/

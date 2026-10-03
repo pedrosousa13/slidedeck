@@ -1,0 +1,101 @@
+import type { ComponentProps } from 'react';
+import { expect } from 'vitest';
+import { cdp } from 'vitest/browser';
+import * as Deck from '@slidedeck/react';
+
+/** Viewport width every fixture deck uses, so snap points are predictable. */
+export const WIDTH = 300;
+
+type TestDeckProps = ComponentProps<typeof Deck.Root> & {
+  slides?: number;
+  viewportClassName?: string;
+};
+
+/** A deck with no stylesheet: only the consumer's viewport width. */
+export function TestDeck({
+  slides = 5,
+  viewportClassName,
+  ...props
+}: TestDeckProps) {
+  return (
+    <Deck.Root aria-label="Test deck" {...props}>
+      <Deck.Prev />
+      <Deck.Viewport className={viewportClassName} style={{ width: WIDTH }}>
+        {Array.from({ length: slides }, (_, i) => (
+          <Deck.Slide key={i}>
+            <button type="button">Button {i + 1}</button>
+          </Deck.Slide>
+        ))}
+      </Deck.Viewport>
+      <Deck.Next />
+    </Deck.Root>
+  );
+}
+
+export const sleep = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+export const nextFrame = () =>
+  new Promise((resolve) => requestAnimationFrame(resolve));
+
+/**
+ * Waits until `read()` equals `expected`, then a while longer, and checks it
+ * still does: proves "exactly this", not "this so far".
+ */
+export async function expectSettledTo<T>(read: () => T, expected: T) {
+  await expect.poll(read, { timeout: 3000 }).toEqual(expected);
+  await sleep(400);
+  expect(read()).toEqual(expected);
+}
+
+export const viewportOf = (root: HTMLElement) =>
+  root.querySelector<HTMLElement>('[data-slidedeck-viewport]')!;
+
+/** CDP takes coordinates in the top page; vitest scales the test iframe. */
+function toPage(x: number, y: number) {
+  const frame = window.frameElement!.getBoundingClientRect();
+  const scale = frame.width / window.innerWidth;
+  return { x: frame.x + x * scale, y: frame.y + y * scale };
+}
+
+/** A real touch swipe (CDP touch events); positive `dx` moves the finger left. */
+export async function touchSwipe(el: Element, dx: number) {
+  const box = el.getBoundingClientRect();
+  const y = box.top + box.height / 2;
+  const startX = box.left + box.width * 0.75;
+  const at = (t: number) => [{ ...toPage(startX - dx * t, y), id: 1 }];
+  await cdp().send('Input.dispatchTouchEvent', {
+    type: 'touchStart',
+    touchPoints: at(0)
+  });
+  for (let step = 1; step <= 6; step++) {
+    await sleep(16);
+    await cdp().send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: at(step / 6)
+    });
+  }
+  await cdp().send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: []
+  });
+}
+
+/** A smooth two-finger-style scroll gesture, synthesised by Chromium. */
+export async function gestureScroll(el: Element, dx: number) {
+  const box = el.getBoundingClientRect();
+  await cdp().send('Input.synthesizeScrollGesture', {
+    ...toPage(box.left + box.width / 2, box.top + box.height / 2),
+    xDistance: -dx,
+    yDistance: 0,
+    gestureSourceType: 'mouse'
+  });
+}
+
+export async function setReducedMotion(reduce: boolean) {
+  await cdp().send('Emulation.setEmulatedMedia', {
+    features: [
+      { name: 'prefers-reduced-motion', value: reduce ? 'reduce' : '' }
+    ]
+  });
+}
