@@ -159,20 +159,51 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
 /** One snap point means there is nowhere to step to. */
 const everySlideFits = (count: number | null) => count === 1;
 
+interface StepButtonProps extends ComponentProps<'button'> {
+  atEnd: boolean;
+  step: () => void;
+  label: string;
+}
+
+/** A consumer's `onClick` runs first and can cancel the step with
+ * `preventDefault()`; a consumer's `disabled` can disable the button but not
+ * enable it at its end. */
+function StepButton({
+  atEnd,
+  step,
+  label,
+  onClick,
+  disabled,
+  children,
+  ...props
+}: StepButtonProps) {
+  return (
+    <button
+      type="button"
+      {...props}
+      disabled={atEnd || disabled}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) step();
+      }}
+    >
+      {children ?? label}
+    </button>
+  );
+}
+
 /** Moves the deck one snap point back. Disabled at the first; absent when
  * every slide fits. */
 export function Prev(props: ComponentProps<'button'>) {
   const { index, count, engineRef } = useDeck('Prev');
   if (everySlideFits(count)) return null;
   return (
-    <button
-      type="button"
-      disabled={index === 0}
-      onClick={() => engineRef.current?.prev()}
+    <StepButton
       {...props}
-    >
-      {props.children ?? 'Previous'}
-    </button>
+      atEnd={index === 0}
+      step={() => engineRef.current?.prev()}
+      label="Previous"
+    />
   );
 }
 
@@ -182,13 +213,11 @@ export function Next(props: ComponentProps<'button'>) {
   const { index, count, engineRef } = useDeck('Next');
   if (everySlideFits(count)) return null;
   return (
-    <button
-      type="button"
-      disabled={count !== null && index >= count - 1}
-      onClick={() => engineRef.current?.next()}
+    <StepButton
       {...props}
-    >
-      {props.children ?? 'Next'}
-    </button>
+      atEnd={count !== null && index >= count - 1}
+      step={() => engineRef.current?.next()}
+      label="Next"
+    />
   );
 }

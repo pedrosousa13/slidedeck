@@ -1,4 +1,4 @@
-import { Profiler } from 'react';
+import { Profiler, type ComponentProps } from 'react';
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
@@ -361,4 +361,56 @@ test('reordering keyed slides moves them instead of remounting them', () => {
 
   expect(screen.getByText('a')).toBe(slideA);
   expect(slideA.getAttribute('aria-label')).toBe('3 of 3');
+});
+
+describe('Prev and Next props from the consumer', () => {
+  const renderWith = (
+    prevProps: ComponentProps<typeof Deck.Prev>,
+    nextProps: ComponentProps<typeof Deck.Next>
+  ) => {
+    render(
+      <Deck.Root aria-label="Props">
+        <Deck.Prev {...prevProps} />
+        <Deck.Viewport style={{ width: WIDTH }}>
+          {[0, 1, 2].map((i) => (
+            <Deck.Slide key={i}>Slide {i + 1}</Deck.Slide>
+          ))}
+        </Deck.Viewport>
+        <Deck.Next {...nextProps} />
+      </Deck.Root>
+    );
+    const root = screen.getByRole('region', { name: 'Props' });
+    return {
+      viewport: viewportOf(root),
+      prev: screen.getByRole('button', { name: 'Previous' }),
+      next: screen.getByRole('button', { name: 'Next' })
+    };
+  };
+
+  test('an onClick runs and the button still steps', async () => {
+    const onClick = vi.fn();
+    const { viewport, next } = renderWith({}, { onClick });
+
+    await userEvent.click(next);
+
+    expect(onClick).toHaveBeenCalledOnce();
+    await expectSettledTo(() => viewport.scrollLeft, WIDTH);
+  });
+
+  test('an onClick that prevents default stops the step', async () => {
+    const { viewport, next } = renderWith(
+      {},
+      { onClick: (event) => event.preventDefault() }
+    );
+
+    await userEvent.click(next);
+
+    await expectSettledTo(() => viewport.scrollLeft, 0);
+  });
+
+  test('disabled={false} does not enable a button at its end', () => {
+    const { prev } = renderWith({ disabled: false }, {});
+
+    expect(prev.hasAttribute('disabled')).toBe(true);
+  });
 });
