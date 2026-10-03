@@ -21,6 +21,9 @@ interface DeckContextValue {
   engineRef: RefObject<DeckEngine | null>;
 }
 
+const clampSlide = (index: number, count: number) =>
+  Math.min(Math.max(index, 0), count - 1);
+
 const DeckContext = createContext<DeckContextValue | null>(null);
 
 function useDeck(primitive: string): DeckContextValue {
@@ -30,7 +33,11 @@ function useDeck(primitive: string): DeckContextValue {
 }
 
 export interface RootProps extends ComponentProps<'div'> {
-  /** The snap point to start at. Read once, on mount. */
+  /**
+   * The slide to start at, clamped to the slides there are: the deck starts
+   * at the snap point that slide rests at. With one slide per snap point,
+   * that is the snap point at this index. Read once, on mount.
+   */
   defaultIndex?: number;
   /** Called once each time the viewport settles on a new snap point. */
   onIndexChange?: (index: number) => void;
@@ -54,14 +61,16 @@ export function Root({ defaultIndex = 0, onIndexChange, ...props }: RootProps) {
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) throw new Error('Deck.Root must contain a Deck.Viewport');
-    let index = initialIndex;
+    // The first report is where the deck starts, not a change.
+    let index: number | undefined;
     const engine = createDeck(viewport, {
-      index,
+      start: clampSlide(initialIndex, viewport.children.length),
       onChange(next) {
         setState(next);
-        if (next.index === index) return;
+        if (index !== undefined && next.index !== index) {
+          onIndexChangeRef.current?.(next.index);
+        }
         index = next.index;
-        onIndexChangeRef.current?.(index);
       }
     });
     engineRef.current = engine;
@@ -148,7 +157,7 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
         flexShrink: 0,
         // Server HTML paints at defaultIndex before any script runs, where
         // supported; elsewhere Root's layout effect scrolls before paint.
-        ...(index === initialIndex && initialTarget),
+        ...(index === clampSlide(initialIndex, count) && initialTarget),
         ...style
       }}
       {...props}

@@ -52,6 +52,15 @@ test('a client render starts at defaultIndex before the first paint', () => {
   expect(onIndexChange).not.toHaveBeenCalled();
 });
 
+test('a defaultIndex past the last slide starts at the last, silently', async () => {
+  const { viewport, next, onIndexChange } = renderDeck({ defaultIndex: 10 });
+
+  expect(viewport.scrollLeft).toBe(4 * WIDTH);
+  expect(next.hasAttribute('disabled')).toBe(true);
+  await sleep(200);
+  expect(onIndexChange).not.toHaveBeenCalled();
+});
+
 describe('with no stylesheet', () => {
   test('a scroll comes to rest on a snap point', async () => {
     const { viewport } = renderDeck();

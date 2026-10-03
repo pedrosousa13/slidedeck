@@ -7,8 +7,12 @@ export interface DeckState {
 }
 
 export interface DeckOptions {
-  /** The snap point to start at. */
-  index: number;
+  /**
+   * The child of the viewport to start at. The deck starts at the snap point
+   * that slide rests at, which is where `scroll-initial-target` on it puts
+   * the viewport; several slides can share one snap point.
+   */
+  start: number;
   /** Called when the current index or the snap point count changes. */
   onChange: (state: DeckState) => void;
 }
@@ -28,7 +32,8 @@ export function createDeck(
   viewport: HTMLElement,
   options: DeckOptions
 ): DeckEngine {
-  let state: DeckState = { index: options.index, count: 0 };
+  // Not a reachable state, so the first settle always publishes.
+  let state: DeckState = { index: -1, count: 0 };
 
   const publish = (next: DeckState) => {
     if (next.index === state.index && next.count === state.count) return;
@@ -37,7 +42,7 @@ export function createDeck(
   };
 
   const settle = () => {
-    const points = snapPoints(viewport);
+    const { points } = snapPoints(viewport);
     publish({
       index: nearest(points, viewport.scrollLeft),
       count: points.length
@@ -45,7 +50,7 @@ export function createDeck(
   };
 
   const step = (delta: number) => {
-    const points = snapPoints(viewport);
+    const { points } = snapPoints(viewport);
     const target = clamp(state.index + delta, points.length);
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     viewport.scrollTo({
@@ -54,11 +59,13 @@ export function createDeck(
     });
   };
 
-  const points = snapPoints(viewport);
-  viewport.scrollTo({
-    left: points[clamp(options.index, points.length)],
-    behavior: 'instant'
-  });
+  // Where the server HTML already rests if the browser honoured
+  // `scroll-initial-target`; scrolling there is then a no-op.
+  const { points, slides } = snapPoints(viewport);
+  const start = points[Math.max(slides[options.start] ?? 0, 0)] ?? 0;
+  if (Math.abs(viewport.scrollLeft - start) >= 1) {
+    viewport.scrollTo({ left: start, behavior: 'instant' });
+  }
   settle();
 
   // `scrollsnapchange` reports a settled snap target where it exists, no
@@ -96,19 +103,26 @@ function nearest(points: number[], position: number): number {
 
 /**
  * The scroll positions the viewport can rest at, ascending, as the browser
- * derives them from each slide's `scroll-snap-align`. Slides past the end of
- * the scroll range share its end as one snap point.
+ * derives them from each slide's `scroll-snap-align`, and for each child of
+ * the viewport the index of the point it rests at (-1 if it does not snap).
+ * Slides that clamp to the same scroll position share one snap point.
  */
-function snapPoints(viewport: HTMLElement): number[] {
+function snapPoints(viewport: HTMLElement): {
+  points: number[];
+  slides: number[];
+} {
   const view = viewport.getBoundingClientRect();
   const start = view.left + viewport.clientLeft;
   const width = viewport.clientWidth;
   const max = viewport.scrollWidth - width;
-  const points: number[] = [];
+  const positions: (number | null)[] = [];
   for (const slide of viewport.children) {
     // The inline axis is the last of `scroll-snap-align`'s values.
     const align = getComputedStyle(slide).scrollSnapAlign.split(' ').pop();
-    if (align === 'none') continue;
+    if (align === 'none') {
+      positions.push(null);
+      continue;
+    }
     const box = slide.getBoundingClientRect();
     const offset =
       align === 'center'
@@ -116,10 +130,17 @@ function snapPoints(viewport: HTMLElement): number[] {
         : align === 'end'
           ? box.right - width
           : box.left;
-    const point = Math.round(
-      Math.min(Math.max(viewport.scrollLeft + offset - start, 0), max)
+    positions.push(
+      Math.round(
+        Math.min(Math.max(viewport.scrollLeft + offset - start, 0), max)
+      )
     );
-    if (!points.includes(point)) points.push(point);
   }
-  return points.sort((a, b) => a - b);
+  const points = [
+    ...new Set(positions.filter((p): p is number => p !== null))
+  ].sort((a, b) => a - b);
+  return {
+    points,
+    slides: positions.map((p) => (p === null ? -1 : points.indexOf(p)))
+  };
 }
