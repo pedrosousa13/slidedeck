@@ -18,6 +18,8 @@ export interface DeckOptions {
 }
 
 export interface DeckEngine {
+  /** Scrolls to a snap point, clamped to the snap points there are. */
+  scrollTo(index: number): void;
   next(): void;
   prev(): void;
   /** Re-reads the snap points, as after slides are added or removed. */
@@ -83,9 +85,9 @@ export function createDeck(
     if (!scrolling && target === null) settle();
   };
 
-  const step = (delta: number) => {
+  const scrollTo = (index: number) => {
     const { points } = snapPoints(viewport);
-    const next = clamp((target ?? state.index) + delta, points.length);
+    const next = clamp(index, points.length);
     // A scroll to where the viewport already rests ends no scroll, so a
     // target set for it would never clear and would block every refresh.
     if (target === null && Math.abs(viewport.scrollLeft - points[next]) < 1) {
@@ -120,7 +122,11 @@ export function createDeck(
   const resizes = new ResizeObserver(refresh);
   resizes.observe(viewport);
 
+  // From the snap point a scroll in flight is heading to, if any.
+  const step = (delta: number) => scrollTo((target ?? state.index) + delta);
+
   return {
+    scrollTo,
     next: () => step(1),
     prev: () => step(-1),
     refresh,

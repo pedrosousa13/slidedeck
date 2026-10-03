@@ -3,11 +3,13 @@ import {
   createContext,
   isValidElement,
   use,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
   type ComponentProps,
   type CSSProperties,
+  type Ref,
   type RefObject
 } from 'react';
 import { createDeck, type DeckEngine } from '@slidedeck/core';
@@ -34,7 +36,20 @@ function useDeck(primitive: string): DeckContextValue {
   return deck;
 }
 
-export interface RootProps extends ComponentProps<'div'> {
+/** What a ref on `Deck.Root` exposes: moves for event handlers that should
+ * not round-trip through state. Each fires `onIndexChange` when the deck
+ * settles on a new snap point. */
+export interface RootHandle {
+  /** Scrolls to a snap point, clamped to the snap points there are. */
+  scrollTo(index: number): void;
+  /** Scrolls one snap point on. */
+  next(): void;
+  /** Scrolls one snap point back. */
+  prev(): void;
+}
+
+export interface RootProps extends Omit<ComponentProps<'div'>, 'ref'> {
+  ref?: Ref<RootHandle>;
   /** The snap point to start at, clamped to the snap points there are.
    * Read once, on mount. */
   defaultIndex?: number;
@@ -43,7 +58,12 @@ export interface RootProps extends ComponentProps<'div'> {
 }
 
 /** One deck: a labelled carousel region holding a viewport and its controls. */
-export function Root({ defaultIndex = 0, onIndexChange, ...props }: RootProps) {
+export function Root({
+  defaultIndex = 0,
+  onIndexChange,
+  ref,
+  ...props
+}: RootProps) {
   const [initialIndex] = useState(defaultIndex);
   const [state, setState] = useState<{
     index: number;
@@ -79,6 +99,16 @@ export function Root({ defaultIndex = 0, onIndexChange, ...props }: RootProps) {
       engineRef.current = null;
     };
   }, [initialIndex]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollTo: (index) => engineRef.current?.scrollTo(index),
+      next: () => engineRef.current?.next(),
+      prev: () => engineRef.current?.prev()
+    }),
+    []
+  );
 
   return (
     <DeckContext value={{ ...state, initialIndex, viewportRef, engineRef }}>
