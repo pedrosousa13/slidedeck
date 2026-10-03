@@ -1,0 +1,31 @@
+{
+  "name": "@slidedeck/core",
+  "version": "0.0.0",
+  "description": "Framework-neutral engine for slidedeck, a headless carousel built on native scroll snap.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pedrosousa13/slidedeck.git",
+    "directory": "packages/core"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.d.ts.map",
+    "!dist/.tsbuildinfo*"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "vite build && tsc -b"
+  }
+}
