@@ -57,9 +57,18 @@ export function createDeck(
     publish({ index, count: points.length, slide: slides.indexOf(index) });
   };
 
+  // The snap point a step is scrolling to, until the scroll ends: a second
+  // press steps on from there, not from where the viewport last rested.
+  let target: number | null = null;
+
+  const scrollEnded = () => {
+    target = null;
+    settle();
+  };
+
   const step = (delta: number) => {
     const { points } = snapPoints(viewport);
-    const target = clamp(state.index + delta, points.length);
+    target = clamp((target ?? state.index) + delta, points.length);
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     viewport.scrollTo({
       left: points[target],
@@ -78,8 +87,8 @@ export function createDeck(
 
   // `scrollsnapchange` reports a settled snap target where it exists, no
   // later than `scrollend`; `publish` drops whichever report comes second.
-  viewport.addEventListener('scrollsnapchange', settle);
-  viewport.addEventListener('scrollend', settle);
+  viewport.addEventListener('scrollsnapchange', scrollEnded);
+  viewport.addEventListener('scrollend', scrollEnded);
   // A resize can add or remove snap points without any scroll, and only
   // Chromium reports that through `scrollsnapchange`.
   const resizes = new ResizeObserver(settle);
@@ -90,8 +99,8 @@ export function createDeck(
     prev: () => step(-1),
     destroy() {
       resizes.disconnect();
-      viewport.removeEventListener('scrollsnapchange', settle);
-      viewport.removeEventListener('scrollend', settle);
+      viewport.removeEventListener('scrollsnapchange', scrollEnded);
+      viewport.removeEventListener('scrollend', scrollEnded);
     }
   };
 }

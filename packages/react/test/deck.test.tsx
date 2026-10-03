@@ -172,6 +172,16 @@ describe('onIndexChange fires once per settled scroll', () => {
     await expectSettledTo(() => onIndexChange.mock.calls, [[1]]);
   });
 
+  test('once for two quick presses of Next, which move two snap points', async () => {
+    const { viewport, next, onIndexChange } = renderDeck();
+
+    next.click();
+    next.click();
+
+    await expectSettledTo(() => viewport.scrollLeft, 2 * WIDTH);
+    expect(onIndexChange.mock.calls).toEqual([[2]]);
+  });
+
   test('not at all when a scroll comes back to the same snap point', async () => {
     const { viewport, onIndexChange } = renderDeck();
 
