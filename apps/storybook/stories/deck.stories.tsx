@@ -2,12 +2,15 @@ import { useState } from 'react';
 import * as Deck from '@slidedeck/react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
-const slides = Array.from({ length: 6 }, (_, i) => (
-  <Deck.Slide key={i} className="slide">
-    <p>Slide {i + 1}</p>
-    <button type="button">Action {i + 1}</button>
-  </Deck.Slide>
-));
+const slidesOf = (count: number) =>
+  Array.from({ length: count }, (_, i) => (
+    <Deck.Slide key={i} className="slide">
+      <p>Slide {i + 1}</p>
+      <button type="button">Action {i + 1}</button>
+    </Deck.Slide>
+  ));
+
+const slides = slidesOf(6);
 
 const meta = {
   title: 'Deck',
@@ -86,3 +89,41 @@ function ControlledDeck() {
 /** The index lives in the parent's state, like a controlled input's value:
  * the buttons set it, and scrolling the deck updates it. */
 export const Controlled: Story = { render: () => <ControlledDeck /> };
+
+/**
+ * Snapping in pages of several slides is consumer CSS too: only the first
+ * slide of each page is a snap target, so Prev and Next move a page, and Dots
+ * and Counter count pages. Each slide is still labelled "n of 10".
+ *
+ * Here one slide per page on narrow screens, and three in view, three to a
+ * page, from 640px. Give both rules of a page size the same specificity, as
+ * below, so the one in a later media query overrides every slide's alignment.
+ * Slidedeck re-reads the pages when the window resizes. The server cannot
+ * measure, so it renders a page per slide, and a paged deck corrects its
+ * Dots and Counter at hydration.
+ */
+export const Pages: Story = {
+  decorators: [
+    (Story) => (
+      <>
+        <style>{`
+          @media (min-width: 640px) {
+            .slide { width: calc(100% / 3); }
+            .slide:nth-child(3n + 1) { scroll-snap-align: start; }
+            .slide:not(:nth-child(3n + 1)) { scroll-snap-align: none; }
+          }
+        `}</style>
+        <Story />
+      </>
+    )
+  ],
+  render: (args) => (
+    <Deck.Root {...args}>
+      <Deck.Viewport className="viewport">{slidesOf(10)}</Deck.Viewport>
+      <Deck.Prev />
+      <Deck.Next />
+      <Deck.Dots />
+      <Deck.Counter />
+    </Deck.Root>
+  )
+};

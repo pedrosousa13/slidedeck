@@ -139,6 +139,9 @@ export function createDeck(
   // Chromium reports that through `scrollsnapchange`.
   const resizes = new ResizeObserver(refresh);
   resizes.observe(viewport);
+  // A media query can change which slides snap, as when a breakpoint changes
+  // the page size, without resizing the viewport at all.
+  window.addEventListener('resize', refresh);
 
   // From the snap point a scroll in flight is heading to, if any.
   const step = (delta: number) => scrollTo((target ?? state.index) + delta);
@@ -152,6 +155,7 @@ export function createDeck(
     destroy() {
       clearTimeout(quiet);
       resizes.disconnect();
+      window.removeEventListener('resize', refresh);
       viewport.removeEventListener('scroll', onScroll);
       viewport.removeEventListener('scrollsnapchange', onSnapChange);
       viewport.removeEventListener('scrollend', scrollEnded);
