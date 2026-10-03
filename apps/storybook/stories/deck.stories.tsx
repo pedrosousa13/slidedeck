@@ -18,6 +18,8 @@ const meta = {
       <Deck.Viewport className="viewport">{slides}</Deck.Viewport>
       <Deck.Prev />
       <Deck.Next />
+      <Deck.Dots />
+      <Deck.Counter />
     </Deck.Root>
   )
 } satisfies Meta<typeof Deck.Root>;
