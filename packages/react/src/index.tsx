@@ -408,16 +408,17 @@ export function Dots(props: ComponentProps<'div'>) {
 
 /** The current page and the total, as "3 / 10": counts snap points, as Dots
  * do. Empty until the viewport is measured, as the server cannot count snap
- * points. Not a live region: each slide is already labelled "n of m". */
+ * points. Not a live region: each slide is already labelled "n of m". Its
+ * data attributes are the deck's state, which a consumer's cannot overwrite. */
 export function Counter(props: ComponentProps<'span'>) {
   const { index, count } = useDeck('Counter');
   const measured = count !== null;
   return (
     <span
+      {...props}
       data-slidedeck-counter=""
       data-index={measured ? index : undefined}
       data-count={measured ? count : undefined}
-      {...props}
     >
       {measured && `${index + 1} / ${count}`}
     </span>

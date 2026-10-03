@@ -38,3 +38,24 @@ test('the counter carries data-index and data-count', async () => {
   expect(counter.getAttribute('data-index')).toBe('1');
   expect(counter.getAttribute('data-count')).toBe('5');
 });
+
+test("a consumer's data attributes cannot overwrite the counter's state", () => {
+  render(
+    <TestDeck
+      controls={
+        <Deck.Counter
+          {...{
+            'data-index': 'x',
+            'data-count': 'y',
+            'data-slidedeck-counter': 'z'
+          }}
+        />
+      }
+    />
+  );
+  const counter = screen.getByText('1 / 5');
+
+  expect(counter.getAttribute('data-index')).toBe('0');
+  expect(counter.getAttribute('data-count')).toBe('5');
+  expect(counter.getAttribute('data-slidedeck-counter')).toBe('');
+});
