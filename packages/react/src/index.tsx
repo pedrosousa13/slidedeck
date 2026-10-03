@@ -16,6 +16,8 @@ interface DeckContextValue {
   index: number;
   /** Snap point count; null until the viewport has been measured. */
   count: number | null;
+  /** The current slide; null until the viewport has been measured. */
+  slide: number | null;
   initialIndex: number;
   viewportRef: RefObject<HTMLDivElement | null>;
   engineRef: RefObject<DeckEngine | null>;
@@ -46,10 +48,11 @@ export interface RootProps extends ComponentProps<'div'> {
 /** One deck: a labelled carousel region holding a viewport and its controls. */
 export function Root({ defaultIndex = 0, onIndexChange, ...props }: RootProps) {
   const [initialIndex] = useState(defaultIndex);
-  const [state, setState] = useState<{ index: number; count: number | null }>({
-    index: initialIndex,
-    count: null
-  });
+  const [state, setState] = useState<{
+    index: number;
+    count: number | null;
+    slide: number | null;
+  }>({ index: initialIndex, count: null, slide: null });
   const viewportRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<DeckEngine>(null);
   const onIndexChangeRef = useRef(onIndexChange);
@@ -143,21 +146,25 @@ const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;
 
 /** One slide, labelled "n of m". Its size and alignment are consumer CSS. */
 export function Slide({ style, ...props }: ComponentProps<'div'>) {
-  const { initialIndex } = useDeck('Slide');
+  const deck = useDeck('Slide');
   const slide = use(SlideContext);
   if (!slide) throw new Error('Deck.Slide must be inside Deck.Viewport');
   const { index, count } = slide;
+  const start = index === clampSlide(deck.initialIndex, count);
+  // Until the viewport is measured, the slide it starts at.
+  const current = deck.slide === null ? start : index === deck.slide;
   return (
     <div
       role="group"
       aria-roledescription="slide"
       aria-label={`${index + 1} of ${count}`}
       data-slidedeck-slide=""
+      data-current={current ? '' : undefined}
       style={{
         flexShrink: 0,
         // Server HTML paints at defaultIndex before any script runs, where
         // supported; elsewhere Root's layout effect scrolls before paint.
-        ...(index === clampSlide(initialIndex, count) && initialTarget),
+        ...(start && initialTarget),
         ...style
       }}
       {...props}
@@ -191,6 +198,7 @@ function StepButton({
       type="button"
       {...props}
       disabled={atEnd || disabled}
+      data-disabled={atEnd || disabled ? '' : undefined}
       onClick={(event) => {
         onClick?.(event);
         if (!event.defaultPrevented) step();

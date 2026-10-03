@@ -182,6 +182,32 @@ describe('onIndexChange fires once per settled scroll', () => {
   });
 });
 
+describe('state as data attributes', () => {
+  const marked = (elements: Element[], name: string) =>
+    elements.map((el) => el.hasAttribute(name));
+
+  test('the current slide carries data-current', async () => {
+    const { viewport, next } = renderDeck({ slides: 3 });
+    const slides = [...viewport.children];
+
+    expect(marked(slides, 'data-current')).toEqual([true, false, false]);
+    await userEvent.click(next);
+    await expect
+      .poll(() => marked(slides, 'data-current'))
+      .toEqual([false, true, false]);
+  });
+
+  test('a button at its end carries data-disabled', async () => {
+    const { prev, next } = renderDeck({ slides: 2 });
+
+    expect(marked([prev, next], 'data-disabled')).toEqual([true, false]);
+    await userEvent.click(next);
+    await expect
+      .poll(() => marked([prev, next], 'data-disabled'))
+      .toEqual([false, true]);
+  });
+});
+
 describe('Prev and Next', () => {
   test('Prev is disabled at the first snap point and Next at the last', async () => {
     const { prev, next } = renderDeck({ slides: 2 });

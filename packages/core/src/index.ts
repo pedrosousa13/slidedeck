@@ -4,6 +4,9 @@ export interface DeckState {
   index: number;
   /** How many snap points the viewport has. One means every slide fits. */
   count: number;
+  /** The current slide: the first child of the viewport resting at the
+   * current snap point. */
+  slide: number;
 }
 
 export interface DeckOptions {
@@ -13,7 +16,8 @@ export interface DeckOptions {
    * the viewport; several slides can share one snap point.
    */
   start: number;
-  /** Called when the current index or the snap point count changes. */
+  /** Called when the current index, the snap point count or the current
+   * slide changes. */
   onChange: (state: DeckState) => void;
 }
 
@@ -33,20 +37,24 @@ export function createDeck(
   options: DeckOptions
 ): DeckEngine {
   // Not a reachable state, so the first settle always publishes.
-  let state: DeckState = { index: -1, count: 0 };
+  let state: DeckState = { index: -1, count: 0, slide: -1 };
 
   const publish = (next: DeckState) => {
-    if (next.index === state.index && next.count === state.count) return;
+    if (
+      next.index === state.index &&
+      next.count === state.count &&
+      next.slide === state.slide
+    ) {
+      return;
+    }
     state = next;
     options.onChange(state);
   };
 
   const settle = () => {
-    const { points } = snapPoints(viewport);
-    publish({
-      index: nearest(points, viewport.scrollLeft),
-      count: points.length
-    });
+    const { points, slides } = snapPoints(viewport);
+    const index = nearest(points, viewport.scrollLeft);
+    publish({ index, count: points.length, slide: slides.indexOf(index) });
   };
 
   const step = (delta: number) => {

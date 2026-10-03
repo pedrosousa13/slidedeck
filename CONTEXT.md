@@ -55,6 +55,11 @@ HTML can only start at a slide: the deck starts at the snap point that slide
 rests at. With one slide per snap point the two are the same.
 _Avoid_: active slide, selected slide
 
+**Current slide**:
+The first slide resting at the current index's snap point, marked
+`data-current`. With one slide per snap point, the slide at the current index.
+_Avoid_: active slide, selected slide
+
 **Focal slide**:
 The slide sitting at the snap alignment point — the one the deck is "about".
 Distinct from the current index when several slides are in view. Exposed as
