@@ -1,5 +1,32 @@
 # AGENTS.md
 
+## Before landing anything
+
+Run one command, from the repo root, and land only on green:
+
+```sh
+pnpm verify
+```
+
+It runs every gate in order and stops at the first failure: `format:check`,
+`lint`, `typecheck`, `test` (vitest in browser mode), `build`,
+`test:packages` (publint and attw on the packed tarballs), `size` and
+`test:e2e` (Playwright with axe against storybook). The list lives in
+`scripts/verify.mjs`.
+
+CI (`.github/workflows/ci.yml`) runs the same `pnpm verify` on every pull
+request and every push to `main`, so there is no second list to drift from
+it. It does not replace running it locally; it catches the time you forgot.
+
+Both browser suites drive Playwright's chromium. Install it once with
+`pnpm exec playwright install chromium`.
+
+`size` prints each package's gzipped size and never fails: bundle size is an
+aim, not a gate (ADR-0001). Read the numbers; do not add a budget.
+
+Formatting is checked, never written by the gate. Run
+`pnpm exec prettier --write <files>` on the files you changed.
+
 ## Agent skills
 
 ### Issue tracker

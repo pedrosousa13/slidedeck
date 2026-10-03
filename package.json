@@ -16,7 +16,8 @@
     "test:e2e": "playwright test",
     "test:packages": "node scripts/verify-packaging.mjs",
     "size": "node scripts/bundle-size.mjs",
-    "changeset": "changeset"
+    "changeset": "changeset",
+    "verify": "node scripts/verify.mjs"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
