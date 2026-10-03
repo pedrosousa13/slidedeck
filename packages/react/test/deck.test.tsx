@@ -182,6 +182,23 @@ describe('onIndexChange fires once per settled scroll', () => {
     expect(onIndexChange.mock.calls).toEqual([[2]]);
   });
 
+  test('once when the viewport resizes mid-scroll', async () => {
+    const { viewport, onIndexChange } = renderDeck();
+    // Resize while the viewport passes snap point 1 on its way to 2.
+    const resizeMidway = () => {
+      if (viewport.scrollLeft < WIDTH * 0.6) return;
+      viewport.removeEventListener('scroll', resizeMidway);
+      viewport.style.height = '200px';
+    };
+    viewport.addEventListener('scroll', resizeMidway);
+
+    viewport.scrollTo({ left: 2 * WIDTH, behavior: 'smooth' });
+
+    await expectSettledTo(() => viewport.scrollLeft, 2 * WIDTH);
+    expect(viewport.style.height).toBe('200px');
+    expect(onIndexChange.mock.calls).toEqual([[2]]);
+  });
+
   test('not at all when a scroll comes back to the same snap point', async () => {
     const { viewport, onIndexChange } = renderDeck();
 
@@ -229,6 +246,17 @@ describe('Prev and Next', () => {
 
     await expect.poll(() => next.hasAttribute('disabled')).toBe(true);
     expect(prev.hasAttribute('disabled')).toBe(false);
+  });
+
+  test('Next re-enables when slides are added without a resize', async () => {
+    const { rerender } = render(<TestDeck slides={2} />);
+    const next = screen.getByRole('button', { name: 'Next' });
+    await userEvent.click(next);
+    await expect.poll(() => next.hasAttribute('disabled')).toBe(true);
+
+    rerender(<TestDeck slides={4} />);
+
+    await expect.poll(() => next.hasAttribute('disabled')).toBe(false);
   });
 
   test('both are absent when every slide fits', async () => {

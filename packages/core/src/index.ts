@@ -24,6 +24,8 @@ export interface DeckOptions {
 export interface DeckEngine {
   next(): void;
   prev(): void;
+  /** Re-reads the snap points, as after slides are added or removed. */
+  refresh(): void;
   destroy(): void;
 }
 
@@ -61,9 +63,21 @@ export function createDeck(
   // press steps on from there, not from where the viewport last rested.
   let target: number | null = null;
 
+  // Set by any scroll, cleared when it ends. A position read mid-scroll is
+  // not a settled one, so a refresh then waits for the scroll's end.
+  let scrolling = false;
+  const onScroll = () => {
+    scrolling = true;
+  };
+
   const scrollEnded = () => {
+    scrolling = false;
     target = null;
     settle();
+  };
+
+  const refresh = () => {
+    if (!scrolling && target === null) settle();
   };
 
   const step = (delta: number) => {
@@ -87,18 +101,21 @@ export function createDeck(
 
   // `scrollsnapchange` reports a settled snap target where it exists, no
   // later than `scrollend`; `publish` drops whichever report comes second.
+  viewport.addEventListener('scroll', onScroll, { passive: true });
   viewport.addEventListener('scrollsnapchange', scrollEnded);
   viewport.addEventListener('scrollend', scrollEnded);
   // A resize can add or remove snap points without any scroll, and only
   // Chromium reports that through `scrollsnapchange`.
-  const resizes = new ResizeObserver(settle);
+  const resizes = new ResizeObserver(refresh);
   resizes.observe(viewport);
 
   return {
     next: () => step(1),
     prev: () => step(-1),
+    refresh,
     destroy() {
       resizes.disconnect();
+      viewport.removeEventListener('scroll', onScroll);
       viewport.removeEventListener('scrollsnapchange', scrollEnded);
       viewport.removeEventListener('scrollend', scrollEnded);
     }

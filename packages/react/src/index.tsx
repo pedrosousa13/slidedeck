@@ -107,8 +107,13 @@ const viewportStyle: CSSProperties = {
 
 /** The native scroll container. Its children are the deck's slides. */
 export function Viewport({ style, children, ...props }: ComponentProps<'div'>) {
-  const { viewportRef } = useDeck('Viewport');
+  const { viewportRef, engineRef } = useDeck('Viewport');
   const slides = Children.toArray(children);
+  // Adding or removing a slide can change the snap points without resizing
+  // the viewport, which is all the engine observes.
+  useLayoutEffect(() => {
+    engineRef.current?.refresh();
+  }, [engineRef, slides.length]);
   return (
     <div
       ref={viewportRef}
