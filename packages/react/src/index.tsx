@@ -65,8 +65,8 @@ interface ControlledProps {
   /** The snap point to rest at. */
   index: number;
   defaultIndex?: never;
-  /** Called once each time the viewport settles on a snap point other than
-   * `index`; never for a move to `index`. Without it, every scroll returns
+  /** Called once each time the viewport settles on a new snap point other
+   * than `index`; never for a move to `index`. Without it, every scroll returns
    * to `index`, and development warns. */
   onIndexChange?: (index: number) => void;
 }
