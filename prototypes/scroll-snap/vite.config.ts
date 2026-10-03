@@ -14,7 +14,8 @@ export default defineConfig({
         index: page('index'),
         'loop-clone-jump': page('loop-clone-jump'),
         'loop-reposition': page('loop-reposition'),
-        drag: page('drag')
+        drag: page('drag'),
+        fade: page('fade')
       }
     }
   }
