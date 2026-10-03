@@ -96,7 +96,11 @@ export function Root({
   handleRef,
   ...props
 }: RootProps) {
-  const [initialIndex] = useState(index ?? defaultIndex ?? 0);
+  // Core starts a non-finite index at 0; so must the first render.
+  const [initialIndex] = useState(() => {
+    const start = index ?? defaultIndex ?? 0;
+    return Number.isFinite(start) ? start : 0;
+  });
   if (process.env.NODE_ENV !== 'production') {
     // eslint-disable-next-line react-hooks/rules-of-hooks -- the condition is constant for a build
     useDevWarnings(index, defaultIndex, onIndexChange);

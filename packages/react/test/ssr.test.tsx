@@ -180,3 +180,29 @@ test('with snap points shared by several slides, Dots and Counter correct on hyd
     counter: '1 / 3'
   });
 });
+
+// Core ignores a non-finite index and starts at 0; Root, Dots and Counter
+// must agree with it from the server HTML on.
+test('index={NaN} renders and hydrates as index 0', async () => {
+  const consoleError = vi.spyOn(console, 'error');
+  let server: ReturnType<typeof readControls> | undefined;
+  let serverIndex: string | null | undefined;
+  const { viewport, index } = await hydrate(
+    { index: NaN, onIndexChange: () => {}, controls },
+    (viewport) => {
+      server = readControls(viewport);
+      serverIndex = viewport
+        .closest('[data-index]')
+        ?.getAttribute('data-index');
+    }
+  );
+
+  const expected = { dots: 5, current: 'Go to page 1', counter: '1 / 5' };
+  expect(serverIndex).toBe('0');
+  expect(server).toEqual(expected);
+  expect(index).toBe('0');
+  expect(readControls(viewport)).toEqual(expected);
+  // `hydrate` itself logs React's act-environment notice; only NaN matters.
+  expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining('NaN'));
+  consoleError.mockRestore();
+});
