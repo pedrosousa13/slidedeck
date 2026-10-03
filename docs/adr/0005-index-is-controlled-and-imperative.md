@@ -12,3 +12,8 @@ returns to `index` after every scroll, and development warns. `index` with
 `defaultIndex` stays a compile error. A parent that takes the new `index`
 asynchronously, as in a transition, sees the deck briefly return to the old
 one before it moves, as a React input does.
+
+A controlled `index` counts pages, so when a breakpoint changes the page size
+the same `index` points at different slides: a parent that adopts
+`onIndexChange` keeps the visible slide, and one that refuses returns the deck
+to `index`.
