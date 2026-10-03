@@ -41,8 +41,8 @@ function useDeck(primitive: string): DeckContextValue {
   return deck;
 }
 
-/** What a ref on `Deck.Root` exposes: moves for event handlers that should
- * not round-trip through state. Each fires `onIndexChange` when the deck
+/** What `Deck.Root`'s `handleRef` exposes: moves for event handlers that
+ * should not round-trip through state. Each fires `onIndexChange` when the deck
  * settles on a new snap point. */
 export interface RootHandle {
   /** Scrolls to a snap point, clamped to the snap points there are. */
@@ -53,8 +53,9 @@ export interface RootHandle {
   prev(): void;
 }
 
-interface RootBaseProps extends Omit<ComponentProps<'div'>, 'ref'> {
-  ref?: Ref<RootHandle>;
+interface RootBaseProps extends ComponentProps<'div'> {
+  /** The deck's moves; `ref` is the region element, as on every primitive. */
+  handleRef?: Ref<RootHandle>;
 }
 
 /** Controlled like a React input's `value`: the deck scrolls to `index` when
@@ -85,7 +86,7 @@ export function Root({
   index,
   defaultIndex,
   onIndexChange,
-  ref,
+  handleRef,
   ...props
 }: RootProps) {
   const [initialIndex] = useState(index ?? defaultIndex ?? 0);
@@ -149,7 +150,7 @@ export function Root({
   }, [index, state.index, state.count]);
 
   useImperativeHandle(
-    ref,
+    handleRef,
     () => ({
       scrollTo: (index) => engineRef.current?.scrollTo(index),
       next: () => engineRef.current?.next(),

@@ -11,24 +11,42 @@ import {
   WIDTH
 } from './fixtures';
 
-/** A deck with a ref, uncontrolled or, given `index`, controlled by a parent
+/** A deck with a handle ref, uncontrolled or, given `index`, controlled by a parent
  * that never takes a new index. */
 const renderWithRef = ({ index }: { index?: number } = {}) => {
   const ref = createRef<Deck.RootHandle>();
   const onIndexChange = vi.fn();
   render(
     index === undefined ? (
-      <TestDeck ref={ref} onIndexChange={onIndexChange} />
+      <TestDeck handleRef={ref} onIndexChange={onIndexChange} />
     ) : (
-      <TestDeck ref={ref} index={index} onIndexChange={onIndexChange} />
+      <TestDeck handleRef={ref} index={index} onIndexChange={onIndexChange} />
     )
   );
   const root = screen.getByRole('region', { name: 'Test deck' });
   return { ref, viewport: viewportOf(root), onIndexChange };
 };
 
-describe('the ref', () => {
+describe('the refs', () => {
   afterEach(() => setReducedMotion(false));
+
+  test('ref is the region element, as on every other primitive', () => {
+    const ref = createRef<HTMLDivElement>();
+    render(<TestDeck ref={ref} />);
+
+    expect(ref.current).toBeInstanceOf(HTMLDivElement);
+    expect(ref.current).toBe(screen.getByRole('region', { name: 'Test deck' }));
+  });
+
+  test('handleRef gives scrollTo, next and prev', () => {
+    const { ref } = renderWithRef();
+
+    expect(Object.keys(ref.current!).sort()).toEqual([
+      'next',
+      'prev',
+      'scrollTo'
+    ]);
+  });
 
   test('scrollTo moves the deck to a snap point and fires onIndexChange', async () => {
     const { ref, viewport, onIndexChange } = renderWithRef();
@@ -95,7 +113,7 @@ function ControlledDeck({
         Go to 4
       </button>
       <TestDeck
-        ref={deckRef}
+        handleRef={deckRef}
         index={index}
         onIndexChange={(next) => {
           onIndexChange(next);
@@ -152,7 +170,7 @@ describe('a controlled deck', () => {
     expect(onIndexChange.mock.calls).toEqual([[1]]);
   });
 
-  test('the ref moves it and fires onIndexChange for the parent to take', async () => {
+  test('the handle moves it and fires onIndexChange for the parent to take', async () => {
     const { ref, viewport, onIndexChange } = renderControlled();
 
     ref.current!.scrollTo(2);
