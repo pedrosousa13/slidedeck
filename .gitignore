@@ -1,3 +1,11 @@
 .scratch/
 .factory/run.lock
 .factory/journal.json
+node_modules/
+dist/
+storybook-static/
+*storybook.log
+playwright-report/
+test-results/
+*.tsbuildinfo
+.turbo/
