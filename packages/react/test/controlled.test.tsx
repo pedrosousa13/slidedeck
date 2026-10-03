@@ -260,6 +260,24 @@ describe('a controlled deck', () => {
     expect(viewport.scrollLeft).toBe(2 * WIDTH);
   });
 
+  test('returns to index when slides shrink past it and grow back', async () => {
+    const onIndexChange = vi.fn();
+    const { rerender } = render(
+      <TestDeck slides={6} index={4} onIndexChange={onIndexChange} />
+    );
+    const viewport = viewportOf(
+      screen.getByRole('region', { name: 'Test deck' })
+    );
+
+    rerender(<TestDeck slides={2} index={4} onIndexChange={onIndexChange} />);
+    await sleep(500);
+    rerender(<TestDeck slides={6} index={4} onIndexChange={onIndexChange} />);
+    await sleep(1500);
+
+    expect(viewport.scrollLeft).toBe(4 * WIDTH);
+    expect(onIndexChange).not.toHaveBeenCalled();
+  });
+
   test('ignores an index that is not a number, so Next still steps', async () => {
     const onIndexChange = vi.fn();
     // One slide: nothing to scroll, so no scroll event clears a bad target.

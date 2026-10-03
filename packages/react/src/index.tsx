@@ -119,14 +119,16 @@ export function Root({
       index: initialIndex,
       onChange(next) {
         setState(next);
-        // Controlled, a change is a settle anywhere but `index`, so a move
-        // to `index` never calls back.
+        // A change is a settle on a new snap point; a report of a new count
+        // alone is not. Controlled, it must also be anywhere but `index`, so
+        // a move to `index` never calls back.
         const controlled = indexRef.current;
-        const from =
-          controlled === undefined
-            ? settled
-            : clampSlide(controlled, next.count);
-        if (settled !== undefined && next.index !== from) {
+        if (
+          settled !== undefined &&
+          next.index !== settled &&
+          (controlled === undefined ||
+            next.index !== clampSlide(controlled, next.count))
+        ) {
           onIndexChangeRef.current?.(next.index);
         }
         settled = next.index;
