@@ -167,6 +167,8 @@ export function Root({
         role="region"
         aria-roledescription="carousel"
         // Raw defaultIndex until measured: clamping needs the slide count.
+        // Like each slide's data-current, the last settled position: it
+        // trails a new `index` until the deck settles there.
         data-index={state.index}
         {...props}
       />

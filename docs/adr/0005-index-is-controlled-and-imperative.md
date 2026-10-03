@@ -9,4 +9,6 @@ other primitive.
 
 `index` without `onIndexChange` compiles, as a read-only input does: the deck
 returns to `index` after every scroll, and development warns. `index` with
-`defaultIndex` stays a compile error.
+`defaultIndex` stays a compile error. A parent that takes the new `index`
+asynchronously, as in a transition, sees the deck briefly return to the old
+one before it moves, as a React input does.
