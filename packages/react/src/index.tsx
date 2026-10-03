@@ -3,14 +3,21 @@ import {
   createContext,
   isValidElement,
   use,
+  useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useRef,
   useState,
   type ComponentProps,
   type CSSProperties,
+  type Ref,
   type RefObject
 } from 'react';
 import { createDeck, type DeckEngine } from '@slidedeck/core';
+
+// Left in the build for the consumer's bundler to replace, as React's own
+// development checks are, so production bundles drop the warnings.
+declare const process: { env: { NODE_ENV?: string } };
 
 interface DeckContextValue {
   index: number;
@@ -34,7 +41,38 @@ function useDeck(primitive: string): DeckContextValue {
   return deck;
 }
 
-export interface RootProps extends ComponentProps<'div'> {
+/** What `Deck.Root`'s `handleRef` exposes: moves for event handlers that
+ * should not round-trip through state. Each fires `onIndexChange` when the deck
+ * settles on a new snap point. */
+export interface RootHandle {
+  /** Scrolls to a snap point, clamped to the snap points there are. */
+  scrollTo(index: number): void;
+  /** Scrolls one snap point on. */
+  next(): void;
+  /** Scrolls one snap point back. */
+  prev(): void;
+}
+
+interface RootBaseProps extends ComponentProps<'div'> {
+  /** The deck's moves; `ref` is the region element, as on every primitive. */
+  handleRef?: Ref<RootHandle>;
+}
+
+/** Controlled like a React input's `value`: the deck scrolls to `index` when
+ * it changes. A scroll that settles elsewhere calls `onIndexChange`, and the
+ * deck returns to `index` unless the parent takes the new one. */
+interface ControlledProps {
+  /** The snap point to rest at. */
+  index: number;
+  defaultIndex?: never;
+  /** Called once each time the viewport settles on a new snap point other
+   * than `index`; never for a move to `index`. Without it, every scroll returns
+   * to `index`, and development warns. */
+  onIndexChange?: (index: number) => void;
+}
+
+interface UncontrolledProps {
+  index?: never;
   /** The snap point to start at, clamped to the snap points there are.
    * Read once, on mount. */
   defaultIndex?: number;
@@ -42,9 +80,21 @@ export interface RootProps extends ComponentProps<'div'> {
   onIndexChange?: (index: number) => void;
 }
 
+export type RootProps = RootBaseProps & (ControlledProps | UncontrolledProps);
+
 /** One deck: a labelled carousel region holding a viewport and its controls. */
-export function Root({ defaultIndex = 0, onIndexChange, ...props }: RootProps) {
-  const [initialIndex] = useState(defaultIndex);
+export function Root({
+  index,
+  defaultIndex,
+  onIndexChange,
+  handleRef,
+  ...props
+}: RootProps) {
+  const [initialIndex] = useState(index ?? defaultIndex ?? 0);
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- the condition is constant for a build
+    useDevWarnings(index, defaultIndex, onIndexChange);
+  }
   const [state, setState] = useState<{
     index: number;
     count: number | null;
@@ -53,24 +103,35 @@ export function Root({ defaultIndex = 0, onIndexChange, ...props }: RootProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<DeckEngine>(null);
   const onIndexChangeRef = useRef(onIndexChange);
+  const indexRef = useRef(index);
 
   useLayoutEffect(() => {
     onIndexChangeRef.current = onIndexChange;
+    indexRef.current = index;
   });
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) throw new Error('Deck.Root must contain a Deck.Viewport');
     // The first report is where the deck starts, not a change.
-    let index: number | undefined;
+    let settled: number | undefined;
     const engine = createDeck(viewport, {
       index: initialIndex,
       onChange(next) {
         setState(next);
-        if (index !== undefined && next.index !== index) {
+        // A change is a settle on a new snap point; a report of a new count
+        // alone is not. Controlled, it must also be anywhere but `index`, so
+        // a move to `index` never calls back.
+        const controlled = indexRef.current;
+        if (
+          settled !== undefined &&
+          next.index !== settled &&
+          (controlled === undefined ||
+            next.index !== clampSlide(controlled, next.count))
+        ) {
           onIndexChangeRef.current?.(next.index);
         }
-        index = next.index;
+        settled = next.index;
       }
     });
     engineRef.current = engine;
@@ -80,17 +141,91 @@ export function Root({ defaultIndex = 0, onIndexChange, ...props }: RootProps) {
     };
   }, [initialIndex]);
 
+  // Controlled, the deck rests at `index`: it follows a new one, and returns
+  // to it after a scroll the parent did not take, as a controlled input
+  // reverts an edit its parent ignores. Compared with where a scroll in
+  // flight is heading, if any, so an `index` changed back mid-flight wins.
+  useLayoutEffect(() => {
+    const engine = engineRef.current;
+    if (index !== undefined && state.count !== null && engine) {
+      const heading = engine.target() ?? state.index;
+      if (clampSlide(index, state.count) !== heading) engine.scrollTo(index);
+    }
+  }, [index, state.index, state.count]);
+
+  useImperativeHandle(
+    handleRef,
+    () => ({
+      scrollTo: (index) => engineRef.current?.scrollTo(index),
+      next: () => engineRef.current?.next(),
+      prev: () => engineRef.current?.prev()
+    }),
+    []
+  );
+
   return (
     <DeckContext value={{ ...state, initialIndex, viewportRef, engineRef }}>
       <div
         role="region"
         aria-roledescription="carousel"
         // Raw defaultIndex until measured: clamping needs the slide count.
+        // Like each slide's data-current, the last settled position: it
+        // trails a new `index` until the deck settles there.
         data-index={state.index}
         {...props}
       />
     </DeckContext>
   );
+}
+
+/** Warns about controlled-deck mistakes, as React does for an input's
+ * `value`: once per deck instance for each kind, so one warning never hides
+ * another. */
+function useDevWarnings(
+  index: number | undefined,
+  defaultIndex: number | undefined,
+  onIndexChange: ((index: number) => void) | undefined
+) {
+  const controlled = index !== undefined;
+  const [wasControlled] = useState(controlled);
+  const both = controlled && defaultIndex !== undefined;
+  const switched = controlled !== wasControlled;
+  const readOnly = controlled && onIndexChange === undefined;
+  const warned = useRef(new Set<string>());
+  useEffect(() => {
+    const warn = (kind: string, message: string) => {
+      if (warned.current.has(kind)) return;
+      warned.current.add(kind);
+      console.error(message);
+    };
+    if (both) {
+      warn(
+        'both',
+        'Deck.Root takes either index or defaultIndex, not both. Pass index ' +
+          'with onIndexChange for a controlled deck, or defaultIndex for an ' +
+          'uncontrolled one.'
+      );
+    }
+    if (switched) {
+      warn(
+        'switched',
+        `Deck.Root is changing ${
+          wasControlled
+            ? 'a controlled deck to be uncontrolled'
+            : 'an uncontrolled deck to be controlled'
+        }. A deck should not switch between the two: choose index or ` +
+          'defaultIndex for its whole life.'
+      );
+    }
+    if (readOnly) {
+      warn(
+        'readOnly',
+        'Deck.Root was given index without onIndexChange, so a scroll will ' +
+          'return the deck to index. Pass onIndexChange to follow the ' +
+          'scroll, or defaultIndex for an uncontrolled deck.'
+      );
+    }
+  }, [both, switched, readOnly, wasControlled]);
 }
 
 const SlideContext = createContext<{ index: number; count: number } | null>(

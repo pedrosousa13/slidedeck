@@ -1,7 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
-const stories = ['deck--default', 'deck--peek', 'deck--starting-index'];
+const stories = [
+  'deck--default',
+  'deck--peek',
+  'deck--starting-index',
+  'deck--controlled'
+];
 
 for (const id of stories) {
   test(`the ${id} story passes axe`, async ({ page }) => {
@@ -33,4 +38,21 @@ test('tabbing into an off-screen slide scrolls it into view', async ({
     ratio: 1
   });
   await expect(deck).toHaveAttribute('data-index', '1');
+});
+
+test('a controlled deck follows the index its parent sets', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--controlled&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+
+  await page
+    .getByRole('group', { name: 'Go to slide' })
+    .getByRole('button', { name: '4' })
+    .click();
+
+  await expect(deck.getByRole('group', { name: '4 of 6' })).toBeInViewport({
+    ratio: 1
+  });
+  await expect(deck).toHaveAttribute('data-index', '3');
 });
