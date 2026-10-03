@@ -380,3 +380,28 @@ export function Next(props: ComponentProps<'button'>) {
     />
   );
 }
+
+/** A labelled group of buttons, one per page: one per snap point, so with
+ * several slides in a page a dot stands for the page, not a slide (ADR-0004).
+ * The current one carries `aria-current`. Empty until the viewport is
+ * measured, as the server cannot count snap points; absent when every slide
+ * fits. */
+export function Dots(props: ComponentProps<'div'>) {
+  const { index, count, engineRef } = useDeck('Dots');
+  if (everySlideFits(count)) return null;
+  return (
+    <div role="group" aria-label="Choose page" {...props}>
+      {Array.from({ length: count ?? 0 }, (_, i) => (
+        <button
+          key={i}
+          type="button"
+          aria-label={`Go to page ${i + 1}`}
+          aria-current={i === index ? 'true' : undefined}
+          data-index={i}
+          data-current={i === index ? '' : undefined}
+          onClick={() => engineRef.current?.scrollTo(i)}
+        />
+      ))}
+    </div>
+  );
+}
