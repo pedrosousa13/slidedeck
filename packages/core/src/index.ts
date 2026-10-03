@@ -85,7 +85,13 @@ export function createDeck(
 
   const step = (delta: number) => {
     const { points } = snapPoints(viewport);
-    target = clamp((target ?? state.index) + delta, points.length);
+    const next = clamp((target ?? state.index) + delta, points.length);
+    // A scroll to where the viewport already rests ends no scroll, so a
+    // target set for it would never clear and would block every refresh.
+    if (target === null && Math.abs(viewport.scrollLeft - points[next]) < 1) {
+      return;
+    }
+    target = next;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     viewport.scrollTo({
       left: points[target],
