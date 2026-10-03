@@ -9,4 +9,4 @@ pnpm-lock.yaml
 # inline code spans.
 docs/agents/
 # Throwaway prototype measurement output (#3); gitignored in the prototype.
-prototypes/*/measure-results/
+prototypes/scroll-snap/measure-results/

@@ -36,8 +36,8 @@ from any origin root or subpath.
 
 ### On a phone (local network only)
 
-The prototype is not deployed anywhere. To open it on an iPhone, run this in
-`~/apps/slidedeck`:
+The prototype is not deployed anywhere. To open it on an iPhone, run this from
+the repo root:
 
 ```sh
 pnpm --filter @slidedeck/proto-scroll-snap serve

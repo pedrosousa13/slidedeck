@@ -16,10 +16,14 @@ the end is provisional until that check is done.
   default, group, vertical and RTL.
 - **Scenarios.** Each loop scenario starts next to the seam (slide 1, or the
   last page) and crosses it:
-  - a wheel flick (10 wheel events of 200 px, 16 ms apart);
+  - a wheel burst (10 discrete `page.mouse.wheel` events of 200 px, 16 ms
+    apart). This is not a momentum flick: Playwright sends no inertia, so
+    each event is a separate scroll;
   - a smooth `scrollBy` of 3 pages;
   - 5 clicks on Next, 40 ms apart;
-  - a CDP touch flick with fling (Chromium only, in a touch context);
+  - a CDP touch flick with fling (Chromium only, in a touch context). This
+    is the only real momentum flick in the suite. Momentum flicks in
+    Firefox and WebKit are untested;
   - a fast mouse drag (a flick), a slow short drag (25% of a page) and a
     slow long drag (65% of a page).
 - **Focus and screen reader.** The suite pressed Tab 40 times from the
@@ -34,7 +38,11 @@ the end is provisional until that check is done.
     correction, in the same task. 0 means the correction landed on
     identical content. In the default runs the largest value was 0.0009 of
     a slide (under 1 px, from rounding to whole pixels). A value above 0.005
-    of a slide is reported below as a jump.
+    of a slide is reported below as a jump. Limit: `measured()` in
+    `src/page.ts` compares positions only within the correction task. It
+    cannot see a re-snap that the browser applies in a later frame. The
+    verdicts below use this figure plus edge hits, not the per-frame
+    `maxStep`.
   - _Edge hit_: on a loop page, the scroller reached its physical end while
     it was moving. You see this as a dead stop, or as a rubber band on iOS.
   - _Off snap_: the scroller came to rest more than 2 px from a snap point.
@@ -55,23 +63,23 @@ identical real slides. The copies are `aria-hidden` and `inert`. The
 defaults are a full set of copies on each side, a jump at rest, and only on
 a snap point.
 
-| Question                         | Chromium                                                                                                  | Firefox                                                                                                                                          | WebKit (Playwright)                                                                                                       | iOS Safari                                   |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| Hard flick across the seam       | **No jump** in all 4 configs: wheel, smooth `scrollBy`, 5× Next, touch flick. No edge hits.               | **No jump.** One edge hit: group + 5× Next went 12 slides and ran past the 4 pages of copies, because Firefox adds up queued `scrollBy` targets. | **No jump** from programmatic scrolls. Wheel flicks came to rest off snap (see the WebKit note), so the jump was put off. | Untested; maintainer to check on device (#4) |
-| Drag snaps cleanly               | **Yes** in all 4 configs, also across the seam                                                            | **Yes**, with one exception: a flick in group measured 0 release velocity (harness timing) and stayed put                                        | **Yes** in all 4 configs                                                                                                  | Untested; maintainer to check on device (#4) |
-| Focus or screen reader on a copy | **No.** Tab never landed on a copy. The browser's AX tree has 12 slide nodes, so the copies are excluded. | **No** on Tab. Aria snapshot: 12 slides (Playwright's model, not Firefox's AX tree).                                                             | **No** on Tab. Aria snapshot: 12 slides (Playwright's model).                                                             | Untested; maintainer to check on device (#4) |
+| Question                         | Chromium                                                                                                  | Firefox                                                                                                                                                                                                                | WebKit (Playwright)                                                                                                                                                                             | iOS Safari                                   |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Hard flick across the seam       | **No jump** in all 4 configs: wheel burst, smooth `scrollBy`, 5× Next, touch flick. No edge hits.         | Wheel bursts and programmatic scrolls only; momentum flicks untested. **No jump.** One edge hit: group + 5× Next went 12 slides and ran past the 4 pages of copies, because Firefox adds up queued `scrollBy` targets. | Wheel bursts and programmatic scrolls only; momentum flicks untested. **No jump** from programmatic scrolls. Wheel bursts came to rest off snap (see the WebKit note), so the jump was put off. | Untested; maintainer to check on device (#4) |
+| Drag snaps cleanly               | **Yes** in all 4 configs, also across the seam                                                            | **Yes**, with one exception: a flick in group measured 0 release velocity (harness timing) and stayed put                                                                                                              | **Yes** in all 4 configs                                                                                                                                                                        | Untested; maintainer to check on device (#4) |
+| Focus or screen reader on a copy | **No.** Tab never landed on a copy. The browser's AX tree has 12 slide nodes, so the copies are excluded. | No (Tab + aria snapshot; no screen reader). Tab never landed on a copy. Aria snapshot: 12 slides (Playwright's model, not Firefox's AX tree).                                                                          | No (Tab + aria snapshot; no screen reader). Tab never landed on a copy. Aria snapshot: 12 slides (Playwright's model).                                                                          | Untested; maintainer to check on device (#4) |
 
 Variants:
 
 - **Fewest copies** (`clones=viewport`, one viewport of copies). A hard
-  flick runs into the end of the copies in all three browsers: there are
-  edge hits, and in Chromium and Firefox a jump of 0.18 slide when the
-  scroller is snapped after the correction. Fewer copies than one viewport
-  cannot work at all, because the jump lands past the end of the scroll
-  range.
+  scroll across the seam (the scenarios above) runs into the end of the
+  copies in all three browsers: there are edge hits, and in Chromium and
+  Firefox a jump of 0.18 slide when the scroller is snapped after the
+  correction. Fewer copies than one viewport cannot work at all, because
+  the jump lands past the end of the scroll range.
 - **Jump mid-motion** (`fix=live`). There are visible jumps in all three
   browsers (Chromium up to 0.30 slide, Firefox 0.09, WebKit 0.13). The
-  motion also stops: a Chromium wheel flick travelled 0 slides. A
+  motion also stops: a Chromium wheel burst travelled 0 slides. A
   programmatic scroll ends any scroll animation that is running, and the
   browser snaps the new position.
 - **No snap guard** (`guard=0`). Clean in Chromium and Firefox. In WebKit,
@@ -86,11 +94,11 @@ is then corrected by exactly how far the focal slide moved. `mode=dom`
 moves the nodes, with `moveBefore` where it exists. `mode=order` sets the
 CSS `order` property instead.
 
-| Question                         | Chromium                                                                                                                                          | Firefox                                                               | WebKit (Playwright)                                                                          | iOS Safari                                   |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| Hard flick across the seam       | Default and RTL are clean. **Vertical:** a forward wheel flick ran out of runway (jump 0.18). **Group:** edge hits on wheel, `scrollBy` and Next. | **5× Next ran into the end** (edge hit, jump 0.18). Group: edge hits. | **A forward wheel flick ran out of runway** (jump 0.18) in default, RTL, vertical and order. | Untested; maintainer to check on device (#4) |
-| Drag snaps cleanly               | **Yes** in all configs                                                                                                                            | **Yes** in all configs                                                | **Yes** in all configs                                                                       | Untested; maintainer to check on device (#4) |
-| Focus or screen reader on a copy | No copies exist (12 AX slide nodes). But see "Tab order" below.                                                                                   | No copies exist (12 in the aria snapshot)                             | No copies exist (12 in the aria snapshot)                                                    | Untested; maintainer to check on device (#4) |
+| Question                         | Chromium                                                                                                                                          | Firefox                                                                                                                                     | WebKit (Playwright)                                                                                                                                                | iOS Safari                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| Hard flick across the seam       | Default and RTL are clean. **Vertical:** a forward wheel burst ran out of runway (jump 0.18). **Group:** edge hits on wheel, `scrollBy` and Next. | Wheel bursts and programmatic scrolls only; momentum flicks untested. **5× Next ran into the end** (edge hit, jump 0.18). Group: edge hits. | Wheel bursts and programmatic scrolls only; momentum flicks untested. **A forward wheel burst ran out of runway** (jump 0.18) in default, RTL, vertical and order. | Untested; maintainer to check on device (#4) |
+| Drag snaps cleanly               | **Yes** in all configs                                                                                                                            | **Yes** in all configs                                                                                                                      | **Yes** in all configs                                                                                                                                             | Untested; maintainer to check on device (#4) |
+| Focus or screen reader on a copy | No copies exist (12 AX slide nodes). But see "Tab order" below.                                                                                   | No copies exist (Tab + aria snapshot, 12 slides; no screen reader)                                                                          | No copies exist (Tab + aria snapshot, 12 slides; no screen reader)                                                                                                 | Untested; maintainer to check on device (#4) |
 
 Where it broke:
 
@@ -121,14 +129,15 @@ scroll position. There are two handoffs on release:
 - `restore` turns snapping back on at once and lets the browser pick a snap
   point.
 
-| Question                        | Chromium                                                                                                                                          | Firefox      | WebKit (Playwright) | iOS Safari                                         |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------------------- | -------------------------------------------------- |
-| Drag snaps cleanly (`scripted`) | **Yes** in all configs, also across loop seams. A slow short drag snaps back, a slow long drag advances one page, a flick moves one page or more. | **Yes**      | **Yes**             | n/a: touch is native scrolling; drag is mouse only |
-| Drag snaps cleanly (`restore`)  | **No.** The snap is instant: the 240 px move finishes before the first frame after release. A flick is ignored.                                   | **No**, same | **No**, same        | n/a                                                |
+| Question                        | Chromium                                                                                                                                          | Firefox      | WebKit (Playwright) | iOS Safari                                                           |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------------------- | -------------------------------------------------------------------- |
+| Drag snaps cleanly (`scripted`) | **Yes** in all configs, also across loop seams. A slow short drag snaps back, a slow long drag advances one page, a flick moves one page or more. | **Yes**      | **Yes**             | Untested on device (#4); touch uses native scrolling, mouse drag n/a |
+| Drag snaps cleanly (`restore`)  | **No.** The snap is instant: the 240 px move finishes before the first frame after release. A flick is ignored.                                   | **No**, same | **No**, same        | Untested on device (#4); touch uses native scrolling, mouse drag n/a |
 
-This was observed with a per-frame trace of the scroll position after
-release. With `scripted`, the move to the snap point eases out over about
-14 to 30 frames in all three browsers.
+The committed suite records only totals per run: the frame count and the
+largest per-frame step (`maxStep`). The frame-by-frame claims (the instant
+re-snap with `restore`, and the `scripted` move easing out over about 14 to
+30 frames) come from a manual per-frame trace that is not committed.
 
 ## Fade (`fade.html`)
 
@@ -136,12 +145,12 @@ Empty snap targets give the viewport its scroll length. The slides are
 stacked with `position: sticky` and take their opacity from scroll
 progress. Group snapping does not apply to a fade, so that toggle is off.
 
-| Question                                    | Chromium                                                                                                                                                                                                   | Firefox                                                      | WebKit (Playwright) | iOS Safari                                   |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------- | -------------------------------------------- |
-| Slides stay stacked, opacity follows scroll | **Yes.** At 2.25 slides of progress, every slide is at offset 0 and the opacities are 0, 0, 0.75, 0.25, 0, in default, vertical and RTL.                                                                   | **Yes**                                                      | **Yes**             | Untested; maintainer to check on device (#4) |
-| CSS view timelines (`driver=css`)           | Yes, but **RTL is broken**: every opacity is 0                                                                                                                                                             | **Not supported** in Firefox 155 (the page falls back to JS) | Yes, also in RTL    | Untested; maintainer to check on device (#4) |
-| Drag snaps cleanly                          | **Yes**                                                                                                                                                                                                    | **Yes**                                                      | **Yes**             | n/a                                          |
-| Focus or screen reader on a hidden slide    | With `inert` (the default): Tab reaches only the focal slide, and the AX tree has 1 slide node. With `hide=none`: 22 Tab stops on invisible slides, because nothing scrolls when a stuck slide gets focus. | Same Tab result                                              | Same Tab result     | Untested; maintainer to check on device (#4) |
+| Question                                    | Chromium                                                                                                                                                                                                   | Firefox                                                      | WebKit (Playwright) | iOS Safari                                                           |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------- | -------------------------------------------------------------------- |
+| Slides stay stacked, opacity follows scroll | **Yes.** At 2.25 slides of progress, every slide is at offset 0 and the opacities are 0, 0, 0.75, 0.25, 0, in default, vertical and RTL.                                                                   | **Yes**                                                      | **Yes**             | Untested; maintainer to check on device (#4)                         |
+| CSS view timelines (`driver=css`)           | Yes, but **RTL is broken**: every opacity is 0                                                                                                                                                             | **Not supported** in Firefox 155 (the page falls back to JS) | Yes, also in RTL    | Untested; maintainer to check on device (#4)                         |
+| Drag snaps cleanly                          | **Yes**                                                                                                                                                                                                    | **Yes**                                                      | **Yes**             | Untested on device (#4); touch uses native scrolling, mouse drag n/a |
+| Focus or screen reader on a hidden slide    | With `inert` (the default): Tab reaches only the focal slide, and the AX tree has 1 slide node. With `hide=none`: 22 Tab stops on invisible slides, because nothing scrolls when a stuck slide gets focus. | Same Tab result                                              | Same Tab result     | Untested; maintainer to check on device (#4)                         |
 
 Getting sticky right took two attempts. A sticky box is held inside its
 parent's box. A one-cell grid area gives it no room to stick, and an
@@ -159,13 +168,15 @@ must be as long as the scroll range.
 - **A correction must happen on a snap point.** A clone jump or a rotation
   is a programmatic scroll, and browsers snap programmatic scrolls. If the
   scroller is between snap points, the correction shows as a jump. The
-  guard (wait for a settle that rests on a snap point) stopped every such
-  jump that was measured.
-- **WebKit note (Playwright WPE).** Wheel flicks often came to rest 70 to
+  guard (wait for a settle that rests on a snap point) gave a correction
+  error of at most 0.0009 slide in the default runs. That figure is read
+  within the correction task only (see "What counts as a jump"), so a
+  later re-snap by the browser would not show in it.
+- **WebKit note (Playwright WPE).** Wheel bursts often came to rest 70 to
   370 px off a snap point, and nothing snapped them later (checked 3 s
   after). This also happened on the non-loop drag and fade pages. Because of
-  this, the WebKit wheel rows say nothing about Safari. Check this on a Mac
-  trackpad.
+  this, the WebKit wheel-burst rows say nothing about Safari. Check this on a
+  Mac trackpad.
 - **Events.** `scrollend` is in all three browsers. `scrollsnapchange` is
   only in Chromium. `moveBefore` is in Chromium and Firefox but not WebKit.
   Scroll-driven animations are in Chromium and WebKit but not Firefox 155.
@@ -179,7 +190,7 @@ must be as long as the scroll range.
 
 ## On-device checklist for the maintainer (#4)
 
-1. In `~/apps/slidedeck`, run
+1. From the repo root, run
    `pnpm --filter @slidedeck/proto-scroll-snap serve`. With the iPhone on
    the same Wi-Fi, open `http://<machine LAN IP>:4317/`. Find the LAN IP
    with `hostname -I` on Linux, or `ipconfig getifaddr en0` on macOS.
