@@ -1,6 +1,7 @@
 import {
   Children,
   createContext,
+  isValidElement,
   use,
   useLayoutEffect,
   useRef,
@@ -108,7 +109,12 @@ export function Viewport({ style, children, ...props }: ComponentProps<'div'>) {
         {slideDefaults}
       </style>
       {slides.map((slide, index) => (
-        <SlideContext key={index} value={{ index, count: slides.length }}>
+        // `toArray` gives every element a key derived from the consumer's,
+        // so a reordered slide moves instead of remounting.
+        <SlideContext
+          key={isValidElement(slide) ? slide.key : index}
+          value={{ index, count: slides.length }}
+        >
           {slide}
         </SlideContext>
       ))}

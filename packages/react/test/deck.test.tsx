@@ -343,3 +343,22 @@ describe('misuse fails loudly', () => {
     }
   });
 });
+
+test('reordering keyed slides moves them instead of remounting them', () => {
+  const deck = (order: string[]) => (
+    <Deck.Root aria-label="Keyed">
+      <Deck.Viewport style={{ width: WIDTH }}>
+        {order.map((name) => (
+          <Deck.Slide key={name}>{name}</Deck.Slide>
+        ))}
+      </Deck.Viewport>
+    </Deck.Root>
+  );
+  const { rerender } = render(deck(['a', 'b', 'c']));
+  const slideA = screen.getByText('a');
+
+  rerender(deck(['c', 'b', 'a']));
+
+  expect(screen.getByText('a')).toBe(slideA);
+  expect(slideA.getAttribute('aria-label')).toBe('3 of 3');
+});
