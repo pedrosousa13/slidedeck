@@ -13,6 +13,7 @@ export default defineConfig({
       input: {
         index: page('index'),
         'loop-clone-jump': page('loop-clone-jump'),
+        'loop-reposition': page('loop-reposition'),
         drag: page('drag')
       }
     }
