@@ -175,3 +175,58 @@ describe('a controlled deck', () => {
     expect(viewport.scrollLeft).toBe(3 * WIDTH);
   });
 });
+
+describe('mixing controlled and uncontrolled warns in development', () => {
+  const spyOnErrors = () =>
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  afterEach(() => vi.restoreAllMocks());
+
+  test('once, when an uncontrolled deck becomes controlled', () => {
+    const errors = spyOnErrors();
+    const { rerender } = render(<TestDeck />);
+
+    rerender(<TestDeck index={1} onIndexChange={() => {}} />);
+    rerender(<TestDeck index={2} onIndexChange={() => {}} />);
+
+    expect(errors).toHaveBeenCalledOnce();
+    expect(errors.mock.calls[0][0]).toMatch(
+      /uncontrolled deck to be controlled/
+    );
+  });
+
+  test('once, when a controlled deck becomes uncontrolled', () => {
+    const errors = spyOnErrors();
+    const { rerender } = render(
+      <TestDeck index={1} onIndexChange={() => {}} />
+    );
+
+    rerender(<TestDeck />);
+    rerender(<TestDeck />);
+
+    expect(errors).toHaveBeenCalledOnce();
+    expect(errors.mock.calls[0][0]).toMatch(
+      /controlled deck to be uncontrolled/
+    );
+  });
+
+  test('when given both index and defaultIndex', () => {
+    const errors = spyOnErrors();
+    const both = { index: 1, defaultIndex: 2, onIndexChange: () => {} };
+
+    render(<TestDeck {...both} />);
+
+    expect(errors).toHaveBeenCalledOnce();
+    expect(errors.mock.calls[0][0]).toMatch(
+      /either index or defaultIndex, not both/
+    );
+  });
+
+  test('not at all for a deck that stays one or the other', () => {
+    const errors = spyOnErrors();
+    const { rerender } = render(<TestDeck defaultIndex={1} />);
+    rerender(<TestDeck defaultIndex={2} />);
+    render(<TestDeck index={1} onIndexChange={() => {}} />);
+
+    expect(errors).not.toHaveBeenCalled();
+  });
+});

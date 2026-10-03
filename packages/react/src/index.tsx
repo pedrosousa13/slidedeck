@@ -3,6 +3,7 @@ import {
   createContext,
   isValidElement,
   use,
+  useEffect,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -13,6 +14,10 @@ import {
   type RefObject
 } from 'react';
 import { createDeck, type DeckEngine } from '@slidedeck/core';
+
+// Left in the build for the consumer's bundler to replace, as React's own
+// development checks are, so production bundles drop the warnings.
+declare const process: { env: { NODE_ENV?: string } };
 
 interface DeckContextValue {
   index: number;
@@ -66,12 +71,16 @@ export interface RootProps extends Omit<ComponentProps<'div'>, 'ref'> {
 /** One deck: a labelled carousel region holding a viewport and its controls. */
 export function Root({
   index,
-  defaultIndex = 0,
+  defaultIndex,
   onIndexChange,
   ref,
   ...props
 }: RootProps) {
-  const [initialIndex] = useState(index ?? defaultIndex);
+  const [initialIndex] = useState(index ?? defaultIndex ?? 0);
+  if (process.env.NODE_ENV !== 'production') {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- the condition is constant for a build
+    useMixedUsageWarning(index, defaultIndex);
+  }
   const [state, setState] = useState<{
     index: number;
     count: number | null;
@@ -148,6 +157,37 @@ export function Root({
       />
     </DeckContext>
   );
+}
+
+/** Warns, once per deck, about mixing controlled and uncontrolled usage, as
+ * React does for an input's `value` and `defaultValue`. */
+function useMixedUsageWarning(
+  index: number | undefined,
+  defaultIndex: number | undefined
+) {
+  const controlled = index !== undefined;
+  const [wasControlled] = useState(controlled);
+  const both = controlled && defaultIndex !== undefined;
+  const warned = useRef(false);
+  useEffect(() => {
+    if (warned.current) return;
+    const message = both
+      ? 'Deck.Root takes either index or defaultIndex, not both. Pass index ' +
+        'with onIndexChange for a controlled deck, or defaultIndex for an ' +
+        'uncontrolled one.'
+      : controlled !== wasControlled
+        ? `Deck.Root is changing ${
+            wasControlled
+              ? 'a controlled deck to be uncontrolled'
+              : 'an uncontrolled deck to be controlled'
+          }. A deck should not switch between the two: choose index or ` +
+          'defaultIndex for its whole life.'
+        : null;
+    if (message) {
+      warned.current = true;
+      console.error(message);
+    }
+  }, [both, controlled, wasControlled]);
 }
 
 const SlideContext = createContext<{ index: number; count: number } | null>(
