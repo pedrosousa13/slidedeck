@@ -6,3 +6,5 @@ packages:
 # advisory yet, so only time separates us from it. A frozen-lockfile install
 # replays resolutions that already happened and is unaffected.
 minimumReleaseAge: 1440
+allowBuilds:
+  esbuild@0.28.2: true
