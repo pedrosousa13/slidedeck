@@ -4,6 +4,8 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import * as Deck from '@slidedeck/react';
 import {
   expectSettledTo,
+  expectSnaps,
+  mouseAt,
   mouseDrag,
   setReducedMotion,
   sleep,
@@ -26,7 +28,7 @@ const slowly = { steps: 10, stepMs: 20, holdMs: 120 };
 describe('a mouse drag', () => {
   afterEach(() => setReducedMotion(false));
 
-  test('moves the deck with the pointer, with snapping off', async () => {
+  test('moves the deck with the pointer', async () => {
     const { viewport } = renderDeck();
 
     const letGo = await mouseDrag(viewport, -100, {
@@ -69,12 +71,11 @@ describe('a mouse drag', () => {
 
   test('turns snapping back on once it settles', async () => {
     const { viewport } = renderDeck();
-    const snapType = viewport.style.scrollSnapType;
 
     await mouseDrag(viewport, -200, slowly);
 
     await expectSettledTo(() => viewport.scrollLeft, WIDTH);
-    expect(viewport.style.scrollSnapType).toBe(snapType);
+    await expectSnaps(viewport);
   });
 
   test('reports nothing while the button is down', async () => {
@@ -94,18 +95,16 @@ describe('a mouse drag', () => {
   test('with reduced motion, settles on its snap point at once', async () => {
     await setReducedMotion(true);
     const { viewport, onIndexChange } = renderDeck();
-    const snapType = viewport.style.scrollSnapType;
 
     await mouseDrag(viewport, -200, slowly);
 
     expect(viewport.scrollLeft).toBe(WIDTH);
     await expectSettledTo(() => onIndexChange.mock.calls, [[1]]);
-    expect(viewport.style.scrollSnapType).toBe(snapType);
+    await expectSnaps(viewport);
   });
 
   test('takes over a scroll in flight, which then never reports', async () => {
     const { viewport, onIndexChange } = renderDeck();
-    const snapType = viewport.style.scrollSnapType;
 
     // Next heads for snap point 1; the drag pulls the deck back to 0.
     act(() => screen.getByRole('button', { name: 'Next' }).click());
@@ -113,7 +112,7 @@ describe('a mouse drag', () => {
 
     await expectSettledTo(() => viewport.scrollLeft, 0);
     expect(onIndexChange).not.toHaveBeenCalled();
-    expect(viewport.style.scrollSnapType).toBe(snapType);
+    await expectSnaps(viewport);
     // Next steps from where the deck rests, not from the abandoned target.
     act(() => screen.getByRole('button', { name: 'Next' }).click());
     await expectSettledTo(() => viewport.scrollLeft, WIDTH);
@@ -122,7 +121,6 @@ describe('a mouse drag', () => {
 
   test('takes over its own release mid-flight', async () => {
     const { viewport, onIndexChange } = renderDeck();
-    const snapType = viewport.style.scrollSnapType;
 
     // A flick heads for snap point 1; a second drag catches it on the way
     // and pulls it back.
@@ -131,7 +129,7 @@ describe('a mouse drag', () => {
 
     await expectSettledTo(() => viewport.scrollLeft, 0);
     expect(onIndexChange).not.toHaveBeenCalled();
-    expect(viewport.style.scrollSnapType).toBe(snapType);
+    await expectSnaps(viewport);
   });
 
   test('in a controlled deck, reports the new index and returns to index if the parent does not take it', async () => {
@@ -212,20 +210,84 @@ describe('a mouse drag', () => {
     expect(viewport.scrollLeft).toBe(0);
     expect(onIndexChange).not.toHaveBeenCalled();
   });
+
+  test('does not follow a mouse that lets go outside the deck and hovers back', async () => {
+    const { viewport, onIndexChange } = renderDeck();
+    const box = viewport.getBoundingClientRect();
+    const y = box.top + box.height / 2;
+
+    // Out of the deck before the drag threshold, so it never captures.
+    await mouseAt('mousePressed', box.right - 2, y, 1);
+    await mouseAt('mouseMoved', box.right + 2, y, 1);
+    await mouseAt('mouseMoved', box.right + 40, y, 1);
+    await mouseAt('mouseReleased', box.right + 40, y, 0);
+    for (let step = 1; step <= 10; step++) {
+      await sleep(16);
+      await mouseAt('mouseMoved', box.right - 2 - step * 15, y, 0);
+    }
+    await sleep(300);
+
+    expect(viewport.scrollLeft).toBe(0);
+    expect(onIndexChange).not.toHaveBeenCalled();
+    await expectSnaps(viewport);
+  });
+
+  test('settles on a snap point when it loses the pointer and lets go outside the deck', async () => {
+    const { viewport, onIndexChange } = renderDeck();
+
+    await mouseDrag(viewport, -200, { ...slowly, release: false });
+    // Mouse pointers are id 1 in Chromium.
+    viewport.releasePointerCapture(1);
+    const box = viewport.getBoundingClientRect();
+    await mouseAt('mouseMoved', box.left - 30, box.bottom + 30, 1);
+    await mouseAt('mouseReleased', box.left - 30, box.bottom + 30, 0);
+
+    await expectSettledTo(() => viewport.scrollLeft, WIDTH);
+    expect(onIndexChange.mock.calls).toEqual([[1]]);
+    await expectSnaps(viewport);
+  });
+
+  test('keeps a snap type the consumer sets mid-drag', async () => {
+    function SnapDeck({ snap = 'x mandatory' }: { snap?: string }) {
+      return (
+        <Deck.Root aria-label="Test deck">
+          <Deck.Viewport style={{ width: WIDTH, scrollSnapType: snap }}>
+            {Array.from({ length: 5 }, (_, i) => (
+              <Deck.Slide key={i}>Slide {i + 1}</Deck.Slide>
+            ))}
+          </Deck.Viewport>
+        </Deck.Root>
+      );
+    }
+    const { rerender } = render(<SnapDeck />);
+    const viewport = viewportOf(
+      screen.getByRole('region', { name: 'Test deck' })
+    );
+
+    const letGo = await mouseDrag(viewport, -200, {
+      ...slowly,
+      release: false
+    });
+    rerender(<SnapDeck snap="x proximity" />);
+    await letGo();
+    await expectSettledTo(() => viewport.scrollLeft, WIDTH);
+
+    // Proximity leaves a scroll halfway between snap points where it stops.
+    viewport.scrollLeft = WIDTH * 1.5;
+    await sleep(400);
+    expect(viewport.scrollLeft).toBe(WIDTH * 1.5);
+  });
 });
 
 describe('a touch swipe', () => {
-  test('is left to the browser: snapping stays on', async () => {
+  test('is left to the browser, which snaps it', async () => {
     const { viewport, onIndexChange } = renderDeck();
-    const snapTypes = new Set<string>();
-    const record = () => snapTypes.add(viewport.style.scrollSnapType);
-    viewport.addEventListener('scroll', record);
 
     await touchSwipe(viewport, 200);
 
     await expectSettledTo(() => onIndexChange.mock.calls, [[1]]);
-    expect([...snapTypes]).toEqual([viewport.style.scrollSnapType]);
-    viewport.removeEventListener('scroll', record);
+    expect(viewport.scrollLeft).toBe(WIDTH);
+    await expectSnaps(viewport);
   });
 });
 
@@ -333,5 +395,25 @@ describe('with drag={false}', () => {
     rerender(<TestDeck drag />);
     await mouseDrag(viewport, -200, slowly);
     await expectSettledTo(() => viewport.scrollLeft, WIDTH);
+  });
+
+  test('turned off after a press but before it drags, the press does not drag', async () => {
+    const { rerender } = render(<TestDeck />);
+    const viewport = viewportOf(
+      screen.getByRole('region', { name: 'Test deck' })
+    );
+    const box = viewport.getBoundingClientRect();
+    const y = box.top + box.height / 2;
+
+    await mouseAt('mousePressed', box.right - 10, y, 1);
+    rerender(<TestDeck drag={false} />);
+    for (let step = 1; step <= 10; step++) {
+      await sleep(16);
+      await mouseAt('mouseMoved', box.right - 10 - step * 20, y, 1);
+    }
+    await mouseAt('mouseReleased', box.right - 210, y, 0);
+    await sleep(300);
+
+    expect(viewport.scrollLeft).toBe(0);
   });
 });

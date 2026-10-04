@@ -133,7 +133,7 @@ export const Pages: Story = {
  * a drag never clicks the link it started on. A plain click still follows it.
  * Touch, pen and trackpad scroll natively. Turn drag off with `drag={false}`.
  */
-export const Links: Story = {
+export const Drag: Story = {
   args: { drag: true },
   render: (args) => (
     <Deck.Root {...args}>

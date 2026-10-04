@@ -7,7 +7,7 @@ const stories = [
   'deck--starting-index',
   'deck--controlled',
   'deck--pages',
-  'deck--links'
+  'deck--drag'
 ];
 
 for (const id of stories) {
@@ -102,7 +102,7 @@ test('a paged deck steps a page at a time, its page size set per breakpoint', as
 test('a mouse drag moves the deck and settles on a slide, without following a link', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--links&viewMode=story');
+  await page.goto('/iframe.html?id=deck--drag&viewMode=story');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const link = deck.getByRole('link', { name: 'Article 1' });
   const box = (await link.boundingBox())!;
@@ -123,7 +123,7 @@ test('a mouse drag moves the deck and settles on a slide, without following a li
 test('a plain click on a link in a slide still follows it', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--links&viewMode=story');
+  await page.goto('/iframe.html?id=deck--drag&viewMode=story');
   const deck = page.getByRole('region', { name: 'Featured slides' });
 
   await deck.getByRole('link', { name: 'Article 1' }).click();
@@ -135,9 +135,7 @@ test('a plain click on a link in a slide still follows it', async ({
 test('with drag off, a mouse drag leaves the deck where it is', async ({
   page
 }) => {
-  await page.goto(
-    '/iframe.html?id=deck--links&viewMode=story&args=drag:!false'
-  );
+  await page.goto('/iframe.html?id=deck--drag&viewMode=story&args=drag:!false');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const link = deck.getByRole('link', { name: 'Article 1' });
   const box = (await link.boundingBox())!;

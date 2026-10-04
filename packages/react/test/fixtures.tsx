@@ -143,6 +143,32 @@ export async function mouseDrag(
   return letGo;
 }
 
+/** One real mouse event (CDP) at `x`, `y` in this page, with `buttons` held:
+ * 1 for the primary button, 0 for none. */
+export const mouseAt = (
+  type: 'mousePressed' | 'mouseMoved' | 'mouseReleased',
+  x: number,
+  y: number,
+  buttons: number
+): Promise<unknown> =>
+  cdp().send('Input.dispatchMouseEvent', {
+    type,
+    ...toPage(x, y),
+    button: buttons || type !== 'mouseMoved' ? 'left' : 'none',
+    buttons,
+    clickCount: 1
+  });
+
+/**
+ * Checks the deck snaps, as a user sees it: a native scroll that stops just
+ * past where the deck rests comes back to rest there.
+ */
+export async function expectSnaps(viewport: HTMLElement) {
+  const rest = viewport.scrollLeft;
+  viewport.scrollLeft = rest + 40;
+  await expectSettledTo(() => viewport.scrollLeft, rest);
+}
+
 /** A smooth two-finger-style scroll gesture, synthesised by Chromium. */
 export async function gestureScroll(el: Element, dx: number) {
   const box = el.getBoundingClientRect();

@@ -94,8 +94,11 @@ export function createDeck(
   };
   const restoreSnap = () => {
     if (!saved) return;
-    viewport.style.scrollSnapType = saved.snap;
-    viewport.style.userSelect = saved.select;
+    const { style } = viewport;
+    // A value the consumer set mid-drag is newer than the saved one, and
+    // React would not set it again.
+    if (style.scrollSnapType === 'none') style.scrollSnapType = saved.snap;
+    if (style.userSelect === 'none') style.userSelect = saved.select;
     saved = null;
   };
 
@@ -214,7 +217,13 @@ export function createDeck(
 
   const onPointerMove = (event: PointerEvent) => {
     if (event.pointerId !== pointer) return;
+    // The button let go where the viewport did not hear it.
+    if ((event.buttons & 1) === 0) {
+      release(event);
+      return;
+    }
     if (drag !== 'dragging') {
+      if (!dragEnabled) return;
       // Under the threshold a press is still a click.
       const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
       if (moved < DRAG_THRESHOLD_PX) return;
@@ -230,11 +239,20 @@ export function createDeck(
     viewport.scrollLeft += delta;
     travel += delta;
     samples.push({ t: event.timeStamp, travel });
-    if (samples.length > 8) samples.shift();
+    if (samples.length > MAX_SAMPLES) samples.shift();
   };
 
   const onPointerUp = (event: PointerEvent) => {
-    if (event.pointerId !== pointer) return;
+    if (event.pointerId === pointer) release(event);
+  };
+
+  // Lost mid-drag, the capture may never deliver the pointerup. After a
+  // pointerup, which releases the capture, the pointer is already let go.
+  const onLostCapture = (event: PointerEvent) => {
+    if (event.pointerId === pointer && drag === 'dragging') release(event);
+  };
+
+  const release = (event: PointerEvent) => {
     pointer = -1;
     if (drag !== 'dragging') return;
     suppressClick();
@@ -281,6 +299,7 @@ export function createDeck(
   viewport.addEventListener('pointermove', onPointerMove);
   viewport.addEventListener('pointerup', onPointerUp);
   viewport.addEventListener('pointercancel', onPointerUp);
+  viewport.addEventListener('lostpointercapture', onLostCapture);
   viewport.addEventListener('dragstart', onDragStart);
 
   // From the snap point a scroll in flight is heading to, if any.
@@ -306,6 +325,7 @@ export function createDeck(
       viewport.removeEventListener('pointermove', onPointerMove);
       viewport.removeEventListener('pointerup', onPointerUp);
       viewport.removeEventListener('pointercancel', onPointerUp);
+      viewport.removeEventListener('lostpointercapture', onLostCapture);
       viewport.removeEventListener('dragstart', onDragStart);
       restoreSnap();
     }
@@ -320,6 +340,13 @@ const DRAG_THRESHOLD_PX = 5;
 const FLICK_PX_PER_MS = 0.4;
 /** How far a flick carries: this long at its release speed. */
 const MOMENTUM_MS = 220;
+/** How many of the drag's latest moves it keeps to measure release speed. */
+const MAX_SAMPLES = 8;
+/** A pointer held still this long before letting go releases at rest. */
+const STILL_MS = 60;
+/** Release speed is measured over the drag's moves this long before its
+ * last one. */
+const VELOCITY_WINDOW_MS = 80;
 
 /** Scroll pixels per ms over the drag's last moments; 0 if the pointer held
  * still before letting go. */
@@ -328,8 +355,9 @@ function releaseVelocity(
   now: number
 ): number {
   const last = samples[samples.length - 1];
-  if (now - last.t > 60) return 0;
-  const first = samples.find((s) => last.t - s.t <= 80) ?? samples[0];
+  if (now - last.t > STILL_MS) return 0;
+  const first =
+    samples.find((s) => last.t - s.t <= VELOCITY_WINDOW_MS) ?? samples[0];
   const dt = last.t - first.t;
   return dt > 0 ? (last.travel - first.travel) / dt : 0;
 }

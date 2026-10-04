@@ -5,6 +5,7 @@ import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
   expectSettledTo,
+  expectSnaps,
   gestureScroll,
   mouseDrag,
   setReducedMotion,
@@ -274,13 +275,12 @@ describe('in an engine without scrollend', () => {
 
   test('a mouse drag settles on its snap point and turns snapping back on', async () => {
     const { viewport, onIndexChange } = renderDeck();
-    const snapType = viewport.style.scrollSnapType;
 
     await mouseDrag(viewport, -200, { steps: 10, stepMs: 20, holdMs: 150 });
 
     await expectSettledTo(() => viewport.scrollLeft, WIDTH);
     expect(onIndexChange.mock.calls).toEqual([[1]]);
-    expect(viewport.style.scrollSnapType).toBe(snapType);
+    await expectSnaps(viewport);
   });
 });
 
