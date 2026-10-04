@@ -334,12 +334,15 @@ export function createDeck(
       slide = slide.parentElement;
     }
     if (!slide) return;
-    // The snap point of the clicked slide's page: of the nearest slide at or
-    // before it that snaps. One slide to a page, that is the slide's own.
+    // The snap point of the clicked slide's page. One slide to a page, that
+    // is the slide's own.
     const { slides } = snapPoints(viewport);
-    let i = [...viewport.children].indexOf(slide);
-    while (i > 0 && slides[i] === -1) i--;
-    if (slides[i] !== -1) scrollTo(slides[i]);
+    const owner = pageOwner(
+      viewport,
+      slides,
+      [...viewport.children].indexOf(slide)
+    );
+    if (owner !== -1) scrollTo(slides[owner]);
   };
   viewport.addEventListener('click', onClick);
 
@@ -450,6 +453,31 @@ function snapPoints(viewport: HTMLElement): {
     points,
     slides: positions.map((p) => (p === null ? -1 : points.indexOf(p)))
   };
+}
+
+/**
+ * The snapping slide whose page holds slide `index`, as its alignment reaches:
+ * of the snapping slides `start`-aligned at or before it, `end`-aligned at or
+ * after it, or `center`-aligned either side, the nearest; -1 if none.
+ * `slides` is from `snapPoints`.
+ */
+function pageOwner(
+  viewport: HTMLElement,
+  slides: number[],
+  index: number
+): number {
+  let owner = -1;
+  slides.forEach((point, i) => {
+    if (point === -1) return;
+    const align = snapAlign(viewport.children[i]);
+    if ((align === 'start' && i > index) || (align === 'end' && i < index)) {
+      return;
+    }
+    if (owner === -1 || Math.abs(i - index) < Math.abs(owner - index)) {
+      owner = i;
+    }
+  });
+  return owner;
 }
 
 /** A slide's inline-axis `scroll-snap-align`: the last of its values. */

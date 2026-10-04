@@ -379,3 +379,80 @@ describe('click-to-focus with pages of three', () => {
     expect(viewport.scrollLeft).toBe(2 * WIDTH);
   });
 });
+
+// Three to a page, each page snapping on its last slide at the end, with 3.5
+// slides in view: pages rest at scroll 0, 6 slides less the viewport (slides
+// 2.5 to 6 in view) and the end of the range.
+describe('click-to-focus with end-aligned pages', () => {
+  const END_PAGES = `
+    .end-pages > * { width: calc(100% / 3.5); }
+    .end-pages > :nth-child(3n) { scroll-snap-align: end; }
+    .end-pages > :not(:nth-child(3n)) { scroll-snap-align: none; }
+  `;
+  const PAGE_1 = Math.round(6 * SLIDE - WIDTH);
+  const renderPages = () =>
+    renderDeck({
+      slides: 9,
+      viewportClassName: 'end-pages',
+      clickToFocus: true
+    });
+
+  test('clicking a slide in the current page leaves the deck where it is', async () => {
+    addStyle(END_PAGES);
+    const { root, viewport, handle, onFocalChange } = renderPages();
+    act(() => handle.current!.scrollTo(1));
+    await expectSettledTo(() => root.dataset.index, '1');
+    onFocalChange.mockClear();
+
+    // Slide 3 is the first slide of page 1, which snaps on slide 5.
+    await clickSlide(viewport, 3);
+    await sleep(400);
+
+    expect(Math.round(viewport.scrollLeft)).toBe(PAGE_1);
+    expect(root.dataset.index).toBe('1');
+    expect(onFocalChange).not.toHaveBeenCalled();
+  });
+
+  test('clicking a slide in another page goes to that page', async () => {
+    addStyle(END_PAGES);
+    const { root, viewport } = renderPages();
+
+    // At scroll 0, half of slide 3, in page 1, is in view.
+    await clickSlide(viewport, 3);
+
+    await expectSettledTo(() => root.dataset.index, '1');
+    expect(Math.round(viewport.scrollLeft)).toBe(PAGE_1);
+  });
+});
+
+// Three to a page, each page snapping on its middle slide at the centre, with
+// four slides in view: pages rest at scroll 0 (slides 0 to 3 in view), then
+// with slide 4 centred (slides 2.5 to 6.5) and slide 7 centred.
+describe('click-to-focus with pages centred on their middle slide', () => {
+  const MIDDLE_PAGES = `
+    .middle-pages > * { width: calc(100% / 4); }
+    .middle-pages > :nth-child(3n + 2) { scroll-snap-align: center; }
+    .middle-pages > :not(:nth-child(3n + 2)) { scroll-snap-align: none; }
+  `;
+  const renderPages = () =>
+    renderDeck({
+      slides: 12,
+      viewportClassName: 'middle-pages',
+      clickToFocus: true
+    });
+
+  test('clicking the first slide of the next page goes to that page', async () => {
+    addStyle(MIDDLE_PAGES);
+    const { root, viewport, focal } = renderPages();
+
+    await clickSlide(viewport, 3);
+
+    await expectSettledTo(() => root.dataset.index, '1');
+    expect(focal()).toEqual([4]);
+
+    await clickSlide(viewport, 6);
+
+    await expectSettledTo(() => root.dataset.index, '2');
+    expect(focal()).toEqual([7]);
+  });
+});

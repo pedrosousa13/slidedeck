@@ -74,8 +74,9 @@ interface RootBaseProps extends ComponentProps<'div'> {
   onFocalChange?: (slide: number) => void;
   /** Whether clicking a slide brings it to the focal position, as near as
    * the scroll range allows; with pages, its page. A click that ends a mouse
-   * drag does not, nor does a keyboard click (Enter or Space on a control).
-   * Defaults to false. */
+   * drag does not, nor does a keyboard click (Enter or Space on a control),
+   * nor a programmatic `element.click()` (detail 0): call `scrollTo` on the
+   * handle instead. Defaults to false. */
   clickToFocus?: boolean;
 }
 
