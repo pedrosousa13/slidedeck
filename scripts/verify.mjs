@@ -17,7 +17,12 @@ const STEPS = [
   'lint',
   'typecheck',
   'test',
+  'test:scripts',
   'build',
+  // The README's code blocks against the built packages.
+  'docs:check',
+  // The README's comparison table against a fresh measurement.
+  'compare:check',
   'test:packages',
   // A report, never a failure: see scripts/bundle-size.mjs.
   'size',

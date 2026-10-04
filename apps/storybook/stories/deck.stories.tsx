@@ -4,6 +4,8 @@ import { curve } from '@slidedeck/react/curve';
 import { fade } from '@slidedeck/react/fade';
 import theme from '@slidedeck/react/theme.css?inline';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import clip from './assets/clip.webm';
+import { VideoDeck } from './video-deck';
 
 const slidesOf = (count: number) =>
   Array.from({ length: count }, (_, i) => (
@@ -623,5 +625,24 @@ export const Themed: Story = {
       <Deck.Dots />
       <Deck.Counter />
     </Deck.Root>
+  )
+};
+
+/**
+ * The README's recipe: a playdeck video in each slide, and only the focal
+ * slide's plays, muted, from when the deck mounts; the rest pause. The deck
+ * calls `onFocalChange` once a scroll settles on a new focal slide, and the
+ * recipe plays and pauses through each player's handle. The slides are CSS,
+ * 80% wide, so the next one peeks.
+ */
+export const PlaydeckVideo: Story = {
+  render: () => (
+    <div className="video-deck">
+      <style>{`
+        .video-deck [data-slidedeck-viewport] { gap: 16px; }
+        .video-deck [data-slidedeck-slide] { width: 80%; }
+      `}</style>
+      <VideoDeck sources={[clip, clip, clip, clip]} />
+    </div>
   )
 };

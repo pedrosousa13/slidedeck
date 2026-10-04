@@ -55,7 +55,8 @@ const stories = [
   'deck--loop',
   'deck--loop-pages',
   'deck--loop-vertical',
-  'deck--loop-right-to-left'
+  'deck--loop-right-to-left',
+  'deck--playdeck-video'
 ];
 
 for (const id of stories) {
@@ -97,6 +98,31 @@ for (const id of stories) {
     ).toEqual([]);
   });
 }
+
+test("the playdeck recipe plays the focal slide's video and pauses the rest", async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--playdeck-video&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  // Per slide, whether its video is playing; a slide whose player has not
+  // loaded yet has no video, and is not playing.
+  const playing = () =>
+    deck.locator('[data-slidedeck-slide]').evaluateAll((slides) =>
+      slides.map((slide) => {
+        const video = slide.querySelector('video');
+        return video !== null && !video.paused && video.currentTime > 0;
+      })
+    );
+
+  await expect.poll(playing).toEqual([true, false, false, false]);
+
+  await deck.getByRole('button', { name: 'Next', exact: true }).click();
+
+  await expect(deck.getByRole('group', { name: '2 of 4' })).toHaveAttribute(
+    'data-focal'
+  );
+  await expect.poll(playing).toEqual([false, true, false, false]);
+});
 
 test('tabbing into an off-screen slide scrolls it into view', async ({
   page
