@@ -1,6 +1,41 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
+/**
+ * Watches the deck's viewport for the next scroll to end. Await it before a
+ * gesture, so the watch is in place; the function it returns resolves, once
+ * that scroll ends, with how far the viewport got from where it was along
+ * its axis at most, or 0 if no scroll ends within two seconds, so a gesture
+ * that scrolls nothing fails rather than hangs.
+ */
+async function watchScroll(page: Page): Promise<() => Promise<number>> {
+  const viewport = page.locator('[data-slidedeck-viewport]').first();
+  await viewport.evaluate((el) => {
+    const at = () => Math.abs(el.scrollLeft) + el.scrollTop;
+    const start = at();
+    let furthest = 0;
+    const onScroll = () => {
+      furthest = Math.max(furthest, Math.abs(at() - start));
+    };
+    (el as unknown as { ended: Promise<number> }).ended = new Promise(
+      (resolve) => {
+        const done = () => {
+          el.removeEventListener('scroll', onScroll);
+          clearTimeout(timer);
+          resolve(furthest);
+        };
+        const timer = setTimeout(done, 2000);
+        el.addEventListener('scroll', onScroll);
+        el.addEventListener('scrollend', done, { once: true });
+      }
+    );
+  });
+  return () =>
+    viewport.evaluate(
+      (el) => (el as unknown as { ended: Promise<number> }).ended
+    );
+}
+
 const stories = [
   'deck--default',
   'deck--peek',
@@ -287,7 +322,8 @@ test('the focal slide is at the snap alignment point, and clicking a slide in vi
 });
 
 test('a vertical deck steps down with Next and comes to rest on a snap point after a short scroll', async ({
-  page
+  page,
+  browserName
 }) => {
   await page.goto('/iframe.html?id=deck--vertical&viewMode=story');
   const deck = page.getByRole('region', { name: 'Featured slides' });
@@ -301,24 +337,24 @@ test('a vertical deck steps down with Next and comes to rest on a snap point aft
   await expect(deck).toHaveAttribute('data-index', '1');
   await expect.poll(() => top(2)).toBe(0);
 
-  // A short wheel scroll down comes to rest on a snap point, and the deck
-  // reports the one. Chromium scrolls 40px and snaps back to slide 2;
-  // Firefox and WebKit take a wheel step under mandatory snapping as a move
-  // to the next snap point, slide 3. The spec allows either.
   const box = (await viewport.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  const ended = viewport.evaluate(
-    (el) =>
-      new Promise((resolve) =>
-        el.addEventListener('scrollend', resolve, { once: true })
-      )
-  );
+  const moved = await watchScroll(page);
   await page.mouse.wheel(0, 40);
-  await ended;
-  await expect
-    .poll(async () => top(Number(await deck.getAttribute('data-index')) + 1))
-    .toBe(0);
-  expect(['1', '2']).toContain(await deck.getAttribute('data-index'));
+  // The scroll really moved the deck, so the rest below is not the start.
+  expect(await moved()).toBeGreaterThan(0);
+
+  if (browserName === 'chromium') {
+    // Chromium scrolls 40px and snaps back to the same slide.
+    await expect.poll(() => top(2)).toBe(0);
+    await expect(deck).toHaveAttribute('data-index', '1');
+    return;
+  }
+  // Firefox and WebKit take a wheel step under mandatory snapping as a move
+  // to the next snap point, which the spec allows: the deck rests on slide
+  // 3 and reports it.
+  await expect.poll(() => top(3)).toBe(0);
+  await expect(deck).toHaveAttribute('data-index', '2');
 });
 
 test('in a right-to-left document, Next moves toward the inline end', async ({
@@ -599,6 +635,53 @@ for (const { id, slides, last, back, axis } of [
     ).toBeInViewport({ ratio: 1 });
     await expect(deck.getByText(`1 / ${last + 1}`)).toBeVisible();
   });
+}
+
+// Native snapping across the seam: a wheel step, which the browser scrolls
+// and snaps, not the engine. Chromium scrolls the wheel's distance and snaps
+// to the nearest snap point, Firefox and WebKit to the next one, so the step
+// is one snap point's width either way.
+for (const { id, slides, last, axis } of [
+  { id: 'deck--loop', slides: 6, last: 5, axis: 'x' },
+  { id: 'deck--loop-vertical', slides: 6, last: 5, axis: 'y' }
+] as const) {
+  for (const [way, from, to, label] of [
+    ['back', 0, last, `${slides} of ${slides}`],
+    ['on', last, 0, `1 of ${slides}`]
+  ] as const) {
+    test(`${id}: a wheel step ${way} across the seam settles on the snap point there`, async ({
+      page
+    }) => {
+      await page.goto(
+        `/iframe.html?id=${id}&viewMode=story&args=defaultIndex:${from}`
+      );
+      const deck = page.getByRole('region', { name: 'Featured slides' });
+      await expect(deck).toHaveAttribute('data-index', String(from));
+      const viewport = deck.locator('[data-slidedeck-viewport]');
+      const box = (await viewport.boundingBox())!;
+      // One snap point: a slide's width, or the viewport's height.
+      const step = await deck
+        .getByRole('group', { name: `1 of ${slides}` })
+        .evaluate((el, vertical) => {
+          const r = el.getBoundingClientRect();
+          return vertical ? r.height : r.width;
+        }, axis === 'y');
+      const delta = way === 'on' ? step : -step;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      const moved = await watchScroll(page);
+
+      await page.mouse.wheel(
+        axis === 'x' ? delta : 0,
+        axis === 'y' ? delta : 0
+      );
+
+      expect(await moved()).toBeGreaterThan(0);
+      await expect(deck).toHaveAttribute('data-index', String(to));
+      await expect(deck.getByRole('group', { name: label })).toBeInViewport({
+        ratio: 1
+      });
+    });
+  }
 }
 
 test('a loop deck steps across the seam with Prev and Next, and no copy is reachable', async ({
