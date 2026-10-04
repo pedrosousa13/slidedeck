@@ -7,13 +7,17 @@ export interface DeckState {
   /** The current slide: the first child of the viewport resting at the
    * current snap point. */
   slide: number;
+  /** The focal slide: the child of the viewport nearest the snap alignment
+   * point, read from the current slide's `scroll-snap-align`. Not the
+   * current slide where several slides are in view; -1 if no slide snaps. */
+  focal: number;
 }
 
 export interface DeckOptions {
   /** The snap point to start at, clamped to the snap points there are. */
   index: number;
-  /** Called when the current index, the snap point count or the current
-   * slide changes. */
+  /** Called when the current index, the snap point count, the current slide
+   * or the focal slide changes: when a scroll settles, never during one. */
   onChange: (state: DeckState) => void;
 }
 
@@ -31,6 +35,11 @@ export interface DeckEngine {
   /** Turns mouse drag on or off; on from the start. A drag already under way
    * finishes. */
   setDrag(enabled: boolean): void;
+  /** Turns click-to-focus on or off; off from the start. On, a click on a
+   * slide scrolls to the snap point nearest to where that slide is at the
+   * alignment point, so a slide the scroll range cannot align goes as near as
+   * it can. A click that ends a mouse drag never reaches it. */
+  setClickToFocus(enabled: boolean): void;
   destroy(): void;
 }
 
@@ -44,13 +53,14 @@ export function createDeck(
   options: DeckOptions
 ): DeckEngine {
   // Not a reachable state, so the first settle always publishes.
-  let state: DeckState = { index: -1, count: 0, slide: -1 };
+  let state: DeckState = { index: -1, count: 0, slide: -1, focal: -1 };
 
   const publish = (next: DeckState) => {
     if (
       next.index === state.index &&
       next.count === state.count &&
-      next.slide === state.slide
+      next.slide === state.slide &&
+      next.focal === state.focal
     ) {
       return;
     }
@@ -61,8 +71,18 @@ export function createDeck(
   const settle = () => {
     const { points, slides } = snapPoints(viewport);
     const index = nearest(points, viewport.scrollLeft);
-    publish({ index, count: points.length, slide: slides.indexOf(index) });
+    const slide = slides.indexOf(index);
+    publish({
+      index,
+      count: points.length,
+      slide,
+      focal: slide === -1 ? -1 : focalSlide(viewport, alignOf(slide))
+    });
   };
+
+  // The alignment of the slide resting at the snap point, so of the deck: a
+  // slide that does not snap, as within a page, has none of its own.
+  const alignOf = (slide: number) => snapAlign(viewport.children[slide]);
 
   // The snap point a step is scrolling to, until the scroll ends: a second
   // press steps on from there, not from where the viewport last rested.
@@ -302,6 +322,22 @@ export function createDeck(
   viewport.addEventListener('lostpointercapture', onLostCapture);
   viewport.addEventListener('dragstart', onDragStart);
 
+  let clickToFocus = false;
+  // A bubbling listener: the click ending a drag is swallowed before it.
+  const onClick = (event: MouseEvent) => {
+    if (!clickToFocus || state.slide === -1) return;
+    let slide = event.target instanceof Element ? event.target : null;
+    while (slide && slide.parentElement !== viewport) {
+      slide = slide.parentElement;
+    }
+    if (!slide) return;
+    const { points } = snapPoints(viewport);
+    const at =
+      viewport.scrollLeft + alignOffset(viewport, slide, alignOf(state.slide));
+    scrollTo(nearest(points, at));
+  };
+  viewport.addEventListener('click', onClick);
+
   // From the snap point a scroll in flight is heading to, if any.
   const step = (delta: number) => scrollTo((target ?? state.index) + delta);
 
@@ -313,6 +349,9 @@ export function createDeck(
     refresh,
     setDrag(enabled) {
       dragEnabled = enabled;
+    },
+    setClickToFocus(enabled) {
+      clickToFocus = enabled;
     },
     destroy() {
       clearTimeout(quiet);
@@ -327,6 +366,7 @@ export function createDeck(
       viewport.removeEventListener('pointercancel', onPointerUp);
       viewport.removeEventListener('lostpointercapture', onLostCapture);
       viewport.removeEventListener('dragstart', onDragStart);
+      viewport.removeEventListener('click', onClick);
       restoreSnap();
     }
   };
@@ -385,29 +425,17 @@ function snapPoints(viewport: HTMLElement): {
   points: number[];
   slides: number[];
 } {
-  const view = viewport.getBoundingClientRect();
-  const start = view.left + viewport.clientLeft;
-  const width = viewport.clientWidth;
-  const max = viewport.scrollWidth - width;
+  const max = viewport.scrollWidth - viewport.clientWidth;
   const positions: (number | null)[] = [];
   for (const slide of viewport.children) {
-    // The inline axis is the last of `scroll-snap-align`'s values.
-    const align = getComputedStyle(slide).scrollSnapAlign.split(' ').pop();
+    const align = snapAlign(slide);
     if (align === 'none') {
       positions.push(null);
       continue;
     }
-    const box = slide.getBoundingClientRect();
-    const offset =
-      align === 'center'
-        ? box.left + box.width / 2 - width / 2
-        : align === 'end'
-          ? box.right - width
-          : box.left;
+    const offset = alignOffset(viewport, slide, align);
     positions.push(
-      Math.round(
-        Math.min(Math.max(viewport.scrollLeft + offset - start, 0), max)
-      )
+      Math.round(Math.min(Math.max(viewport.scrollLeft + offset, 0), max))
     );
   }
   const points = [
@@ -417,4 +445,39 @@ function snapPoints(viewport: HTMLElement): {
     points,
     slides: positions.map((p) => (p === null ? -1 : points.indexOf(p)))
   };
+}
+
+/** A slide's inline-axis `scroll-snap-align`: the last of its values. */
+const snapAlign = (slide: Element) =>
+  getComputedStyle(slide).scrollSnapAlign.split(' ').pop() ?? 'none';
+
+/** How far the viewport would scroll to put `slide` at the alignment point
+ * for `align`, unclamped: 0 when it is there now. */
+function alignOffset(
+  viewport: HTMLElement,
+  slide: Element,
+  align: string
+): number {
+  const start = viewport.getBoundingClientRect().left + viewport.clientLeft;
+  const width = viewport.clientWidth;
+  const box = slide.getBoundingClientRect();
+  return align === 'center'
+    ? box.left + box.width / 2 - (start + width / 2)
+    : align === 'end'
+      ? box.right - (start + width)
+      : box.left - start;
+}
+
+/** The child of the viewport nearest the alignment point for `align`. */
+function focalSlide(viewport: HTMLElement, align: string): number {
+  let best = -1;
+  let distance = Infinity;
+  [...viewport.children].forEach((slide, i) => {
+    const d = Math.abs(alignOffset(viewport, slide, align));
+    if (d < distance) {
+      best = i;
+      distance = d;
+    }
+  });
+  return best;
 }

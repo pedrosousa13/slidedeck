@@ -27,6 +27,8 @@ interface DeckContextValue {
   count: number | null;
   /** The current slide; null until the viewport has been measured. */
   slide: number | null;
+  /** The focal slide; null until the viewport has been measured. */
+  focal: number | null;
   /** The slides in Deck.Viewport, for the first render only, before any
    * measurement: Dots and Counter then count a page per slide. Null after, or
    * where Root cannot see Viewport's children. */
@@ -66,6 +68,14 @@ interface RootBaseProps extends ComponentProps<'div'> {
    * go. A drag never clicks what it started on. Touch, pen and trackpad
    * always scroll natively. Defaults to true. */
   drag?: boolean;
+  /** Called once each time the focal slide changes, with its slide index:
+   * when a scroll settles, never during one, and not for where the deck
+   * starts. */
+  onFocalChange?: (slide: number) => void;
+  /** Whether clicking a slide brings it to the focal position, as near as
+   * the scroll range allows. A click that ends a mouse drag does not.
+   * Defaults to false. */
+  clickToFocus?: boolean;
 }
 
 /** Controlled like a React input's `value`: the deck scrolls to `index` when
@@ -99,6 +109,8 @@ export function Root({
   onIndexChange,
   handleRef,
   drag = true,
+  onFocalChange,
+  clickToFocus = false,
   ...props
 }: RootProps) {
   // Core starts a non-finite index at 0; so must the first render.
@@ -114,14 +126,17 @@ export function Root({
     index: number;
     count: number | null;
     slide: number | null;
-  }>({ index: initialIndex, count: null, slide: null });
+    focal: number | null;
+  }>({ index: initialIndex, count: null, slide: null, focal: null });
   const viewportRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<DeckEngine>(null);
   const onIndexChangeRef = useRef(onIndexChange);
+  const onFocalChangeRef = useRef(onFocalChange);
   const indexRef = useRef(index);
 
   useLayoutEffect(() => {
     onIndexChangeRef.current = onIndexChange;
+    onFocalChangeRef.current = onFocalChange;
     indexRef.current = index;
   });
 
@@ -130,6 +145,7 @@ export function Root({
     if (!viewport) throw new Error('Deck.Root must contain a Deck.Viewport');
     // The first report is where the deck starts, not a change.
     let settled: number | undefined;
+    let focal: number | undefined;
     const engine = createDeck(viewport, {
       index: initialIndex,
       onChange(next) {
@@ -147,6 +163,10 @@ export function Root({
           onIndexChangeRef.current?.(next.index);
         }
         settled = next.index;
+        if (focal !== undefined && next.focal !== focal) {
+          onFocalChangeRef.current?.(next.focal);
+        }
+        focal = next.focal;
       }
     });
     engineRef.current = engine;
@@ -159,6 +179,10 @@ export function Root({
   useLayoutEffect(() => {
     engineRef.current?.setDrag(drag);
   }, [drag]);
+
+  useLayoutEffect(() => {
+    engineRef.current?.setClickToFocus(clickToFocus);
+  }, [clickToFocus]);
 
   // Controlled, the deck rests at `index`: it follows a new one, and returns
   // to it after a scroll the parent did not take, as a controlled input
@@ -332,6 +356,7 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
   const start = index === clampSlide(deck.initialIndex, count);
   // Until the viewport is measured, the slide it starts at.
   const current = deck.slide === null ? start : index === deck.slide;
+  const focal = deck.focal === null ? start : index === deck.focal;
   return (
     <div
       role="group"
@@ -339,6 +364,7 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
       aria-label={`${index + 1} of ${count}`}
       data-slidedeck-slide=""
       data-current={current ? '' : undefined}
+      data-focal={focal ? '' : undefined}
       style={{
         flexShrink: 0,
         // Server HTML paints at defaultIndex before any script runs, where
