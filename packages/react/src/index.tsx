@@ -16,6 +16,7 @@ import {
   type RefObject
 } from 'react';
 import {
+  COPY,
   createDeck,
   SNAP_TARGET,
   type DeckEngine,
@@ -42,6 +43,8 @@ interface DeckContextValue {
   slides: number | null;
   initialIndex: number;
   orientation: Orientation;
+  /** Whether Root has `loop`. */
+  loop: boolean;
   viewportRef: RefObject<HTMLDivElement | null>;
   engineRef: RefObject<DeckEngine | null>;
   /** Whether Root has `autoplay`. */
@@ -100,9 +103,19 @@ interface RootBaseProps extends ComponentProps<'div'> {
    * right-to-left document the deck starts at the right and Next moves left.
    * Defaults to horizontal. */
   orientation?: Orientation;
+  /** Whether scrolling past the last snap point arrives at the first, and
+   * back, with no visible jump: Prev and Next are then never disabled.
+   * `Deck.Viewport` renders a copy of every slide on each side of the
+   * slides, inert and `aria-hidden`, and the deck jumps from a copy to its
+   * slide once it rests (ADR-0006). Indexes, Dots and Counter count the
+   * slides' snap points only, never the copies'. A copy renders the slide's
+   * children again, so their state is their own and an `id` in a slide
+   * repeats. A deck whose slides all fit does not loop and renders no
+   * copies. Defaults to false. */
+  loop?: boolean;
   /** Moves the deck one snap point on every this many milliseconds, counted
-   * from when it comes to rest, and stops at the last, or where a step
-   * leaves the deck where it was, as when a controlled parent refuses it. A
+   * from when it comes to rest, and stops at the last, unless the deck
+   * loops, or where a step leaves the deck where it was, as when a controlled parent refuses it. A
    * pointer over the deck or a hidden document pauses it; focus entering the
    * deck, other than on `Deck.AutoplayToggle`, or the user moving it stops it
    * until the toggle starts it again, and so does a preference for reduced
@@ -146,6 +159,7 @@ export function Root({
   onFocalChange,
   clickToFocus = false,
   orientation = 'horizontal',
+  loop = false,
   autoplay,
   children,
   onFocus,
@@ -315,7 +329,7 @@ export function Root({
   // on a new snap point. A step that does not bring the deck to rest on a
   // new snap point ends autoplay: at the last one, or where a controlled
   // parent refuses it. Where next() goes on from the last snap point to the
-  // first, as it will with loop, it never ends.
+  // first, as it does with loop, it never ends.
   useEffect(() => {
     if (!rotating) return;
     let timer: ReturnType<typeof setTimeout>;
@@ -405,6 +419,7 @@ export function Root({
         slides,
         initialIndex,
         orientation,
+        loop,
         viewportRef,
         engineRef,
         hasAutoplay: autoplaying,
@@ -485,10 +500,11 @@ const visuallyHidden: CSSProperties = {
   border: 0
 };
 
-/** The viewport's slides: its children but snap targets. */
+/** The viewport's slides: its children but snap targets and loop copies. */
 const slideCount = (viewport: HTMLElement) =>
-  [...viewport.children].filter((child) => !child.hasAttribute(SNAP_TARGET))
-    .length;
+  [...viewport.children].filter(
+    (child) => !child.hasAttribute(SNAP_TARGET) && !child.hasAttribute(COPY)
+  ).length;
 
 /** The slides in the first Deck.Viewport among `children`, looking through
  * elements and fragments but not into components, which Root cannot render
@@ -563,6 +579,8 @@ const SlideContext = createContext<{
   stacked: boolean;
   /** The effect's inline styles for each slide. */
   style: CSSProperties | undefined;
+  /** A loop's copy of the slide, and which side of the slides it is on. */
+  copy?: 'before' | 'after';
 } | null>(null);
 
 /**
@@ -579,8 +597,9 @@ export interface Effect {
    * overrides any of them (ADR-0003). */
   css: string;
   /** The structural styles the effect needs, set inline as the deck's own
-   * are, for a deck of `count` slides. With `target`, the viewport holds an
-   * empty snap target per slide after the slides, styled by it: the slides
+   * are, for a deck of `count` slides, a loop's copies included. With
+   * `target`, the viewport holds an empty snap target per slide, and per
+   * copy, in the order they run, after the slides, styled by it: the slides
    * stack in one place, the engine measures each by its target, and every
    * slide but the focal one is inert, as it cannot be seen. */
   layout?: (
@@ -613,18 +632,43 @@ const viewportStyles: Record<Orientation, CSSProperties> = {
   }
 };
 
-/** The native scroll container. Its children are the deck's slides; an
- * `effect` may add a snap target after them for each. */
+/** The native scroll container. Its children are the deck's slides; with
+ * `loop`, a copy of every slide on each side of them; an `effect` may add a
+ * snap target after them for each. */
 export function Viewport({ style, children, effect, ...props }: ViewportProps) {
-  const { viewportRef, engineRef, orientation } = useDeck('Viewport');
+  const { viewportRef, engineRef, orientation, loop, count } =
+    useDeck('Viewport');
   const slides = Children.toArray(children);
-  const layout = effect?.layout?.(orientation, slides.length);
+  // A deck whose slides all fit has nothing to loop (see createDeck).
+  const copies = loop && !everySlideFits(count);
+  const run = slides.length * (copies ? 3 : 1);
+  const layout = effect?.layout?.(orientation, run);
   const target = layout?.target;
-  // Adding or removing a slide can change the snap points without resizing
-  // the viewport, which is all the engine observes.
+  // Adding or removing a slide, or the copies, can change the snap points
+  // without resizing the viewport, which is all the engine observes.
   useLayoutEffect(() => {
     engineRef.current?.refresh();
-  }, [engineRef, slides.length]);
+  }, [engineRef, slides.length, copies]);
+  const set = (copy?: 'before' | 'after') =>
+    slides.map((slide, index) => (
+      // `toArray` gives every element a key derived from the consumer's,
+      // so a reordered slide moves instead of remounting.
+      <SlideContext
+        key={isValidElement(slide) ? slide.key : index}
+        value={{
+          index,
+          count: slides.length,
+          stacked: target !== undefined,
+          // The copies before the slides come after them in the document, so
+          // a consumer's `:nth-child()` still counts the slides from 1.
+          style:
+            copy === 'before' ? { ...layout?.slide, order: -1 } : layout?.slide,
+          copy
+        }}
+      >
+        {slide}
+      </SlideContext>
+    ));
   return (
     <div
       ref={viewportRef}
@@ -647,23 +691,11 @@ export function Viewport({ style, children, effect, ...props }: ViewportProps) {
           {effect.css}
         </style>
       )}
-      {slides.map((slide, index) => (
-        // `toArray` gives every element a key derived from the consumer's,
-        // so a reordered slide moves instead of remounting.
-        <SlideContext
-          key={isValidElement(slide) ? slide.key : index}
-          value={{
-            index,
-            count: slides.length,
-            stacked: target !== undefined,
-            style: layout?.slide
-          }}
-        >
-          {slide}
-        </SlideContext>
-      ))}
+      {set()}
+      {copies && <Fragment key="after">{set('after')}</Fragment>}
+      {copies && <Fragment key="before">{set('before')}</Fragment>}
       {target &&
-        slides.map((_, index) => (
+        Array.from({ length: run }, (_, index) => (
           <div
             key={`target-${index}`}
             aria-hidden="true"
@@ -696,13 +728,14 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
   const deck = useDeck('Slide');
   const slide = use(SlideContext);
   if (!slide) throw new Error('Deck.Slide must be inside Deck.Viewport');
-  const { index, count, stacked } = slide;
-  const start = index === clampSlide(deck.initialIndex, count);
+  const { index, count, stacked, copy } = slide;
+  const start = !copy && index === clampSlide(deck.initialIndex, count);
   // Until the viewport is measured, the slide it starts at.
-  const current = deck.slide === null ? start : index === deck.slide;
-  const focal = deck.focal === null ? start : index === deck.focal;
-  // Stacked, only the focal slide can be seen, so only it can be reached.
-  const inert = stacked && !focal;
+  const current = !copy && (deck.slide === null ? start : index === deck.slide);
+  const focal = !copy && (deck.focal === null ? start : index === deck.focal);
+  // Stacked, only the focal slide can be seen, so only it can be reached. A
+  // loop's copy can never be reached, nor announced.
+  const inert = copy !== undefined || (stacked && !focal);
   const { viewportRef } = deck;
   // Focus in a slide that goes inert would drop to the body: it moves to the
   // viewport instead, where arrow keys still move the deck.
@@ -722,6 +755,8 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
       aria-roledescription="slide"
       aria-label={`${index + 1} of ${count}`}
       data-slidedeck-slide=""
+      data-slidedeck-copy={copy}
+      aria-hidden={copy ? true : undefined}
       data-current={current ? '' : undefined}
       data-focal={focal ? '' : undefined}
       inert={inert}
@@ -783,32 +818,34 @@ function StepButton({
   );
 }
 
-/** Moves the deck one snap point back. Disabled at the first; absent when
- * every slide fits. Marked `data-slidedeck-prev` for CSS to select. */
+/** Moves the deck one snap point back. Disabled at the first unless the deck
+ * loops; absent when every slide fits. Marked `data-slidedeck-prev` for CSS
+ * to select. */
 export function Prev(props: ComponentProps<'button'>) {
-  const { index, count, userMove } = useDeck('Prev');
+  const { index, count, loop, userMove } = useDeck('Prev');
   if (everySlideFits(count)) return null;
   return (
     <StepButton
       {...props}
       data-slidedeck-prev=""
-      atEnd={index === 0}
+      atEnd={!loop && index === 0}
       step={() => userMove()?.prev()}
       label="Previous"
     />
   );
 }
 
-/** Moves the deck one snap point on. Disabled at the last; absent when
- * every slide fits. Marked `data-slidedeck-next` for CSS to select. */
+/** Moves the deck one snap point on. Disabled at the last unless the deck
+ * loops; absent when every slide fits. Marked `data-slidedeck-next` for CSS
+ * to select. */
 export function Next(props: ComponentProps<'button'>) {
-  const { index, count, userMove } = useDeck('Next');
+  const { index, count, loop, userMove } = useDeck('Next');
   if (everySlideFits(count)) return null;
   return (
     <StepButton
       {...props}
       data-slidedeck-next=""
-      atEnd={count !== null && index >= count - 1}
+      atEnd={!loop && count !== null && index >= count - 1}
       step={() => userMove()?.next()}
       label="Next"
     />

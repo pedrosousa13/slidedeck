@@ -57,12 +57,24 @@ export interface DeckEngine {
  * move. The browser does the scrolling and snapping; the engine reads where
  * it settled from layout, so slide size, gap and alignment stay plain CSS.
  *
- * The slides are the viewport's children, except snap targets (see
- * `slidesOf`): where an effect stacks the slides in one place, an empty snap
- * target per slide lays out along the axis in its stead, and the engine
+ * The slides are the viewport's children, except snap targets and copies
+ * (see `slidesOf`): where an effect stacks the slides in one place, an empty
+ * snap target per slide lays out along the axis in its stead, and the engine
  * measures each slide by its target.
  *
- * It also writes to each slide, for CSS to read, once a
+ * Loop (ADR-0006): where the viewport holds a copy of every slide before the
+ * slides and another after them, each marked `data-slidedeck-copy` (`before`
+ * or `after`; DOM order does not matter), scrolling past the last snap point
+ * arrives at the first, and back. The copies are the caller's to render,
+ * inert and `aria-hidden`. Only the slides' snap points are counted: a step
+ * across the seam scrolls on onto the copies, and when the viewport comes to
+ * rest on a copy's snap point the engine jumps it, instantly, one set of
+ * slides back onto the identical slide. Never mid-motion: a jump then would
+ * show and stop momentum. A set of slides no longer than the viewport has
+ * nothing to loop: the engine then reports one snap point, as for any deck
+ * whose slides all fit, and the caller should drop the copies.
+ *
+ * It also writes to each slide, and each copy, for CSS to read, once a
  * frame while the viewport scrolls and whenever it settles, never through
  * `onChange` (ADR-0003):
  *
@@ -120,12 +132,16 @@ export function createDeck(
   };
 
   const settle = () => {
+    alignCopies(viewport);
     const along = axis();
-    const { points, slides } = snapPoints(viewport, along);
-    const index = nearest(points, along.position);
+    const geometry = snapPoints(viewport, along);
+    jumpOffCopies(along, geometry);
+    const { points, slides } = geometry;
+    const index = indexAt(geometry, along.position);
     const slide = slides.indexOf(index);
+    const run = slidesOf(viewport);
     align =
-      slide === -1 ? 'start' : along.snapAlign(slidesOf(viewport).boxes[slide]);
+      slide === -1 ? 'start' : along.snapAlign(run.boxes[run.first + slide]);
     paint(along);
     publish({
       index,
@@ -135,8 +151,24 @@ export function createDeck(
     });
   };
 
+  // Resting on a copy, jump one set of slides onto the identical slide: only
+  // on a snap point, as the browser would snap a jump that lands off one,
+  // which shows (ADR-0006).
+  const jumpOffCopies = (along: Axis, { points, length }: Geometry) => {
+    if (length === 0) return;
+    const at = along.position;
+    const shift =
+      at < points[0] - 1 ? length : at > points[0] + length - 1 ? -length : 0;
+    if (shift === 0) return;
+    if (points.some((point) => Math.abs(at + shift - point) <= 1)) {
+      along.scrollTo(at + shift, 'instant');
+    }
+  };
+
   // The snap point a step is scrolling to, until the scroll ends: a second
-  // press steps on from there, not from where the viewport last rested.
+  // press steps on from there, not from where the viewport last rested. With
+  // loop it may be a set of slides past either end, on the copies there (see
+  // `positionOf`).
   let target: number | null = null;
 
   // Mouse drag (ADR-0006): see the pointer handlers below.
@@ -153,8 +185,8 @@ export function createDeck(
   // How far the pointer has dragged the deck forward, in scroll pixels.
   let travel = 0;
   let samples: { t: number; travel: number }[] = [];
-  // A scrollTo asked for while the pointer held the deck.
-  let deferred: number | null = null;
+  // A move asked for while the pointer held the deck.
+  let deferred: { index: number; across: boolean } | null = null;
   // The viewport's inline styles a drag overrides, while it does.
   let saved: { snap: string; select: string } | null = null;
 
@@ -212,8 +244,8 @@ export function createDeck(
   const onSnapChange = () => {
     if (target !== null) {
       const along = axis();
-      const { points } = snapPoints(viewport, along);
-      if (Math.abs(along.position - points[target]) >= 1) return;
+      const geometry = snapPoints(viewport, along);
+      if (Math.abs(along.position - positionOf(geometry, target)) >= 1) return;
     }
     scrollEnded();
   };
@@ -223,25 +255,30 @@ export function createDeck(
     else paint();
   };
 
-  const scrollTo = (index: number) => {
+  // `across` lets a looping deck's move run past either end onto the copies
+  // there, as a step across the seam does; otherwise it stays on the slides.
+  const scrollTo = (index: number, across = false) => {
     // The pointer holds the deck: go there once it lets go.
     if (drag === 'dragging') {
-      deferred = index;
+      deferred = { index, across };
       return;
     }
     const along = axis();
-    const { points } = snapPoints(viewport, along);
+    const geometry = snapPoints(viewport, along);
+    const count = geometry.points.length;
     // Nowhere to scroll to: a target set now would never clear either.
-    if (!Number.isFinite(index) || points.length === 0) return;
-    const next = clamp(index, points.length);
+    if (!Number.isFinite(index) || count === 0) return;
+    const next =
+      across && geometry.length > 0
+        ? Math.min(Math.max(index, -count), 2 * count - 1)
+        : clamp(index, count);
+    const to = positionOf(geometry, next);
     // A scroll to where the viewport already rests ends no scroll, so a
     // target set for it would never clear and would block every refresh.
-    if (target === null && Math.abs(along.position - points[next]) < 1) {
-      return;
-    }
+    if (target === null && Math.abs(along.position - to) < 1) return;
     target = next;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    along.scrollTo(points[target], reduce ? 'instant' : 'smooth');
+    along.scrollTo(to, reduce ? 'instant' : 'smooth');
   };
 
   // With one slide per snap point, server HTML already rests here where the
@@ -335,7 +372,13 @@ export function createDeck(
     pointer = -1;
     if (drag !== 'dragging') return;
     suppressClick();
-    const { points } = snapPoints(viewport, dragAxis);
+    // With loop, the copies' snap points too, a set of slides either way.
+    const geometry = snapPoints(viewport, dragAxis);
+    const reach = geometry.length > 0 ? geometry.points.length : 0;
+    const points = Array.from(
+      { length: geometry.points.length + 2 * reach },
+      (_, i) => positionOf(geometry, i - reach)
+    );
     const position = dragAxis.position;
     const velocity = releaseVelocity(samples, event.timeStamp);
     let next = nearest(points, position + velocity * MOMENTUM_MS);
@@ -351,7 +394,8 @@ export function createDeck(
       if (ahead !== -1) next = ahead;
     }
     drag = 'releasing';
-    scrollTo(deferred ?? next);
+    if (deferred) scrollTo(deferred.index, deferred.across);
+    else scrollTo(next - reach, true);
     deferred = null;
     // Already resting there, or nowhere to go: no scroll will end.
     if (target === null) scrollEnded();
@@ -391,25 +435,41 @@ export function createDeck(
     while (slide && slide.parentElement !== viewport) {
       slide = slide.parentElement;
     }
-    const index = slide ? slidesOf(viewport).slides.indexOf(slide) : -1;
-    if (index === -1) return;
-    // The snap point of the clicked slide's page. One slide to a page, that
-    // is the slide's own.
     const along = axis();
-    const { slides } = snapPoints(viewport, along);
+    const { run, slides: own, first } = slidesOf(viewport);
+    // A loop's copy is inert, so a click on it reaches the viewport itself:
+    // the copy is the one under the pointer.
+    let at = slide ? run.indexOf(slide) : -1;
+    if (at === -1 && event.target === viewport) {
+      const point = along.at(event);
+      at = run.findIndex((box) => {
+        const [start, end] = along.span(box.getBoundingClientRect());
+        return start <= point && point < end;
+      });
+    }
+    if (at === -1) return;
+    // The snap point of the clicked slide's page. One slide to a page, that
+    // is the slide's own. A copy's is a set of slides on from its slide's,
+    // the way it is from the slides, so the deck moves to it across the seam.
+    const index = wrap(at - first, own.length);
+    const set = Math.floor((at - first) / own.length);
+    const { points, slides } = snapPoints(viewport, along);
     const owner = pageOwner(viewport, along, slides, index);
-    if (owner !== -1) scrollTo(slides[owner]);
+    if (owner !== -1) scrollTo(slides[owner] + set * points.length, true);
   };
   viewport.addEventListener('click', onClick);
 
-  // From the snap point a scroll in flight is heading to, if any.
-  const step = (delta: number) => scrollTo((target ?? state.index) + delta);
+  // From the snap point a scroll in flight is heading to, if any. With loop,
+  // a step from the last snap point goes on across the seam to the first.
+  const step = (delta: number) =>
+    scrollTo((target ?? state.index) + delta, true);
 
   return {
-    scrollTo,
+    scrollTo: (index) => scrollTo(index),
     next: () => step(1),
     prev: () => step(-1),
-    target: () => target,
+    // A target on the copies is the slides' snap point it copies.
+    target: () => (target === null ? null : wrap(target, state.count)),
     refresh,
     setDrag(enabled) {
       dragEnabled = enabled;
@@ -424,7 +484,7 @@ export function createDeck(
     destroy() {
       clearTimeout(quiet);
       cancelAnimationFrame(frame);
-      for (const slide of slidesOf(viewport).slides) {
+      for (const slide of slidesOf(viewport).run) {
         slide.removeAttribute(IN_VIEW);
         if (slide instanceof HTMLElement) slide.style.removeProperty(PROGRESS);
       }
@@ -450,6 +510,9 @@ const SCROLL_END_DEBOUNCE_MS = 100;
 const PROGRESS = '--deck-progress';
 /** Marks a viewport child as a snap target rather than a slide. */
 export const SNAP_TARGET = 'data-slidedeck-snap-target';
+/** Marks a viewport child as a loop's copy of a slide rather than a slide:
+ * `before` the slides, or `after` them. */
+export const COPY = 'data-slidedeck-copy';
 const IN_VIEW = 'data-in-view';
 /** How much of a slide the scrollport must show for it to be in view. */
 const IN_VIEW_MIN_PX = 1;
@@ -485,6 +548,29 @@ function releaseVelocity(
 const clamp = (index: number, count: number) =>
   Math.min(Math.max(index, 0), count - 1);
 
+/** `index` wrapped onto 0 up to `count`, as a loop's copies are onto the
+ * slides. */
+const wrap = (index: number, count: number) =>
+  ((index % count) + count) % count;
+
+/** Where snap point `index` rests. With loop, an index up to a set of slides
+ * past either end is on the copies there: -1 is the last slide's copy before
+ * the slides. */
+function positionOf({ points, length }: Geometry, index: number): number {
+  const set = Math.floor(index / points.length);
+  return points[index - set * points.length] + set * length;
+}
+
+/** The snap point nearest `position`; with loop, once a position on the
+ * copies is wrapped onto the slides. */
+function indexAt({ points, length }: Geometry, position: number): number {
+  if (length === 0) return nearest(points, position);
+  const start = points[0];
+  const wrapped = start + wrap(position - start, length);
+  // Just short of a set past the first point is the first point again.
+  return nearest([...points, start + length], wrapped) % points.length;
+}
+
 function nearest(points: number[], position: number): number {
   let best = 0;
   points.forEach((point, i) => {
@@ -496,23 +582,65 @@ function nearest(points: number[], position: number): number {
 }
 
 /**
- * The viewport's slides, and the box each is measured by: its own, or where
- * the viewport holds snap targets (children marked `data-slidedeck-snap-target`),
- * the target in the same place among them. Snap targets are not slides. An
- * effect that stacks the slides in one place, where none of them could mark a
- * snap point, lays out one per slide along the axis instead.
+ * The viewport's slides; the run of slides along the axis, which with loop is
+ * the copies before the slides (children marked `data-slidedeck-copy=before`),
+ * the slides and the copies after them, and without is the slides; and the
+ * box each of the run is measured by: its own, or where the viewport holds
+ * snap targets (children marked `data-slidedeck-snap-target`), the target in
+ * the same place among them. Snap targets and copies are not slides. An effect
+ * that stacks the slides in one place, where none of them could mark a snap
+ * point, lays out one per slide, and per copy, along the axis instead.
+ * `first` is where slide 0 is in the run.
  */
 function slidesOf(viewport: HTMLElement): {
   slides: Element[];
+  run: Element[];
   boxes: Element[];
+  first: number;
 } {
   const slides: Element[] = [];
+  const before: Element[] = [];
+  const after: Element[] = [];
   const targets: Element[] = [];
   for (const child of viewport.children) {
-    (child.hasAttribute(SNAP_TARGET) ? targets : slides).push(child);
+    if (child.hasAttribute(SNAP_TARGET)) targets.push(child);
+    else if (!child.hasAttribute(COPY)) slides.push(child);
+    else (child.getAttribute(COPY) === 'before' ? before : after).push(child);
   }
-  if (targets.length === 0) return { slides, boxes: slides };
-  return { slides, boxes: slides.map((slide, i) => targets[i] ?? slide) };
+  const run = [...before, ...slides, ...after];
+  const boxes =
+    targets.length === 0 ? run : run.map((slide, i) => targets[i] ?? slide);
+  return { slides, run, boxes, first: before.length };
+}
+
+/**
+ * Gives each loop copy its slide's snap alignment, inline: CSS that picks the
+ * slides that snap by their place among the viewport's children, as
+ * `:nth-child()` does for pages, would pick other copies. Written only where
+ * it differs, so a settle lays out once.
+ */
+function alignCopies(viewport: HTMLElement) {
+  const { slides, run, first } = slidesOf(viewport);
+  if (first === 0) return;
+  const aligns = slides.map((slide) => getComputedStyle(slide).scrollSnapAlign);
+  run.forEach((copy, i) => {
+    if (i >= first && i < first + slides.length) return;
+    const align = aligns[wrap(i - first, slides.length)];
+    if (copy instanceof HTMLElement && copy.style.scrollSnapAlign !== align) {
+      copy.style.scrollSnapAlign = align;
+    }
+  });
+}
+
+/** The slides' snap points; see `snapPoints`. */
+interface Geometry {
+  /** The slides' snap points, ascending; never the copies'. */
+  points: number[];
+  /** For each slide, the index of the point it rests at, or -1. */
+  slides: number[];
+  /** With loop, how far one set of slides runs along the axis, from a slide
+   * to its copy after the slides; 0 without. */
+  length: number;
 }
 
 /**
@@ -520,20 +648,17 @@ function slidesOf(viewport: HTMLElement): {
  * derives them from each slide's `scroll-snap-align`, and for each slide the
  * index of the point it rests at (-1 if it does not snap). A slide's snap
  * alignment and position are its measured box's (see `slidesOf`).
- * Slides that clamp to the same scroll position share one snap point.
+ * Slides that clamp to the same scroll position share one snap point. With
+ * loop, only the slides' points, not the copies' (see `Geometry`).
  */
-function snapPoints(
-  viewport: HTMLElement,
-  axis: Axis
-): {
-  points: number[];
-  slides: number[];
-} {
+function snapPoints(viewport: HTMLElement, axis: Axis): Geometry {
   const max = axis.max();
   const position = axis.position;
   const view = axis.view();
+  const { slides, boxes, first } = slidesOf(viewport);
+  const own = boxes.slice(first, first + slides.length);
   const positions: (number | null)[] = [];
-  for (const slide of slidesOf(viewport).boxes) {
+  for (const slide of own) {
     const align = axis.snapAlign(slide);
     if (align === 'none') {
       positions.push(null);
@@ -545,9 +670,25 @@ function snapPoints(
   const points = [
     ...new Set(positions.filter((p): p is number => p !== null))
   ].sort((a, b) => a - b);
+  // From slide 0 to its copy after the slides.
+  const length =
+    first > 0 && boxes.length > first + slides.length
+      ? axis.span(boxes[first + slides.length].getBoundingClientRect())[0] -
+        axis.span(boxes[first].getBoundingClientRect())[0]
+      : 0;
+  // A set no longer than the viewport would bring a copy into view beside
+  // its own slide: nothing to loop, as with any deck whose slides all fit.
+  if (length > 0 && length - (view[1] - view[0]) < 1) {
+    return {
+      points: points.slice(0, 1),
+      slides: positions.map((p) => (p === null ? -1 : 0)),
+      length: 0
+    };
+  }
   return {
     points,
-    slides: positions.map((p) => (p === null ? -1 : points.indexOf(p)))
+    slides: positions.map((p) => (p === null ? -1 : points.indexOf(p))),
+    length
   };
 }
 
@@ -564,10 +705,10 @@ function pageOwner(
   index: number
 ): number {
   let owner = -1;
-  const { boxes } = slidesOf(viewport);
+  const { boxes, first } = slidesOf(viewport);
   slides.forEach((point, i) => {
     if (point === -1) return;
-    const align = axis.snapAlign(boxes[i]);
+    const align = axis.snapAlign(boxes[first + i]);
     if ((align === 'start' && i > index) || (align === 'end' && i < index)) {
       return;
     }
@@ -673,19 +814,21 @@ function spanOffset([start, end]: Span, view: Span, align: string): number {
       : start - view[0];
 }
 
-/** The slide nearest the alignment point for `align`, by its measured box. */
+/** The slide nearest the alignment point for `align`, by its measured box;
+ * with loop, the slide a copy there copies. */
 function focalSlide(viewport: HTMLElement, axis: Axis, align: string): number {
   const view = axis.view();
+  const { slides, boxes, first } = slidesOf(viewport);
   let best = -1;
   let distance = Infinity;
-  slidesOf(viewport).boxes.forEach((slide, i) => {
+  boxes.forEach((slide, i) => {
     const d = Math.abs(alignOffset(axis, view, slide, align));
     if (d < distance) {
       best = i;
       distance = d;
     }
   });
-  return best;
+  return best === -1 ? -1 : wrap(best - first, slides.length);
 }
 
 /**
@@ -695,7 +838,10 @@ function focalSlide(viewport: HTMLElement, axis: Axis, align: string): number {
  */
 function writeProgress(viewport: HTMLElement, axis: Axis, align: string) {
   const view = axis.view();
-  const { slides, boxes } = slidesOf(viewport);
+  // With loop, the copies too, each by its own place in the run: a copy in
+  // view moves on as the slides do, and lands where its slide is after a
+  // jump.
+  const { run: slides, boxes } = slidesOf(viewport);
   const spans = boxes.map((box) => axis.span(box.getBoundingClientRect()));
   const focal = focalPosition(
     spans.map((span) => spanOffset(span, view, align)),
