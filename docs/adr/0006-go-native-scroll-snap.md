@@ -23,9 +23,11 @@ Tab but splits visual order from reading order.
 
 **Drag: scripted handoff.** Snapping is off while the mouse drags. On
 release slidedeck projects the velocity to a snap point, smooth-scrolls
-there, and restores snapping at the settle. Restoring snapping on release
-was rejected: in all three browsers the re-snap finished before the first
-frame after release, and a flick was ignored.
+there, and restores snapping at the settle. It turns snapping off inline on
+the viewport (`scroll-snap-type: none`) and puts the inline value back at the
+settle. Restoring snapping on release was rejected: in all three browsers
+the re-snap finished before the first frame after release, and a flick was
+ignored.
 
 **Fade: sticky stack.** Slides are stacked with `position: sticky`, opacity
 is set from a scroll listener, and non-focal slides are `inert`. CSS view

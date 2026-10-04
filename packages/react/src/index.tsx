@@ -62,6 +62,10 @@ export interface RootHandle {
 interface RootBaseProps extends ComponentProps<'div'> {
   /** The deck's moves; `ref` is the region element, as on every primitive. */
   handleRef?: Ref<RootHandle>;
+  /** Whether a mouse can drag the deck, settling on a snap point when it lets
+   * go. A drag never clicks what it started on. Touch, pen and trackpad
+   * always scroll natively. Defaults to true. */
+  drag?: boolean;
 }
 
 /** Controlled like a React input's `value`: the deck scrolls to `index` when
@@ -94,6 +98,7 @@ export function Root({
   defaultIndex,
   onIndexChange,
   handleRef,
+  drag = true,
   ...props
 }: RootProps) {
   // Core starts a non-finite index at 0; so must the first render.
@@ -150,6 +155,10 @@ export function Root({
       engineRef.current = null;
     };
   }, [initialIndex]);
+
+  useLayoutEffect(() => {
+    engineRef.current?.setDrag(drag);
+  }, [drag]);
 
   // Controlled, the deck rests at `index`: it follows a new one, and returns
   // to it after a scroll the parent did not take, as a controlled input

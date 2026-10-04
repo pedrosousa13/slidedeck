@@ -6,7 +6,8 @@ const stories = [
   'deck--peek',
   'deck--starting-index',
   'deck--controlled',
-  'deck--pages'
+  'deck--pages',
+  'deck--drag'
 ];
 
 for (const id of stories) {
@@ -96,4 +97,58 @@ test('a paged deck steps a page at a time, its page size set per breakpoint', as
   // Below the breakpoint, one slide per page.
   await page.setViewportSize({ width: 400, height: 720 });
   await expect(deck.getByText(/ \/ 10$/)).toBeVisible();
+});
+
+test('a mouse drag moves the deck and settles on a slide, without following a link', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--drag&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const link = deck.getByRole('link', { name: 'Article 1' });
+  const box = (await link.boundingBox())!;
+  const y = box.y + box.height / 2;
+
+  await page.mouse.move(box.x + box.width - 20, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.3, y, { steps: 12 });
+  await page.mouse.up();
+
+  await expect(deck.getByRole('group', { name: '2 of 6' })).toBeInViewport({
+    ratio: 1
+  });
+  await expect(deck).toHaveAttribute('data-index', '1');
+  expect(new URL(page.url()).hash).toBe('');
+});
+
+test('a plain click on a link in a slide still follows it', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--drag&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+
+  await deck.getByRole('link', { name: 'Article 1' }).click();
+
+  await expect(page).toHaveURL(/#article-1$/);
+  await expect(deck).toHaveAttribute('data-index', '0');
+});
+
+test('with drag off, a mouse drag leaves the deck where it is', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--drag&viewMode=story&args=drag:!false');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const link = deck.getByRole('link', { name: 'Article 1' });
+  const box = (await link.boundingBox())!;
+  const y = box.y + box.height / 2;
+
+  await page.mouse.move(box.x + box.width - 20, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.3, y, { steps: 12 });
+  await page.mouse.up();
+
+  await page.waitForTimeout(500);
+  await expect(deck.getByRole('group', { name: '1 of 6' })).toBeInViewport({
+    ratio: 1
+  });
+  await expect(deck).toHaveAttribute('data-index', '0');
 });

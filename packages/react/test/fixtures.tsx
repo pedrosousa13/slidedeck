@@ -85,6 +85,90 @@ export async function touchSwipe(el: Element, dx: number) {
   });
 }
 
+/**
+ * A real mouse drag (CDP mouse events) across `el`: presses near the edge it
+ * moves away from, moves `dx` in `steps` moves `stepMs` apart, holds still
+ * `holdMs`, releases. Negative `dx` moves the pointer left, which drags the
+ * deck forward. With `release: false` the button
+ * stays down: call the function it returns to let go.
+ */
+export async function mouseDrag(
+  el: Element,
+  dx: number,
+  {
+    steps = 10,
+    stepMs = 16,
+    holdMs = 0,
+    button = 'left',
+    release = true
+  }: {
+    steps?: number;
+    stepMs?: number;
+    holdMs?: number;
+    button?: 'left' | 'middle' | 'right';
+    release?: boolean;
+  } = {}
+): Promise<() => Promise<unknown>> {
+  const box = el.getBoundingClientRect();
+  const y = box.top + box.height / 2;
+  const startX = dx < 0 ? box.right - 10 : box.left + 10;
+  const buttons = { left: 1, right: 2, middle: 4 }[button];
+  const at = (x: number) => toPage(x, y);
+  await cdp().send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    ...at(startX),
+    button,
+    buttons,
+    clickCount: 1
+  });
+  for (let step = 1; step <= steps; step++) {
+    await sleep(stepMs);
+    await cdp().send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      ...at(startX + (dx * step) / steps),
+      button,
+      buttons
+    });
+  }
+  if (holdMs) await sleep(holdMs);
+  const letGo = () =>
+    cdp().send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      ...at(startX + dx),
+      button,
+      buttons: 0,
+      clickCount: 1
+    });
+  if (release) await letGo();
+  return letGo;
+}
+
+/** One real mouse event (CDP) at `x`, `y` in this page, with `buttons` held:
+ * 1 for the primary button, 0 for none. */
+export const mouseAt = (
+  type: 'mousePressed' | 'mouseMoved' | 'mouseReleased',
+  x: number,
+  y: number,
+  buttons: number
+): Promise<unknown> =>
+  cdp().send('Input.dispatchMouseEvent', {
+    type,
+    ...toPage(x, y),
+    button: buttons || type !== 'mouseMoved' ? 'left' : 'none',
+    buttons,
+    clickCount: 1
+  });
+
+/**
+ * Checks the deck snaps, as a user sees it: a native scroll that stops just
+ * past where the deck rests comes back to rest there.
+ */
+export async function expectSnaps(viewport: HTMLElement) {
+  const rest = viewport.scrollLeft;
+  viewport.scrollLeft = rest + (rest > 0 ? -40 : 40); // away from the clamped end
+  await expectSettledTo(() => viewport.scrollLeft, rest);
+}
+
 /** A smooth two-finger-style scroll gesture, synthesised by Chromium. */
 export async function gestureScroll(el: Element, dx: number) {
   const box = el.getBoundingClientRect();

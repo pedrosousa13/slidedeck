@@ -22,6 +22,13 @@ test('a deck is uncontrolled, or controlled', () => {
   void (<Root index="1" onIndexChange={noop} />);
 });
 
+test('drag is a boolean, on unless turned off', () => {
+  void (<Root drag />);
+  void (<Root drag={false} />);
+  // @ts-expect-error -- drag is on or off
+  void (<Root drag="mouse" />);
+});
+
 test('the ref is the div, and handleRef is a RootHandle', () => {
   void (<Root ref={createRef<HTMLDivElement>()} />);
   void (<Root handleRef={createRef<Deck.RootHandle>()} />);

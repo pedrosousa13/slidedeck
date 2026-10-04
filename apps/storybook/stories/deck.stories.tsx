@@ -127,3 +127,30 @@ export const Pages: Story = {
     </Deck.Root>
   )
 };
+
+/**
+ * A mouse can drag the deck; it settles on a snap point when it lets go, and
+ * a drag never clicks the link it started on. A plain click still follows it.
+ * Touch, pen and trackpad scroll natively. Turn drag off with `drag={false}`.
+ */
+export const Drag: Story = {
+  args: { drag: true },
+  render: (args) => (
+    <Deck.Root {...args}>
+      <Deck.Viewport className="viewport">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Deck.Slide key={i} className="slide">
+            <a
+              href={`#article-${i + 1}`}
+              style={{ display: 'block', padding: '4rem 1rem' }}
+            >
+              Article {i + 1}
+            </a>
+          </Deck.Slide>
+        ))}
+      </Deck.Viewport>
+      <Deck.Prev />
+      <Deck.Next />
+    </Deck.Root>
+  )
+};
