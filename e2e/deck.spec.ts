@@ -10,7 +10,8 @@ const stories = [
   'deck--drag',
   'deck--click-to-focus',
   'deck--vertical',
-  'deck--right-to-left'
+  'deck--right-to-left',
+  'deck--progress'
 ];
 
 for (const id of stories) {
@@ -21,6 +22,10 @@ for (const id of stories) {
     await expect(
       deck.getByRole('group', { name: /^1 of \d+$/ })
     ).toBeAttached();
+    // A story's entry animation, mid-fade, would read as low contrast.
+    await page.evaluate(() =>
+      Promise.all(document.getAnimations().map((a) => a.finished))
+    );
 
     // Axe's default rule set, scoped to the deck rather than Storybook's own
     // iframe chrome, which is not ours to fix.
@@ -218,4 +223,38 @@ test('in a right-to-left document, Next moves toward the inline end', async ({
   await expect
     .poll(async () => (await slide(1).boundingBox())!.x)
     .toBeGreaterThanOrEqual(viewport.x + viewport.width - 1);
+});
+
+test('data-in-view marks the slides in view, and progress scales them', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--progress&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const slide = (n: number) => deck.getByRole('group', { name: `${n} of 6` });
+  const expectInViewMatchesViewport = async () => {
+    for (let n = 1; n <= 6; n++) {
+      if (await slide(n).evaluate((el) => el.hasAttribute('data-in-view'))) {
+        await expect(slide(n)).toBeInViewport();
+      } else {
+        await expect(slide(n)).not.toBeInViewport();
+      }
+    }
+  };
+  const scale = (n: number) =>
+    slide(n).evaluate((el) => getComputedStyle(el).scale);
+  // Centred, two and a half in view: slide 1 at the start of the range,
+  // slide 2 nearest the centre, slide 3 in part.
+  await expect(slide(3)).toHaveAttribute('data-in-view');
+  await expect(slide(4)).not.toHaveAttribute('data-in-view');
+  await expectInViewMatchesViewport();
+
+  await deck.getByRole('button', { name: 'Next' }).click();
+  await deck.getByRole('button', { name: 'Next' }).click();
+
+  await expect(deck).toHaveAttribute('data-index', '2');
+  await expect(slide(1)).not.toHaveAttribute('data-in-view');
+  await expect(slide(4)).toHaveAttribute('data-in-view');
+  await expectInViewMatchesViewport();
+  await expect.poll(() => scale(3)).toBe('1');
+  await expect.poll(() => scale(4)).toBe('0.8');
 });
