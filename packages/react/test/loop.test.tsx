@@ -30,9 +30,10 @@ import {
   WIDTH
 } from './fixtures';
 
-// Loop (CONTEXT.md, ADR-0006): a full set of inert, aria-hidden copies of the
-// slides on each side of them, and a jump of one set length onto the
-// identical slides once the viewport rests on a copy.
+// Loop (CONTEXT.md; clone and jump, ADR-0006, as built in ADR-0009): a
+// full set of inert, aria-hidden copies of the slides on each side of them,
+// and a jump of one set length onto the identical slides once the viewport
+// rests on a copy.
 
 const renderLoop = (props: Parameters<typeof TestDeck>[0] = {}) => {
   const onIndexChange = vi.fn();

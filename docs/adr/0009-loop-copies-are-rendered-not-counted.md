@@ -1,6 +1,7 @@
 # Loop copies are rendered by Viewport and never counted
 
-ADR-0006 chose clone and jump for loop: a full set of copies on each side of
+ADR-0006 chose clone and jump for loop (the technique's name; the elements
+are _copies_, CONTEXT.md): a full set of copies on each side of
 the slides, `aria-hidden` and `inert`, and a jump of one set length onto the
 identical slide once the viewport rests on a copy's snap point, never
 mid-motion. This records how it is built (#11) and what loop does with the
@@ -29,14 +30,35 @@ handle, Dots, Counter, `data-current`, `data-focal`, `onFocalChange` and the
 live region all speak of the slides' snap points and slides. A copy is never
 current or focal. Internally a step may target a snap point up to a set past
 either end, on the copies; `target()` reports the slide's index it copies.
-Prev and Next step across the seam; `scrollTo`, Dots and a controlled `index`
-go the direct way, within the slides, never round the seam.
+Prev and Next step across the seam; `scrollTo`, Dots and a new controlled
+`index` go the direct way, within the slides, never round the seam.
+
+**A loop has no end.** A step past the copies, as when presses come faster
+than the deck moves, goes instead to the nearest copy of the same slide, or
+the slide, ahead of the viewport the way the step goes. Every press counts,
+however many arrive mid-motion: the deck only travels less far. Moving the
+viewport back a set mid-motion to make room was tried: the instant scroll
+ends with a `scrollend` of its own, which settled the deck, and a jump
+mid-motion is what ADR-0006 rules out.
+
+**A refused move comes back the short way.** A controlled deck whose parent
+keeps `index` after a step across the seam returns to it whichever way is
+shorter, back across the seam, rather than rewinding through every slide.
+The engine's `scrollTo` takes a way, `direct` or `short`, for this.
 
 **Copies carry the outputs.** `--deck-progress` and `data-in-view` are written
 to every copy by its own place in the run, so a copy in view reads as the
 slide it stands in for, and after the jump its slide reads the same. Effects
 built on progress therefore draw copies as slides, and the jump shows
 nothing.
+
+**The jump lands on the slide's snap point, to the pixel.** Scroll positions
+are whole pixels where the device pixel ratio is 1, and a set's length need
+not be: with 3.5 centred slides in view a set of five is 428.57px. The copy
+and its slide then sit at different fractions of a pixel, so the jump can
+move the slides by up to half a pixel, plus layout's rounding to 1/64px.
+No scroll position removes it, and it is under what a pixel shows. The
+tests bound it.
 
 **What loop does with the deck's other features:**
 
@@ -66,5 +88,8 @@ ADR-0003 already accepts for the controls.
 
 The open checks of ADR-0006 still apply: VoiceOver reaching a copy, or a
 flash at the seam in desktop Safari or on iOS, would reopen it. Firefox and
-WebKit now run the e2e suite through Playwright, flicks across the seam
-included; their momentum flicks are still untested.
+WebKit now run the e2e suite through Playwright, with mouse flicks (the
+engine's scripted scroll) and wheel steps (the browser's own snapping)
+across the seam both ways. Touch and momentum flicks across the seam are
+out of reach of Playwright's desktop browsers and still untested; check
+them by hand on a phone and a trackpad.

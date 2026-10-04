@@ -65,17 +65,18 @@ export interface DeckEngine {
  * snap target per slide lays out along the axis in its stead, and the engine
  * measures each slide by its target.
  *
- * Loop (ADR-0006): where the viewport holds a copy of every slide before the
- * slides and another after them, each marked `data-slidedeck-copy` (`before`
- * or `after`; DOM order does not matter), scrolling past the last snap point
- * arrives at the first, and back. The copies are the caller's to render,
- * inert and `aria-hidden`. Only the slides' snap points are counted: a step
- * across the seam scrolls on onto the copies, and when the viewport comes to
- * rest on a copy's snap point the engine jumps it, instantly, one set of
- * slides back onto the identical slide. Never mid-motion: a jump then would
- * show and stop momentum. A set of slides no longer than the viewport has
- * nothing to loop: the engine then reports one snap point, as for any deck
- * whose slides all fit, and the caller should drop the copies.
+ * Loop (clone and jump, ADR-0006, as built in ADR-0009): where the viewport
+ * holds a copy of every slide before the slides and another after them, each
+ * marked `data-slidedeck-copy` (`before` or `after`; DOM order does not
+ * matter), scrolling past the last snap point arrives at the first, and
+ * back. The copies are the caller's to render, inert and `aria-hidden`. Only
+ * the slides' snap points are counted: a step across the seam scrolls on
+ * onto the copies, and when the viewport comes to rest on a copy's snap
+ * point the engine jumps it, instantly, a set of slides back onto the
+ * identical slide's snap point. Never mid-motion: a jump then would show and
+ * stop momentum. A set of slides no longer than the viewport has nothing to
+ * loop: the engine then reports one snap point, as for any deck whose slides
+ * all fit, and the caller should drop the copies.
  *
  * It also writes to each slide, and each copy, for CSS to read, once a
  * frame while the viewport scrolls and whenever it settles, never through
@@ -652,6 +653,8 @@ function slidesOf(viewport: HTMLElement): {
 function alignCopies(viewport: HTMLElement) {
   const { slides, run, first } = slidesOf(viewport);
   if (first === 0) return;
+  // The whole value, both axes, not the axis's: a copy must snap as its
+  // slide does on either axis, so it is copied as it is, not read.
   const aligns = slides.map((slide) => getComputedStyle(slide).scrollSnapAlign);
   run.forEach((copy, i) => {
     if (i >= first && i < first + slides.length) return;

@@ -107,20 +107,20 @@ interface RootBaseProps extends ComponentProps<'div'> {
    * back, with no visible jump: Prev and Next are then never disabled.
    * `Deck.Viewport` renders a copy of every slide on each side of the
    * slides, inert and `aria-hidden`, and the deck jumps from a copy to its
-   * slide once it rests (ADR-0006). Indexes, Dots and Counter count the
-   * slides' snap points only, never the copies'. A copy renders the slide's
-   * children again, so their state is their own and an `id` in a slide
-   * repeats. A deck whose slides all fit does not loop and renders no
-   * copies. Defaults to false. */
+   * slide once it rests (clone and jump, ADR-0006, as built in ADR-0009).
+   * Indexes, Dots and Counter count the slides' snap points only, never the
+   * copies'. A copy renders the slide's children again, so their state is
+   * their own and an `id` in a slide repeats. A deck whose slides all fit
+   * does not loop and renders no copies. Defaults to false. */
   loop?: boolean;
   /** Moves the deck one snap point on every this many milliseconds, counted
    * from when it comes to rest, and stops at the last, unless the deck
-   * loops, or where a step leaves the deck where it was, as when a controlled parent refuses it. A
-   * pointer over the deck or a hidden document pauses it; focus entering the
-   * deck, other than on `Deck.AutoplayToggle`, or the user moving it stops it
-   * until the toggle starts it again, and so does a preference for reduced
-   * motion, from the start. Pair it with
-   * `Deck.AutoplayToggle` (WCAG 2.2.2). Off by default. */
+   * loops, or where a step leaves the deck where it was, as when a
+   * controlled parent refuses it. A pointer over the deck or a hidden
+   * document pauses it; focus entering the deck, other than on
+   * `Deck.AutoplayToggle`, or the user moving it stops it until the toggle
+   * starts it again, and so does a preference for reduced motion, from the
+   * start. Pair it with `Deck.AutoplayToggle` (WCAG 2.2.2). Off by default. */
   autoplay?: number;
 }
 

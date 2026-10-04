@@ -9,7 +9,9 @@ snap target: Chromium snaps to where the slide is stuck. So the viewport holds
 an empty element per slide, marked `data-slidedeck-snap-target`, laid out
 along the axis. The engine treats these as stand-ins: where a viewport holds
 any, each slide's snap point, focal position, progress and in-view state are
-measured from its target. Snap targets are not slides.
+measured from its target. Snap targets are not slides. As built for loop,
+there is one per copy too, in the order the copies and slides run
+(ADR-0009).
 
 Fade sets slide geometry inline, a deliberate exception to ADR-0003. Every
 slide fills the viewport and snaps at its start, so a consumer's slide width,
