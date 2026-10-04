@@ -27,6 +27,13 @@ export default defineConfig({
         )
       },
       {
+        // Unanchored at the end: a test imports it with `?inline`.
+        find: /^@slidedeck\/react\/theme\.css/,
+        replacement: fileURLToPath(
+          new URL('./packages/react/src/theme.css', import.meta.url)
+        )
+      },
+      {
         find: /^@slidedeck\/react$/,
         replacement: fileURLToPath(
           new URL('./packages/react/src/index.tsx', import.meta.url)

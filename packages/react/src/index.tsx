@@ -784,13 +784,14 @@ function StepButton({
 }
 
 /** Moves the deck one snap point back. Disabled at the first; absent when
- * every slide fits. */
+ * every slide fits. Marked `data-slidedeck-prev` for CSS to select. */
 export function Prev(props: ComponentProps<'button'>) {
   const { index, count, userMove } = useDeck('Prev');
   if (everySlideFits(count)) return null;
   return (
     <StepButton
       {...props}
+      data-slidedeck-prev=""
       atEnd={index === 0}
       step={() => userMove()?.prev()}
       label="Previous"
@@ -799,13 +800,14 @@ export function Prev(props: ComponentProps<'button'>) {
 }
 
 /** Moves the deck one snap point on. Disabled at the last; absent when
- * every slide fits. */
+ * every slide fits. Marked `data-slidedeck-next` for CSS to select. */
 export function Next(props: ComponentProps<'button'>) {
   const { index, count, userMove } = useDeck('Next');
   if (everySlideFits(count)) return null;
   return (
     <StepButton
       {...props}
+      data-slidedeck-next=""
       atEnd={count !== null && index >= count - 1}
       step={() => userMove()?.next()}
       label="Next"

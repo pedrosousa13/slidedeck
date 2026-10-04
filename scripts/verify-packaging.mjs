@@ -74,8 +74,24 @@ for (const { manifest, path } of packages) {
 
     // ESM only by design: the esm-only profile stops attw reporting the
     // CommonJS and node10 resolution modes these packages do not support.
+    // A stylesheet, such as the theme, has no types for attw to resolve.
+    const stylesheets = Object.keys(manifest.exports).filter((subpath) =>
+      subpath.endsWith('.css')
+    );
+    const skipStylesheets =
+      stylesheets.length > 0 ? ['--exclude-entrypoints', ...stylesheets] : [];
     console.log(`\n--- attw: ${name} ---`);
-    if (!passes(['exec', 'attw', '--pack', tarball, '--profile', 'esm-only'])) {
+    if (
+      !passes([
+        'exec',
+        'attw',
+        '--pack',
+        tarball,
+        '--profile',
+        'esm-only',
+        ...skipStylesheets
+      ])
+    ) {
       failures.push(`attw failed for ${name}`);
     }
   } finally {
