@@ -30,6 +30,51 @@ settle. Restoring snapping on release was rejected: in all three browsers
 the re-snap finished before the first frame after release, and a flick was
 ignored.
 
+**A move's lifecycle (amended for #41).** A _move_ is a scroll the engine
+started: a step, a `scrollTo`, a drag's release. The engine is _idle_ or
+_moving_ to a target snap point. A move has _arrived_ once the viewport is
+within a pixel of its target; that is read from the viewport, never stored.
+A scroll's `scrollend` comes a few milliseconds after the viewport arrives.
+Measured in Chromium: when a move starts in those milliseconds, the late
+`scrollend` and `scrollsnapchange` of the scroll before it come once the new
+move has started, and the new move gets no end event of its own. So an end
+event cannot say which move it ends. The events, and what each does:
+
+- _A new move_ (from idle, or moving, arrived or not): the engine is moving
+  to the new target at once. It never waits for an end. A step goes on from
+  the target in flight. An arrived move is superseded: it does not settle,
+  publish or jump off a copy, and the new move goes on from where the
+  viewport is, a copy included.
+- _An end event_ (`scrollend`, `scrollsnapchange`): idle, it settles the
+  deck. Moving, it ends the move and settles only if the move has arrived.
+  Otherwise it is not this move's end: it is the late end of an earlier
+  scroll, a copy's jump included, or of a scroll that interrupted the move.
+  It is ignored. This also covers `scrollsnapchange` as a move begins.
+- _Quiet_ (no scroll event for 100ms): ends any scroll and settles. It runs
+  from the start of each move until the next settle, and always where
+  `scrollend` is missing. So every move ends, at worst 100ms after its last
+  scroll, with no end event at all.
+- _The user's input_ in the viewport (a pointer press, a wheel, a key):
+  moving, the engine is idle again, without a settle. The scroll in flight
+  ends as the user's does, and nothing the engine asked for resumes. A drag
+  takes over as before, and its release is a new move.
+- _The jump off a copy_ is part of a settle, so it comes only when idle or at
+  a move's end. Its own end, if a new move has started, is a late end.
+
+So a late end cannot end or settle a newer move; it is never waited for;
+the user always ends a move; every move settles, snapping included; and
+nothing is published between a superseded move and the move after it, so
+a controlled parent has nothing to echo back. Two other models were
+rejected. Holding a new move until the late end (100ms at most) lost a new
+controlled `index`: the held move let the old scroll publish, the parent
+echoed it, and the deck undid the new `index`; and a held move replaced a
+handle's `scrollTo` with the next step. Settling the arrived move before the
+new one publishes its index in the same task as the new move, and a
+controlled parent echoes it back with the same result. The cost of the
+model: a main-thread task longer than 100ms during a move can let quiet
+settle it mid-motion; the scroll's own end then settles it again where it
+rests, with one more `onIndexChange`.
+
 **Fade: sticky stack.** Slides are stacked with `position: sticky`, opacity
 is set from a scroll listener, and non-focal slides are `inert`. As built,
 opacity is CSS on `--deck-progress` (ADR-0007). CSS view

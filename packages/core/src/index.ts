@@ -36,7 +36,8 @@ export interface DeckEngine {
   next(): void;
   prev(): void;
   /** The snap point a scroll the engine started is heading to, until it
-   * ends; null when none is in flight. */
+   * ends or the user's input in the viewport takes over; null when none is
+   * in flight. */
   target(): number | null;
   /** Re-reads the snap points, as after slides are added or removed. */
   refresh(): void;
@@ -168,11 +169,18 @@ export function createDeck(
     if (point !== undefined) along.scrollTo(point, 'instant');
   };
 
-  // The snap point a step is scrolling to, until the scroll ends: a second
-  // press steps on from there, not from where the viewport last rested. With
-  // loop it may be a set of slides past either end, on the copies there (see
-  // `positionOf`).
+  // A move is a scroll the engine started; its lifecycle is ADR-0006's.
+  // Moving, `target` is the snap point it heads to, until it ends or the
+  // user takes over: a second press steps on from there, not from where the
+  // viewport last rested. With loop it may be a set of slides past either
+  // end, on the copies there (see `positionOf`). Null when idle.
   let target: number | null = null;
+  // The move has arrived: the viewport is at its target, its end not seen.
+  const arrived = (to: number) => {
+    const along = axis();
+    const geometry = snapPoints(viewport, along);
+    return Math.abs(along.position - positionOf(geometry, to)) < 1;
+  };
 
   // Mouse drag (ADR-0006): see the pointer handlers below.
   let dragEnabled = true;
@@ -215,15 +223,19 @@ export function createDeck(
   // not a settled one, so a refresh then waits for the scroll's end.
   let scrolling = false;
   // Where `scrollend` is missing, a scroll has ended once no scroll event has
-  // come for this long (ADR-0006).
+  // come for this long (ADR-0006). From the start of a move until the deck
+  // settles, in every engine: the move's end event may never come.
   const hasScrollEnd = 'onscrollend' in window;
   let quiet: ReturnType<typeof setTimeout> | undefined;
+  let quietEnds = false;
+  const awaitQuiet = () => {
+    clearTimeout(quiet);
+    quiet = setTimeout(scrollEnded, SCROLL_END_DEBOUNCE_MS);
+  };
   const onScroll = () => {
     scrolling = true;
     frame ||= requestAnimationFrame(() => paint());
-    if (hasScrollEnd) return;
-    clearTimeout(quiet);
-    quiet = setTimeout(scrollEnded, SCROLL_END_DEBOUNCE_MS);
+    if (!hasScrollEnd || quietEnds) awaitQuiet();
   };
 
   const scrollEnded = () => {
@@ -237,20 +249,27 @@ export function createDeck(
     }
     scrolling = false;
     target = null;
+    clearTimeout(quiet);
+    quietEnds = false;
     settle();
   };
 
-  // Chromium can fire `scrollsnapchange` as a scroll the engine started
-  // begins, before the viewport moves: that is not the scroll's end, and
-  // clearing the target then would lose where it is heading. `scrollend`
-  // still ends any scroll, including one a user interrupts.
-  const onSnapChange = () => {
-    if (target !== null) {
-      const along = axis();
-      const geometry = snapPoints(viewport, along);
-      if (Math.abs(along.position - positionOf(geometry, target)) >= 1) return;
-    }
+  // `scrollend` and `scrollsnapchange` end a move only once it has arrived.
+  // Before that, an end is not the move's: it is the late end of an earlier
+  // scroll, which Chromium sends a few milliseconds after the viewport
+  // arrives, after a move started in those milliseconds, or of a scroll that
+  // interrupted the move; or `scrollsnapchange` as the move begins. Quiet
+  // ends the move then.
+  const onEnd = () => {
+    if (target !== null && !arrived(target)) return;
     scrollEnded();
+  };
+
+  // The user's input in the viewport ends a move without a settle: the
+  // scroll in flight ends as the user's, and nothing the engine asked for
+  // resumes. A drag takes over as below.
+  const onUserInput = () => {
+    target = null;
   };
 
   const refresh = () => {
@@ -306,7 +325,10 @@ export function createDeck(
     // A scroll to where the viewport already rests ends no scroll, so a
     // target set for it would never clear and would block every refresh.
     if (target === null && Math.abs(along.position - to) < 1) return;
+    // A move in flight, arrived or not, is superseded: it never settles.
     target = next;
+    quietEnds = true;
+    awaitQuiet();
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     along.scrollTo(to, reduce ? 'instant' : 'smooth');
   };
@@ -324,8 +346,10 @@ export function createDeck(
   // `scrollsnapchange` reports a settled snap target where it exists, no
   // later than `scrollend`; `publish` drops whichever report comes second.
   viewport.addEventListener('scroll', onScroll, { passive: true });
-  viewport.addEventListener('scrollsnapchange', onSnapChange);
-  viewport.addEventListener('scrollend', scrollEnded);
+  viewport.addEventListener('scrollsnapchange', onEnd);
+  viewport.addEventListener('scrollend', onEnd);
+  viewport.addEventListener('wheel', onUserInput, { passive: true });
+  viewport.addEventListener('keydown', onUserInput);
   // A resize can add or remove snap points without any scroll, and only
   // Chromium reports that through `scrollsnapchange`.
   const resizes = new ResizeObserver(refresh);
@@ -341,6 +365,7 @@ export function createDeck(
   // when that scroll ends. Restoring snapping at release instead lets the
   // browser re-snap before the next frame, ignoring a flick.
   const onPointerDown = (event: PointerEvent) => {
+    onUserInput();
     if (
       !dragEnabled ||
       event.pointerType !== 'mouse' ||
@@ -559,8 +584,10 @@ export function createDeck(
       resizes.disconnect();
       window.removeEventListener('resize', refresh);
       viewport.removeEventListener('scroll', onScroll);
-      viewport.removeEventListener('scrollsnapchange', onSnapChange);
-      viewport.removeEventListener('scrollend', scrollEnded);
+      viewport.removeEventListener('scrollsnapchange', onEnd);
+      viewport.removeEventListener('scrollend', onEnd);
+      viewport.removeEventListener('wheel', onUserInput);
+      viewport.removeEventListener('keydown', onUserInput);
       viewport.removeEventListener('pointerdown', onPointerDown);
       viewport.removeEventListener('pointermove', onPointerMove);
       viewport.removeEventListener('pointerup', onPointerUp);
