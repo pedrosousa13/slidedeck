@@ -13,9 +13,15 @@ export interface DeckState {
   focal: number;
 }
 
+/** The axis a deck scrolls along. Horizontal follows the writing direction,
+ * so in a right-to-left document the deck starts at the right. */
+export type Orientation = 'horizontal' | 'vertical';
+
 export interface DeckOptions {
   /** The snap point to start at, clamped to the snap points there are. */
   index: number;
+  /** Defaults to horizontal. */
+  orientation?: Orientation;
   /** Called when the current index, the snap point count, the current slide
    * or the focal slide changes: when a scroll settles, never during one. */
   onChange: (state: DeckState) => void;
@@ -41,6 +47,9 @@ export interface DeckEngine {
    * scroll range allows. A click that ends a mouse drag never reaches it,
    * and a keyboard click is ignored. */
   setClickToFocus(enabled: boolean): void;
+  /** Changes the axis the deck scrolls along, and re-reads the snap points
+   * on it. */
+  setOrientation(orientation: Orientation): void;
   destroy(): void;
 }
 
@@ -69,21 +78,31 @@ export function createDeck(
     options.onChange(state);
   };
 
+  let vertical = options.orientation === 'vertical';
+  // Read afresh for each use: an ancestor's `dir` can change at any time.
+  const axis = () => axisOf(viewport, vertical);
+
   const settle = () => {
-    const { points, slides } = snapPoints(viewport);
-    const index = nearest(points, viewport.scrollLeft);
+    const along = axis();
+    const { points, slides } = snapPoints(viewport, along);
+    const index = nearest(points, along.position);
     const slide = slides.indexOf(index);
     publish({
       index,
       count: points.length,
       slide,
-      focal: slide === -1 ? -1 : focalSlide(viewport, alignOf(slide))
+      // At the alignment of the slide resting at the snap point, so of the
+      // deck: a slide that does not snap, as within a page, has none.
+      focal:
+        slide === -1
+          ? -1
+          : focalSlide(
+              viewport,
+              along,
+              along.snapAlign(viewport.children[slide])
+            )
     });
   };
-
-  // The alignment of the slide resting at the snap point, so of the deck: a
-  // slide that does not snap, as within a page, has none of its own.
-  const alignOf = (slide: number) => snapAlign(viewport.children[slide]);
 
   // The snap point a step is scrolling to, until the scroll ends: a second
   // press steps on from there, not from where the viewport last rested.
@@ -96,7 +115,10 @@ export function createDeck(
   let pointer = -1;
   let startX = 0;
   let startY = 0;
-  let lastX = 0;
+  // The axis a drag moves along, fixed when the button is pressed.
+  let dragAxis = axis();
+  // Where the pointer last was along it.
+  let last = 0;
   // How far the pointer has dragged the deck forward, in scroll pixels.
   let travel = 0;
   let samples: { t: number; travel: number }[] = [];
@@ -157,8 +179,9 @@ export function createDeck(
   // still ends any scroll, including one a user interrupts.
   const onSnapChange = () => {
     if (target !== null) {
-      const { points } = snapPoints(viewport);
-      if (Math.abs(viewport.scrollLeft - points[target]) >= 1) return;
+      const along = axis();
+      const { points } = snapPoints(viewport, along);
+      if (Math.abs(along.position - points[target]) >= 1) return;
     }
     scrollEnded();
   };
@@ -173,32 +196,29 @@ export function createDeck(
       deferred = index;
       return;
     }
-    const { points } = snapPoints(viewport);
+    const along = axis();
+    const { points } = snapPoints(viewport, along);
     // Nowhere to scroll to: a target set now would never clear either.
     if (!Number.isFinite(index) || points.length === 0) return;
     const next = clamp(index, points.length);
     // A scroll to where the viewport already rests ends no scroll, so a
     // target set for it would never clear and would block every refresh.
-    if (target === null && Math.abs(viewport.scrollLeft - points[next]) < 1) {
+    if (target === null && Math.abs(along.position - points[next]) < 1) {
       return;
     }
     target = next;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    viewport.scrollTo({
-      left: points[target],
-      behavior: reduce ? 'instant' : 'smooth'
-    });
+    along.scrollTo(points[target], reduce ? 'instant' : 'smooth');
   };
 
   // With one slide per snap point, server HTML already rests here where the
   // browser honours `scroll-initial-target`, and this scroll is a no-op.
   // Where slides share snap points, slide `index` may rest at another snap
   // point, so the first paint may correct: server HTML cannot measure.
-  const { points } = snapPoints(viewport);
+  const along = axis();
+  const { points } = snapPoints(viewport, along);
   const start = points[clamp(options.index, points.length)] ?? 0;
-  if (Math.abs(viewport.scrollLeft - start) >= 1) {
-    viewport.scrollTo({ left: start, behavior: 'instant' });
-  }
+  if (Math.abs(along.position - start) >= 1) along.scrollTo(start, 'instant');
   settle();
 
   // `scrollsnapchange` reports a settled snap target where it exists, no
@@ -230,8 +250,10 @@ export function createDeck(
       return;
     }
     pointer = event.pointerId;
-    startX = lastX = event.clientX;
+    startX = event.clientX;
     startY = event.clientY;
+    dragAxis = axis();
+    last = dragAxis.at(event);
     travel = 0;
     samples = [{ t: event.timeStamp, travel: 0 }];
   };
@@ -255,9 +277,12 @@ export function createDeck(
       removeSnap();
       viewport.setPointerCapture(pointer);
     }
-    const delta = lastX - event.clientX;
-    lastX = event.clientX;
-    viewport.scrollLeft += delta;
+    // The deck follows the pointer: a pointer moving toward the deck's start
+    // drags it forward.
+    const at = dragAxis.at(event);
+    const delta = last - at;
+    last = at;
+    dragAxis.position += delta;
     travel += delta;
     samples.push({ t: event.timeStamp, travel });
     if (samples.length > MAX_SAMPLES) samples.shift();
@@ -277,8 +302,8 @@ export function createDeck(
     pointer = -1;
     if (drag !== 'dragging') return;
     suppressClick();
-    const { points } = snapPoints(viewport);
-    const position = viewport.scrollLeft;
+    const { points } = snapPoints(viewport, dragAxis);
+    const position = dragAxis.position;
     const velocity = releaseVelocity(samples, event.timeStamp);
     let next = nearest(points, position + velocity * MOMENTUM_MS);
     // A flick always moves at least one snap point the way it was thrown.
@@ -336,9 +361,11 @@ export function createDeck(
     if (!slide) return;
     // The snap point of the clicked slide's page. One slide to a page, that
     // is the slide's own.
-    const { slides } = snapPoints(viewport);
+    const along = axis();
+    const { slides } = snapPoints(viewport, along);
     const owner = pageOwner(
       viewport,
+      along,
       slides,
       [...viewport.children].indexOf(slide)
     );
@@ -360,6 +387,10 @@ export function createDeck(
     },
     setClickToFocus(enabled) {
       clickToFocus = enabled;
+    },
+    setOrientation(orientation) {
+      vertical = orientation === 'vertical';
+      refresh();
     },
     destroy() {
       clearTimeout(quiet);
@@ -429,22 +460,25 @@ function nearest(points: number[], position: number): number {
  * the viewport the index of the point it rests at (-1 if it does not snap).
  * Slides that clamp to the same scroll position share one snap point.
  */
-function snapPoints(viewport: HTMLElement): {
+function snapPoints(
+  viewport: HTMLElement,
+  axis: Axis
+): {
   points: number[];
   slides: number[];
 } {
-  const max = viewport.scrollWidth - viewport.clientWidth;
+  const max = axis.max();
+  const position = axis.position;
+  const view = axis.view();
   const positions: (number | null)[] = [];
   for (const slide of viewport.children) {
-    const align = snapAlign(slide);
+    const align = axis.snapAlign(slide);
     if (align === 'none') {
       positions.push(null);
       continue;
     }
-    const offset = alignOffset(viewport, slide, align);
-    positions.push(
-      Math.round(Math.min(Math.max(viewport.scrollLeft + offset, 0), max))
-    );
+    const offset = alignOffset(axis, view, slide, align);
+    positions.push(Math.round(Math.min(Math.max(position + offset, 0), max)));
   }
   const points = [
     ...new Set(positions.filter((p): p is number => p !== null))
@@ -463,13 +497,14 @@ function snapPoints(viewport: HTMLElement): {
  */
 function pageOwner(
   viewport: HTMLElement,
+  axis: Axis,
   slides: number[],
   index: number
 ): number {
   let owner = -1;
   slides.forEach((point, i) => {
     if (point === -1) return;
-    const align = snapAlign(viewport.children[i]);
+    const align = axis.snapAlign(viewport.children[i]);
     if ((align === 'start' && i > index) || (align === 'end' && i < index)) {
       return;
     }
@@ -480,33 +515,104 @@ function pageOwner(
   return owner;
 }
 
-/** A slide's inline-axis `scroll-snap-align`: the last of its values. */
-const snapAlign = (slide: Element) =>
-  getComputedStyle(slide).scrollSnapAlign.split(' ').pop() ?? 'none';
+/** A span along the deck's axis: where something starts and ends, measured
+ * the way the deck runs. */
+type Span = [start: number, end: number];
+
+/**
+ * The deck's axis, as the viewport lays it out now. Every scroll position and
+ * measurement the engine uses runs along it from the deck's start, so the
+ * rest of the engine never asks which way the deck runs. Horizontal follows
+ * the viewport's writing direction: in right-to-left the start is the right
+ * edge, and browsers report `scrollLeft` as 0 there and negative past it.
+ */
+interface Axis {
+  /** How far the viewport has scrolled from the deck's start. */
+  position: number;
+  /** The furthest the viewport can scroll from the start. */
+  max(): number;
+  scrollTo(position: number, behavior: ScrollBehavior): void;
+  /** Where a point on screen falls along the axis. */
+  at(point: { clientX: number; clientY: number }): number;
+  /** Where a box on screen spans along the axis. */
+  span(box: { left: number; right: number; top: number; bottom: number }): Span;
+  /** Where the viewport's scrollport spans along the axis. */
+  view(): Span;
+  /** A slide's `scroll-snap-align` along the axis: of its block and inline
+   * values, the block for a vertical deck, the inline for a horizontal one. */
+  snapAlign(slide: Element): string;
+}
+
+function axisOf(viewport: HTMLElement, vertical: boolean): Axis {
+  const sign =
+    !vertical && getComputedStyle(viewport).direction === 'rtl' ? -1 : 1;
+  const span: Axis['span'] = (box) =>
+    vertical
+      ? [box.top, box.bottom]
+      : sign === 1
+        ? [box.left, box.right]
+        : [-box.right, -box.left];
+  return {
+    get position() {
+      return vertical ? viewport.scrollTop : sign * viewport.scrollLeft;
+    },
+    set position(position) {
+      if (vertical) viewport.scrollTop = position;
+      else viewport.scrollLeft = sign * position;
+    },
+    max: () =>
+      vertical
+        ? viewport.scrollHeight - viewport.clientHeight
+        : viewport.scrollWidth - viewport.clientWidth,
+    scrollTo: (position, behavior) =>
+      viewport.scrollTo(
+        vertical
+          ? { top: position, behavior }
+          : { left: sign * position, behavior }
+      ),
+    at: (point) => (vertical ? point.clientY : sign * point.clientX),
+    span,
+    view() {
+      const box = viewport.getBoundingClientRect();
+      const left = box.left + viewport.clientLeft;
+      const top = box.top + viewport.clientTop;
+      return span({
+        left,
+        right: left + viewport.clientWidth,
+        top,
+        bottom: top + viewport.clientHeight
+      });
+    },
+    snapAlign(slide) {
+      const values = getComputedStyle(slide).scrollSnapAlign.split(' ');
+      return (vertical ? values[0] : values.pop()) ?? 'none';
+    }
+  };
+}
 
 /** How far the viewport would scroll to put `slide` at the alignment point
- * for `align`, unclamped: 0 when it is there now. */
+ * for `align`, unclamped: 0 when it is there now. `view` is the axis's. */
 function alignOffset(
-  viewport: HTMLElement,
+  axis: Axis,
+  view: Span,
   slide: Element,
   align: string
 ): number {
-  const start = viewport.getBoundingClientRect().left + viewport.clientLeft;
-  const width = viewport.clientWidth;
-  const box = slide.getBoundingClientRect();
+  const [start, end] = axis.span(slide.getBoundingClientRect());
   return align === 'center'
-    ? box.left + box.width / 2 - (start + width / 2)
+    ? (start + end) / 2 - (view[0] + view[1]) / 2
     : align === 'end'
-      ? box.right - (start + width)
-      : box.left - start;
+      ? end - view[1]
+      : start - view[0];
 }
 
 /** The child of the viewport nearest the alignment point for `align`. */
-function focalSlide(viewport: HTMLElement, align: string): number {
+function focalSlide(viewport: HTMLElement, axis: Axis, align: string): number {
+  const view = axis.view();
   let best = -1;
   let distance = Infinity;
   [...viewport.children].forEach((slide, i) => {
-    const d = Math.abs(alignOffset(viewport, slide, align));
+    const d = Math.abs(alignOffset(axis, view, slide, align));
     if (d < distance) {
       best = i;
       distance = d;

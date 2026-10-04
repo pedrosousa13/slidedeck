@@ -8,7 +8,9 @@ const stories = [
   'deck--controlled',
   'deck--pages',
   'deck--drag',
-  'deck--click-to-focus'
+  'deck--click-to-focus',
+  'deck--vertical',
+  'deck--right-to-left'
 ];
 
 for (const id of stories) {
@@ -170,4 +172,50 @@ test('the focal slide is at the snap alignment point, and clicking a slide in vi
   await expect(slide(3)).toHaveAttribute('data-focal');
   await expect(slide(2)).not.toHaveAttribute('data-focal');
   await expect(deck).toHaveAttribute('data-index', '2');
+});
+
+test('a vertical deck steps down with Next and snaps back after a short scroll', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--vertical&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const viewport = deck.locator('[data-slidedeck-viewport]');
+  const top = async (n: number) =>
+    (await deck.getByRole('group', { name: `${n} of 6` }).boundingBox())!.y -
+    (await viewport.boundingBox())!.y;
+
+  await deck.getByRole('button', { name: 'Next' }).click();
+
+  await expect(deck).toHaveAttribute('data-index', '1');
+  await expect.poll(() => top(2)).toBe(0);
+
+  // A short wheel scroll down comes back to rest on the same slide.
+  const box = (await viewport.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 40);
+  await expect.poll(() => top(2)).toBe(0);
+  await expect(deck).toHaveAttribute('data-index', '1');
+});
+
+test('in a right-to-left document, Next moves toward the inline end', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--right-to-left&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const viewport = (await deck
+    .locator('[data-slidedeck-viewport]')
+    .boundingBox())!;
+  const slide = (n: number) => deck.getByRole('group', { name: `${n} of 6` });
+  // The first slide sits at the right, the inline start.
+  const first = (await slide(1).boundingBox())!;
+  expect(first.x + first.width).toBeCloseTo(viewport.x + viewport.width, 0);
+
+  await deck.getByRole('button', { name: 'Next' }).click();
+
+  await expect(deck).toHaveAttribute('data-index', '1');
+  await expect(slide(2)).toBeInViewport({ ratio: 1 });
+  // The first slide has moved off to the right.
+  await expect
+    .poll(async () => (await slide(1).boundingBox())!.x)
+    .toBeGreaterThanOrEqual(viewport.x + viewport.width - 1);
 });

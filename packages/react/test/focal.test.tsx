@@ -5,9 +5,11 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
+  addStyle,
   expectSettledTo,
   mouseAt,
   mouseDrag,
+  pagesOf,
   sleep,
   viewportOf,
   WIDTH
@@ -19,16 +21,6 @@ import {
 // both at the end of the range.
 const CENTRED = `.centred > * { width: calc(100% / 3.5); scroll-snap-align: center; }`;
 const SLIDE = WIDTH / 3.5;
-
-let removeStyle = () => {};
-afterEach(() => removeStyle());
-
-function addStyle(css: string) {
-  const style = document.createElement('style');
-  style.textContent = css;
-  document.head.append(style);
-  removeStyle = () => style.remove();
-}
 
 type FocalDeckProps = ComponentProps<typeof Deck.Root> & {
   slides?: number;
@@ -339,11 +331,7 @@ describe('click-to-focus', () => {
 // Three slides in view, three to a page: page starts at slides 0, 3 and 6, and
 // the last page, slide 9 alone, rests at the end of the range.
 describe('click-to-focus with pages of three', () => {
-  const PAGES = `
-    .pages > * { width: calc(100% / 3); }
-    .pages > :nth-child(3n + 1) { scroll-snap-align: start; }
-    .pages > :not(:nth-child(3n + 1)) { scroll-snap-align: none; }
-  `;
+  const PAGES = `${pagesOf(3)} .pages > * { width: calc(100% / 3); }`;
   const renderPages = () =>
     renderDeck({ slides: 10, viewportClassName: 'pages', clickToFocus: true });
 

@@ -12,6 +12,11 @@ The structural styles a deck needs to function (the scroller, snap type,
 overflow) are set inline on the primitives, as playdeck does, so a deck works
 with no stylesheet. Appearance ships as an optional `theme.css`.
 
+That is why a deck's orientation is a prop and its writing direction is not.
+The primitives set the snap type inline, so the deck must choose its axis
+(`orientation`). Writing direction is read from the computed `direction`, so
+`dir` on any ancestor applies.
+
 Slide width and snap alignment are geometry, yet a deck with no stylesheet
 still needs them. They ship as zero-specificity `:where()` defaults, injected
 through React 19's `<style precedence>`, not inline: an inline style would

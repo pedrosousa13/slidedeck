@@ -37,6 +37,16 @@ _Avoid_: track, container
 **Slide**:
 One child of the viewport the consumer supplies. Its size is plain CSS.
 
+**Orientation**:
+The axis a deck runs along: horizontal or vertical, set by the `orientation`
+prop.
+_Avoid_: direction, axis mode
+
+**Writing direction**:
+Left-to-right or right-to-left, read from the document's computed `direction`.
+Next moves toward the inline end.
+_Avoid_: left/right for start/end
+
 ### Position
 
 **Snap point**:

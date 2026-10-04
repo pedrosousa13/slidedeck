@@ -15,7 +15,9 @@ import {
   type Ref,
   type RefObject
 } from 'react';
-import { createDeck, type DeckEngine } from '@slidedeck/core';
+import { createDeck, type DeckEngine, type Orientation } from '@slidedeck/core';
+
+export type { Orientation };
 
 // Left in the build for the consumer's bundler to replace, as React's own
 // development checks are, so production bundles drop the warnings.
@@ -34,6 +36,7 @@ interface DeckContextValue {
    * where Root cannot see Viewport's children. */
   slides: number | null;
   initialIndex: number;
+  orientation: Orientation;
   viewportRef: RefObject<HTMLDivElement | null>;
   engineRef: RefObject<DeckEngine | null>;
 }
@@ -78,6 +81,11 @@ interface RootBaseProps extends ComponentProps<'div'> {
    * nor a programmatic `element.click()` (detail 0): call `scrollTo` on the
    * handle instead. Defaults to false. */
   clickToFocus?: boolean;
+  /** The axis the deck scrolls along. A vertical deck needs a height, set on
+   * `Deck.Viewport` in CSS. Horizontal follows the writing direction: in a
+   * right-to-left document the deck starts at the right and Next moves left.
+   * Defaults to horizontal. */
+  orientation?: Orientation;
 }
 
 /** Controlled like a React input's `value`: the deck scrolls to `index` when
@@ -113,6 +121,7 @@ export function Root({
   drag = true,
   onFocalChange,
   clickToFocus = false,
+  orientation = 'horizontal',
   ...props
 }: RootProps) {
   // Core starts a non-finite index at 0; so must the first render.
@@ -135,6 +144,7 @@ export function Root({
   const onIndexChangeRef = useRef(onIndexChange);
   const onFocalChangeRef = useRef(onFocalChange);
   const indexRef = useRef(index);
+  const orientationRef = useRef(orientation);
 
   useLayoutEffect(() => {
     onIndexChangeRef.current = onIndexChange;
@@ -150,6 +160,7 @@ export function Root({
     let focal: number | undefined;
     const engine = createDeck(viewport, {
       index: initialIndex,
+      orientation: orientationRef.current,
       onChange(next) {
         setState(next);
         // A change is a settle on a new snap point; a report of a new count
@@ -186,6 +197,11 @@ export function Root({
     engineRef.current?.setClickToFocus(clickToFocus);
   }, [clickToFocus]);
 
+  useLayoutEffect(() => {
+    orientationRef.current = orientation;
+    engineRef.current?.setOrientation(orientation);
+  }, [orientation]);
+
   // Controlled, the deck rests at `index`: it follows a new one, and returns
   // to it after a scroll the parent did not take, as a controlled input
   // reverts an edit its parent ignores. Compared with where a scroll in
@@ -214,7 +230,14 @@ export function Root({
 
   return (
     <DeckContext
-      value={{ ...state, slides, initialIndex, viewportRef, engineRef }}
+      value={{
+        ...state,
+        slides,
+        initialIndex,
+        orientation,
+        viewportRef,
+        engineRef
+      }}
     >
       <div
         role="region"
@@ -299,15 +322,23 @@ const SlideContext = createContext<{ index: number; count: number } | null>(
   null
 );
 
-const viewportStyle: CSSProperties = {
-  display: 'flex',
-  overflowX: 'auto',
-  scrollSnapType: 'x mandatory'
+const viewportStyles: Record<Orientation, CSSProperties> = {
+  horizontal: {
+    display: 'flex',
+    overflowX: 'auto',
+    scrollSnapType: 'x mandatory'
+  },
+  vertical: {
+    display: 'flex',
+    flexDirection: 'column',
+    overflowY: 'auto',
+    scrollSnapType: 'y mandatory'
+  }
 };
 
 /** The native scroll container. Its children are the deck's slides. */
 export function Viewport({ style, children, ...props }: ComponentProps<'div'>) {
-  const { viewportRef, engineRef } = useDeck('Viewport');
+  const { viewportRef, engineRef, orientation } = useDeck('Viewport');
   const slides = Children.toArray(children);
   // Adding or removing a slide can change the snap points without resizing
   // the viewport, which is all the engine observes.
@@ -319,7 +350,8 @@ export function Viewport({ style, children, ...props }: ComponentProps<'div'>) {
       ref={viewportRef}
       tabIndex={0}
       data-slidedeck-viewport=""
-      style={{ ...viewportStyle, ...style }}
+      data-orientation={orientation}
+      style={{ ...viewportStyles[orientation], ...style }}
       {...props}
     >
       <style href="slidedeck-slide" precedence="slidedeck">
@@ -344,7 +376,8 @@ export function Viewport({ style, children, ...props }: ComponentProps<'div'>) {
 // zero specificity lets any consumer rule override them, which inline styles
 // would not.
 const slideDefaults =
-  ':where([data-slidedeck-slide]){width:100%;scroll-snap-align:start}';
+  ':where([data-slidedeck-slide]){width:100%;scroll-snap-align:start}' +
+  ':where([data-orientation=vertical]>[data-slidedeck-slide]){height:100%}';
 
 // Not yet in React's CSSProperties.
 const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;
