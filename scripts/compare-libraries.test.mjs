@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { renderTable, spliceTable } from './compare-libraries.mjs';
+import { renderTable, spliceTable, versionCell } from './compare-libraries.mjs';
 
 const row = {
   name: '`a-lib`',
@@ -69,4 +69,10 @@ test('spliceTable throws when a marker is missing or out of order', () => {
       ),
     /comparison:start/
   );
+});
+
+test("versionCell gives slidedeck's own packages no version, so a release never stales the table", () => {
+  const read = () => '9.9.9';
+  assert.equal(versionCell('@slidedeck/react', read), 'this repo');
+  assert.equal(versionCell('keen-slider', read), '9.9.9');
 });

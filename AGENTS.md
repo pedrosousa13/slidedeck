@@ -30,8 +30,12 @@ firefox webkit` once, or install with `--with-deps`.
 aim, not a gate (ADR-0001). Read the numbers; do not add a budget.
 
 `compare:check` fails when the comparison in `packages/react/README.md` no
-longer matches a fresh measurement, as after a dependency bump or a change to
-the package. Run `pnpm build && pnpm compare` and commit the result.
+longer matches a fresh measurement: after a bump of a compared library in
+`tests/compare`, or any change to `packages/*/src` that moves slidedeck's
+gzipped size. Run `pnpm build && pnpm compare` and commit the new table. The
+size is reported, never budgeted (ADR-0001): a bigger number is not a failure,
+only a stale one is. A release does not stale it: slidedeck's row has no
+version.
 
 Formatting is checked, never written by the gate. Run
 `pnpm exec prettier --write <files>` on the files you changed.

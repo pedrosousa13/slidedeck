@@ -99,29 +99,93 @@ for (const id of stories) {
   });
 }
 
-test("the playdeck recipe plays the focal slide's video and pauses the rest", async ({
+/**
+ * Per slide of the playdeck recipe, whether its video is playing; a slide
+ * whose player has not loaded yet has no video, and is not playing.
+ */
+const videosPlaying = (page: Page) =>
   page
-}) => {
-  await page.goto('/iframe.html?id=deck--playdeck-video&viewMode=story');
-  const deck = page.getByRole('region', { name: 'Featured slides' });
-  // Per slide, whether its video is playing; a slide whose player has not
-  // loaded yet has no video, and is not playing.
-  const playing = () =>
-    deck.locator('[data-slidedeck-slide]').evaluateAll((slides) =>
+    .getByRole('region', { name: 'Featured slides' })
+    .locator('[data-slidedeck-slide]')
+    .evaluateAll((slides) =>
       slides.map((slide) => {
         const video = slide.querySelector('video');
         return video !== null && !video.paused && video.currentTime > 0;
       })
     );
 
-  await expect.poll(playing).toEqual([true, false, false, false]);
+/** Resolves once the focal slide's video can play. */
+const focalVideoLoaded = (page: Page) =>
+  expect
+    .poll(() =>
+      page
+        .locator('[data-slidedeck-slide][data-focal] video')
+        .evaluateAll((videos: HTMLVideoElement[]) =>
+          videos.some(
+            (video) => video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA
+          )
+        )
+    )
+    .toBe(true);
+
+test("the playdeck recipe plays the focal slide's video and pauses the rest", async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--playdeck-video&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+
+  await expect
+    .poll(() => videosPlaying(page))
+    .toEqual([true, false, false, false]);
 
   await deck.getByRole('button', { name: 'Next', exact: true }).click();
 
   await expect(deck.getByRole('group', { name: '2 of 4' })).toHaveAttribute(
     'data-focal'
   );
-  await expect.poll(playing).toEqual([false, true, false, false]);
+  await expect
+    .poll(() => videosPlaying(page))
+    .toEqual([false, true, false, false]);
+});
+
+test('under reduced motion the playdeck recipe plays no video by itself', async ({
+  page
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/iframe.html?id=deck--playdeck-video&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+
+  await focalVideoLoaded(page);
+  // Long enough for a play the recipe asked for to have started.
+  await page.waitForTimeout(500);
+  expect(await videosPlaying(page)).toEqual([false, false, false, false]);
+
+  await deck.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(deck.getByRole('group', { name: '2 of 4' })).toHaveAttribute(
+    'data-focal'
+  );
+  await focalVideoLoaded(page);
+  await page.waitForTimeout(500);
+  expect(await videosPlaying(page)).toEqual([false, false, false, false]);
+});
+
+test('turning on reduced motion pauses the playdeck recipe, and turning it off plays the focal video again', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--playdeck-video&viewMode=story');
+  await expect
+    .poll(() => videosPlaying(page))
+    .toEqual([true, false, false, false]);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect
+    .poll(() => videosPlaying(page))
+    .toEqual([false, false, false, false]);
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect
+    .poll(() => videosPlaying(page))
+    .toEqual([true, false, false, false]);
 });
 
 test('tabbing into an off-screen slide scrolls it into view', async ({

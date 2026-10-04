@@ -63,8 +63,11 @@ buttons, a dot per page and a "1 / 3" counter. No stylesheet is needed. Give
 
 ## Primitives
 
-Every primitive renders one element and passes its other props, `ref`,
-`className` and `style` included, to it.
+Each primitive passes its other props, `ref`, `className` and `style`
+included, to the element in the table. Some render more inside it:
+`Deck.Root` a visually hidden live region, `Deck.Viewport` a `<style>` with
+the slides' default geometry and, with an effect such as fade, an empty snap
+target per slide, and `Deck.Dots` its buttons.
 
 | Primitive             | Renders    | What it does                                                                                                                                                                 |
 | --------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -187,8 +190,11 @@ export function WithHandle() {
 element, as on every primitive. With pages, the index counts pages.
 
 `onIndexChange` and `onFocalChange` fire only when a scroll settles, never
-during one, and not for where the deck starts. React state changes only when
-the current index or the focal slide changes: scrolling never re-renders.
+during one, and not for where the deck starts. Scrolling never re-renders:
+React state changes when the deck settles somewhere new (the index, the
+current and focal slides, the live region's announcement), when the number
+of snap points changes, and, on a deck with `autoplay`, when autoplay starts,
+stops, or pauses for a pointer or a hidden tab.
 
 ## Focal slide
 
@@ -297,20 +303,28 @@ the same index points at different slides.
 Slidedeck writes continuous state to the DOM, not to React state, so CSS can
 read it while the deck scrolls:
 
-| Where                 | Attribute or property      | Meaning                                                                                                                      |
-| --------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Each slide            | `--deck-progress`          | Signed distance from the focal position, in slides: 0 there, -1 one slide before, 2.25 two and a quarter after. Every frame. |
-| Each slide            | `--deck-index`             | The slide's index. Static, so server HTML has it.                                                                            |
-| Each slide            | `data-in-view`             | Any part of the slide is in the viewport. Hides nothing.                                                                     |
-| Each slide            | `data-focal`               | The focal slide.                                                                                                             |
-| Each slide            | `data-current`             | The current slide.                                                                                                           |
-| Each slide            | `data-slidedeck-slide`     | Every slide; `data-slidedeck-copy` on a loop's copies.                                                                       |
-| `Deck.Root`           | `data-index`               | The current index, once settled.                                                                                             |
-| `Deck.Viewport`       | `data-orientation`         | `horizontal` or `vertical`.                                                                                                  |
-| `Deck.Prev`/`Next`    | `data-disabled`            | Disabled at an end. Also `data-slidedeck-prev` and `data-slidedeck-next`.                                                    |
-| `Deck.Dots`           | `data-index`, `data-count` | The current page and the page count; each dot has `data-index`.                                                              |
-| `Deck.Counter`        | `data-index`, `data-count` | The same.                                                                                                                    |
-| `Deck.AutoplayToggle` | `data-playing`             | Autoplay is on.                                                                                                              |
+| Where                 | Attribute or property        | Meaning                                                                                                                      |
+| --------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Each slide            | `--deck-progress`            | Signed distance from the focal position, in slides: 0 there, -1 one slide before, 2.25 two and a quarter after. Every frame. |
+| Each slide            | `--deck-index`               | The slide's index. Static, so server HTML has it.                                                                            |
+| Each slide            | `data-in-view`               | Any part of the slide is in the viewport. Hides nothing.                                                                     |
+| Each slide            | `data-focal`                 | The focal slide.                                                                                                             |
+| Each slide            | `data-current`               | The current slide.                                                                                                           |
+| `Deck.Root`           | `data-index`                 | The current index, as of the last settle; before the first measurement, the `defaultIndex` (or `index`) as given.            |
+| `Deck.Viewport`       | `data-orientation`           | `horizontal` or `vertical`.                                                                                                  |
+| `Deck.Prev`/`Next`    | `data-disabled`              | Disabled, at an end or by your `disabled` prop.                                                                              |
+| `Deck.Dots`           | `data-index`, `data-count`   | The current page and the page count; each dot has `data-index`.                                                              |
+| `Deck.Counter`        | `data-index`, `data-count`   | The same.                                                                                                                    |
+| `Deck.AutoplayToggle` | `data-playing`               | Autoplay is on.                                                                                                              |
+| `Deck.Viewport`       | `data-slidedeck-effect`      | The effect's name, `fade` or `curve`, when it has one.                                                                       |
+| Loop copies           | `data-slidedeck-copy`        | `before` or `after` the slides. Copies are `inert` and `aria-hidden`.                                                        |
+| Snap targets          | `data-slidedeck-snap-target` | The empty elements fade lays out to snap to. Not slides.                                                                     |
+
+Every primitive also carries a marker attribute to select it by, whatever
+your class names: `data-slidedeck-viewport`, `data-slidedeck-slide` (copies
+included), `data-slidedeck-prev`, `data-slidedeck-next`,
+`data-slidedeck-dots`, `data-slidedeck-counter` and
+`data-slidedeck-autoplay-toggle`. The live region is `data-slidedeck-live`.
 
 Progress is a whole number for every slide when one sits exactly at the focal
 position. An effect that moves a slide should scale about its snap alignment
@@ -453,11 +467,13 @@ What a deck does with no extra work:
 - The viewport is focusable, so the arrow keys, Page Up, Page Down, Home and
   End scroll it.
 - Loop copies are `inert` and `aria-hidden`: never focused, never announced.
-- Programmatic moves jump instead of animating under reduced motion; autoplay
-  starts stopped; fade cuts and curve stays flat.
+- Under reduced motion, a move slidedeck starts (Prev, Next, a dot,
+  `scrollTo`, a new `index`, a drag's release) jumps to its snap point instead
+  of scrolling smoothly; autoplay starts stopped; fade cuts and curve stays
+  flat.
 
 One exception: in a fade deck, every slide but the focal one is `inert`, as it
-sits under the visible one. Keyboard and screen reader users reach the slides
+sits under the focal one. Keyboard and screen reader users reach the slides
 through Prev, Next, Dots and the arrow keys.
 
 ## Known limits
@@ -501,27 +517,39 @@ import { useEffect, useEffectEvent, useRef } from 'react';
 import * as Deck from '@slidedeck/react';
 import * as Player from '@playdeck/react';
 
-/** A deck of videos: the one in the focal slide plays, muted; the rest pause. */
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
+
+/** A deck of videos: the one in the focal slide plays, muted; the rest pause.
+ * Under reduced motion none plays by itself; a viewer can still press play. */
 export function VideoDeck({ sources }: { sources: readonly string[] }) {
   const players = useRef<(Player.PlayerHandle | null)[]>([]);
   const focal = useRef(0);
 
   const playFocal = (slide: number) => {
     focal.current = slide;
+    const still = () => matchMedia(REDUCED_MOTION).matches;
     players.current.forEach((player, i) => {
-      if (i !== slide) void player?.pause();
+      if (i !== slide || still()) void player?.pause();
     });
+    if (still()) return;
     // A player loads as its slide comes into view: wait until it can play,
     // and play only if its slide is still the focal one.
     const player = players.current[slide];
     void player?.whenReady().then((ready) => {
-      if (ready && focal.current === slide) void player.play();
+      if (ready && focal.current === slide && !still()) void player.play();
     });
   };
 
-  // onFocalChange does not fire for where the deck starts: play it on mount.
-  const playOnMount = useEffectEvent(() => playFocal(focal.current));
-  useEffect(() => playOnMount(), []);
+  // onFocalChange does not fire for where the deck starts, nor when the
+  // viewer's motion preference changes: play or pause for both.
+  const replay = useEffectEvent(() => playFocal(focal.current));
+  useEffect(() => {
+    const query = matchMedia(REDUCED_MOTION);
+    const onChange = () => replay();
+    onChange();
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
 
   return (
     <Deck.Root aria-label="Featured slides" onFocalChange={playFocal}>
@@ -568,6 +596,10 @@ Notes:
 
 - The videos are muted so the browser lets them play without a gesture. Each
   keeps playdeck's own play button, so a viewer can pause the one playing.
+- Under reduced motion no video plays by itself, and turning the preference
+  on pauses the one playing; a viewer can still press play. Playdeck applies
+  reduced motion only to its own `autoplay`, not to `play()` called from code,
+  so the recipe checks `prefers-reduced-motion` itself.
 - A playdeck player loads when it comes into view. `whenReady` waits for that,
   and the focal check stops a late load from playing a slide the deck has
   left.
@@ -575,8 +607,8 @@ Notes:
   and its ref would replace the slide's.
 
 The story `Deck / Playdeck Video` in this repo's storybook runs this
-component, and an end-to-end test checks that only the focal slide's video
-plays.
+component, and end-to-end tests check that only the focal slide's video
+plays, and that none plays under reduced motion.
 
 ## Comparison with Embla and Keen
 
@@ -588,16 +620,16 @@ pinned installs, and CI fails if this table is stale.
 
 <!-- Generated by `pnpm compare` from tests/compare. Do not edit. -->
 
-| Library                | Version | Min+gzip | Native scroll                                    | Accessibility out of the box                                                                                                           | API shape                                                                                          |
-| ---------------------- | ------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `@slidedeck/react`     | 0.0.0   | 6.62 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
-| `embla-carousel-react` | 8.6.0   | 7.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels or controls; scrolls a focused slide into view                                                                        | A hook returning a ref and an API object; markup and controls are yours                            |
-| `keen-slider`          | 6.8.6   | 6.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels, controls or keyboard handling                                                                                        | A hook returning a ref and an instance, plus a required stylesheet; markup and controls are yours  |
+| Library                | Version   | Min+gzip | Native scroll                                    | Accessibility out of the box                                                                                                           | API shape                                                                                          |
+| ---------------------- | --------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `@slidedeck/react`     | this repo | 6.62 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
+| `embla-carousel-react` | 8.6.0     | 7.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels or controls; scrolls a focused slide into view                                                                        | A hook returning a ref and an API object; markup and controls are yours                            |
+| `keen-slider`          | 6.8.6     | 6.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels, controls or keyboard handling                                                                                        | A hook returning a ref and an instance, plus a required stylesheet; markup and controls are yours  |
 
-Min+gzip: each entry in `tests/compare/entries`, a three-slide carousel with Previous and Next, bundled by Vite 8.3.1 with React external, minified, then gzipped, with the stylesheet the library needs. The other columns, and where each was read:
+Min+gzip: each entry in `tests/compare/entries` is the same basic deck for all three, three slides with Previous and Next and no dots, bundled by Vite 8.3.1 with React external, minified, then gzipped, with the stylesheet the library needs. Each imports what its library documents: Keen's `keen-slider/react` has no exports map and resolves to its CommonJS build. Slidedeck's row is measured from this repo's build, so it has no version. The other columns, and where each was read:
 
 - `@slidedeck/react`: packages/react/src/index.tsx; docs/adr/0001-native-scroll-snap-is-the-engine.md; docs/adr/0004-dots-are-buttons.md.
-- `embla-carousel-react`: embla-carousel 8.6.0 `esm/embla-carousel.esm.js`: sets `transform: translate3d(…)`, no `aria-` or `role`, a `slideFocus` handler; embla-carousel-react 8.6.0 `esm/embla-carousel-react.esm.js`: exports the `useEmblaCarousel` hook.
+- `embla-carousel-react`: embla-carousel 8.6.0 `esm/embla-carousel.esm.js`: sets `transform: translate3d(…)`, no `aria-` or `role`, a `slideFocus` handler; embla-carousel-react 8.6.0 `esm/embla-carousel-react.esm.js`: exports the `useEmblaCarousel` hook; the accessibility cell is for 8.6.0: Embla v9, in prerelease, adds an optional `embla-carousel-accessibility` plugin (9.0.0-rc01 to rc03 on npm).
 - `keen-slider`: keen-slider 6.8.6 `react.js`: sets `translate3d(…)`, no `aria-`, `role` or `keydown`; exports the `useKeenSlider` hook; keen-slider 6.8.6 `keen-slider.css`: the `display: flex` and `overflow: hidden` the slider needs.
 
 <!-- comparison:end -->

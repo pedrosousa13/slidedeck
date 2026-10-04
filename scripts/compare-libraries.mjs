@@ -130,6 +130,16 @@ const measure = async (entry) => {
   }, 0);
 };
 
+/**
+ * The Version cell: the pinned install's version for a competitor, and none
+ * for slidedeck's own package, which is measured from this repo's build. A
+ * release bumps that package's version, and must not stale the table.
+ * @param {string} name
+ * @param {(name: string) => string} installed
+ */
+export const versionCell = (name, installed) =>
+  name.startsWith('@slidedeck/') ? 'this repo' : installed(name);
+
 /** @param {string} name */
 const installedVersion = (name) =>
   JSON.parse(
@@ -146,7 +156,7 @@ const generate = async () => {
   for (const library of libraries) {
     rows.push({
       name: `\`${library.package}\``,
-      version: installedVersion(library.package),
+      version: versionCell(library.package, installedVersion),
       bytes: await measure(library.entry),
       nativeScroll: library.nativeScroll,
       accessibility: library.accessibility,
@@ -164,7 +174,7 @@ const generate = async () => {
     '',
     renderTable(rows),
     '',
-    `Min+gzip: each entry in \`tests/compare/entries\`, a three-slide carousel with Previous and Next, bundled by Vite ${vite} with React external, minified, then gzipped, with the stylesheet the library needs. The other columns, and where each was read:`,
+    `Min+gzip: each entry in \`tests/compare/entries\` is the same basic deck for all three, three slides with Previous and Next and no dots, bundled by Vite ${vite} with React external, minified, then gzipped, with the stylesheet the library needs. Each imports what its library documents: Keen's \`keen-slider/react\` has no exports map and resolves to its CommonJS build. Slidedeck's row is measured from this repo's build, so it has no version. The other columns, and where each was read:`,
     '',
     ...sources
   ].join('\n');

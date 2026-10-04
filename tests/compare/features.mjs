@@ -38,7 +38,8 @@ export const libraries = [
     api: 'A hook returning a ref and an API object; markup and controls are yours',
     sources: [
       'embla-carousel 8.6.0 `esm/embla-carousel.esm.js`: sets `transform: translate3d(…)`, no `aria-` or `role`, a `slideFocus` handler',
-      'embla-carousel-react 8.6.0 `esm/embla-carousel-react.esm.js`: exports the `useEmblaCarousel` hook'
+      'embla-carousel-react 8.6.0 `esm/embla-carousel-react.esm.js`: exports the `useEmblaCarousel` hook',
+      'the accessibility cell is for 8.6.0: Embla v9, in prerelease, adds an optional `embla-carousel-accessibility` plugin (9.0.0-rc01 to rc03 on npm)'
     ]
   },
   {
