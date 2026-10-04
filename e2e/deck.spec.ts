@@ -7,7 +7,8 @@ const stories = [
   'deck--starting-index',
   'deck--controlled',
   'deck--pages',
-  'deck--drag'
+  'deck--drag',
+  'deck--click-to-focus'
 ];
 
 for (const id of stories) {
@@ -151,4 +152,22 @@ test('with drag off, a mouse drag leaves the deck where it is', async ({
     ratio: 1
   });
   await expect(deck).toHaveAttribute('data-index', '0');
+});
+
+test('the focal slide is at the snap alignment point, and clicking a slide in view brings it there', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--click-to-focus&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const slide = (n: number) => deck.getByRole('group', { name: `${n} of 6` });
+  // At the first snap point, slide 2 is nearer the centre than slide 1.
+  await expect(slide(2)).toHaveAttribute('data-focal');
+  await expect(deck).toHaveAttribute('data-index', '0');
+
+  // Slide 3 is only partly in view: click its leading edge.
+  await slide(3).click({ position: { x: 10, y: 10 } });
+
+  await expect(slide(3)).toHaveAttribute('data-focal');
+  await expect(slide(2)).not.toHaveAttribute('data-focal');
+  await expect(deck).toHaveAttribute('data-index', '2');
 });
