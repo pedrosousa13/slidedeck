@@ -3,35 +3,14 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
+  addStyle,
   expectSettledTo,
+  pagesOf,
   sleep,
   TestDeck,
   viewportOf,
   WIDTH
 } from './fixtures';
-
-// A page is a group of slides that snap together (CONTEXT.md). Geometry is
-// consumer CSS (ADR-0003), so paging is too: only the first slide of each
-// page is a snap target. Both rules have the same specificity, so a later
-// page size, as in a media query, overrides every slide's alignment.
-const pagesOf = (size: number, selector = '.pages') => `
-  ${selector} > [data-slidedeck-slide]:nth-child(${size}n + 1) {
-    scroll-snap-align: start;
-  }
-  ${selector} > [data-slidedeck-slide]:not(:nth-child(${size}n + 1)) {
-    scroll-snap-align: none;
-  }
-`;
-
-let removeStyle = () => {};
-afterEach(() => removeStyle());
-
-function addStyle(css: string) {
-  const style = document.createElement('style');
-  style.textContent = css;
-  document.head.append(style);
-  removeStyle = () => style.remove();
-}
 
 const renderPagedDeck = (onIndexChange?: (index: number) => void) => {
   render(

@@ -1,29 +1,21 @@
 import type { ComponentProps } from 'react';
 import { render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
+  addStyle,
   expectSettledTo,
   expectSnaps,
   mouseAt,
   mouseDrag,
+  pagesOf,
   viewportOf
 } from './fixtures';
 
 // A vertical deck scrolls on the block axis; its height is consumer CSS
 // (ADR-0003), here set inline.
 const HEIGHT = 200;
-
-let removeStyle = () => {};
-afterEach(() => removeStyle());
-
-function addStyle(css: string) {
-  const style = document.createElement('style');
-  style.textContent = css;
-  document.head.append(style);
-  removeStyle = () => style.remove();
-}
 
 type VerticalDeckProps = ComponentProps<typeof Deck.Root> & {
   slides?: number;
@@ -151,10 +143,7 @@ describe('a vertical deck', () => {
   });
 
   test('in pages of three, Next moves a page, and Dots and Counter count pages', async () => {
-    addStyle(`
-      .pages > :nth-child(3n + 1) { scroll-snap-align: start; }
-      .pages > :not(:nth-child(3n + 1)) { scroll-snap-align: none; }
-    `);
+    addStyle(pagesOf(3));
     const { viewport, next, dots, counter } = renderDeck({
       slides: 10,
       viewportClassName: 'pages'

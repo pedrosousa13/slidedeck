@@ -1,13 +1,15 @@
 import type { ComponentProps } from 'react';
 import { render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
+  addStyle,
   expectSettledTo,
   expectSnaps,
   mouseAt,
   mouseDrag,
+  pagesOf,
   viewportOf,
   WIDTH
 } from './fixtures';
@@ -15,16 +17,6 @@ import {
 // A right-to-left document: the deck starts at the right, and its end is to
 // the left. Browsers report scrollLeft as 0 at the start and negative toward
 // the end.
-
-let removeStyle = () => {};
-afterEach(() => removeStyle());
-
-function addStyle(css: string) {
-  const style = document.createElement('style');
-  style.textContent = css;
-  document.head.append(style);
-  removeStyle = () => style.remove();
-}
 
 type RtlDeckProps = ComponentProps<typeof Deck.Root> & {
   slides?: number;
@@ -149,10 +141,7 @@ describe('in a right-to-left document', () => {
   });
 
   test('in pages of three, Next moves a page, and Dots and Counter count pages', async () => {
-    addStyle(`
-      .pages > :nth-child(3n + 1) { scroll-snap-align: start; }
-      .pages > :not(:nth-child(3n + 1)) { scroll-snap-align: none; }
-    `);
+    addStyle(pagesOf(3));
     const { viewport, next, dots, counter } = renderDeck({
       slides: 10,
       viewportClassName: 'pages'
