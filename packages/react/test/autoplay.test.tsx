@@ -236,6 +236,79 @@ describe('a move the user makes', () => {
   });
 });
 
+describe('a move autoplay did not start', () => {
+  test('a handle call back to where autoplay stepped from keeps it rotating', async () => {
+    const handle = createRef<Deck.RootHandle>();
+    const { root } = renderDeck({ handleRef: handle });
+    await expect.poll(indexOf(root), { timeout: 3000 }).toBe('2');
+
+    handle.current!.scrollTo(1);
+
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('2');
+    expect(toggleOf().textContent).toBe('Stop slide rotation');
+  });
+
+  test('a new controlled index back to where autoplay stepped from keeps it rotating', async () => {
+    function Controlled() {
+      const [index, setIndex] = useState(0);
+      return (
+        <>
+          <button type="button" onClick={() => setIndex(1)}>
+            Back to 2
+          </button>
+          <TestDeck
+            autoplay={INTERVAL}
+            index={index}
+            onIndexChange={setIndex}
+            controls={<Deck.AutoplayToggle />}
+          />
+        </>
+      );
+    }
+    render(<Controlled />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    await expect.poll(indexOf(root), { timeout: 3000 }).toBe('2');
+
+    screen.getByRole('button', { name: 'Back to 2' }).click();
+
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('2');
+    expect(toggleOf().textContent).toBe('Stop slide rotation');
+  });
+});
+
+describe('a control the user activates', () => {
+  // Safari does not focus a button on click, so focus entering the deck
+  // cannot be what stops it: each control is activated without focus.
+  test.each([
+    ['Previous', '0'],
+    ['Next', '2'],
+    ['Go to page 3', '2']
+  ])('%s stops it, though the pointer then leaves', async (name, index) => {
+    const { root, viewport } = renderDeck({
+      controls: (
+        <>
+          <Deck.AutoplayToggle />
+          <Deck.Dots />
+        </>
+      )
+    });
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await userEvent.hover(viewport);
+    const control = screen.getByRole('button', { name });
+
+    control.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    control.click();
+
+    expect(document.activeElement).not.toBe(control);
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe(index);
+    await parkMouse();
+    expect(toggleOf().textContent).toBe('Start slide rotation');
+    await expectStill(root, index);
+  });
+});
+
 describe('Deck.AutoplayToggle', () => {
   test('is a button named for the action it takes, marked while playing', async () => {
     const { root } = renderDeck();

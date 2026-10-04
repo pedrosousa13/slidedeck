@@ -51,6 +51,8 @@ interface DeckContextValue {
   playing: boolean;
   /** Turns autoplay on or off, as the user does with the toggle. */
   togglePlaying(): void;
+  /** The engine, for a move the user makes with a control: stops autoplay. */
+  userMove(): DeckEngine | null;
 }
 
 const clampSlide = (index: number, count: number) =>
@@ -188,7 +190,7 @@ export function Root({
   // The user's input, or an API call, takes the move over.
   const autoplayMovedRef = useRef(false);
   // Where autoplay last stepped from: resting there again, the step did not
-  // move the deck.
+  // move the deck. Any move autoplay did not start clears it.
   const stepFromRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
@@ -266,7 +268,10 @@ export function Root({
   const previousIndexRef = useRef(index);
   useLayoutEffect(() => {
     const engine = engineRef.current;
-    if (index !== previousIndexRef.current) autoplayMovedRef.current = false;
+    if (index !== previousIndexRef.current) {
+      autoplayMovedRef.current = false;
+      stepFromRef.current = null;
+    }
     previousIndexRef.current = index;
     if (index !== undefined && state.count !== null && engine) {
       const heading = engine.target() ?? state.index;
@@ -357,20 +362,26 @@ export function Root({
   // The user's input anywhere in the deck but the toggle takes over the
   // deck's move, so its settle is announced. In the viewport, where a press,
   // wheel or key moves the deck, it also stops autoplay, as focus entering
-  // the deck does, whatever the pointer type.
+  // the deck does, whatever the pointer type. Prev, Next and Dots stop it
+  // when activated, as Safari does not focus a button on click.
   const userInput = ({ target }: { target: EventTarget }) => {
     const element = target as Element;
     if (element.closest('[data-slidedeck-autoplay-toggle]')) return;
-    takeOver();
-    if (autoplaying && viewportRef.current?.contains(element)) {
-      setPlaying(false);
-    }
+    if (viewportRef.current?.contains(element)) userMove();
+    else takeOver();
   };
 
   /** The engine, for a move that is not autoplay's. */
   const takeOver = () => {
     autoplayMovedRef.current = false;
+    stepFromRef.current = null;
     return engineRef.current;
+  };
+
+  /** The engine, for the user's move: it also stops autoplay. */
+  const userMove = () => {
+    if (autoplaying) setPlaying(false);
+    return takeOver();
   };
 
   useImperativeHandle(
@@ -398,7 +409,8 @@ export function Root({
         engineRef,
         hasAutoplay: autoplaying,
         playing,
-        togglePlaying
+        togglePlaying,
+        userMove
       }}
     >
       <div
@@ -774,13 +786,13 @@ function StepButton({
 /** Moves the deck one snap point back. Disabled at the first; absent when
  * every slide fits. */
 export function Prev(props: ComponentProps<'button'>) {
-  const { index, count, engineRef } = useDeck('Prev');
+  const { index, count, userMove } = useDeck('Prev');
   if (everySlideFits(count)) return null;
   return (
     <StepButton
       {...props}
       atEnd={index === 0}
-      step={() => engineRef.current?.prev()}
+      step={() => userMove()?.prev()}
       label="Previous"
     />
   );
@@ -789,13 +801,13 @@ export function Prev(props: ComponentProps<'button'>) {
 /** Moves the deck one snap point on. Disabled at the last; absent when
  * every slide fits. */
 export function Next(props: ComponentProps<'button'>) {
-  const { index, count, engineRef } = useDeck('Next');
+  const { index, count, userMove } = useDeck('Next');
   if (everySlideFits(count)) return null;
   return (
     <StepButton
       {...props}
       atEnd={count !== null && index >= count - 1}
-      step={() => engineRef.current?.next()}
+      step={() => userMove()?.next()}
       label="Next"
     />
   );
@@ -806,9 +818,9 @@ export function Next(props: ComponentProps<'button'>) {
  * there; a deck whose snap points differ corrects at hydration (ADR-0003).
  * `count` is null only where Root cannot see Viewport's slides. */
 function usePages(primitive: string) {
-  const { index, count, slides, initialIndex, engineRef } = useDeck(primitive);
-  if (count !== null || slides === null) return { index, count, engineRef };
-  return { index: clampSlide(initialIndex, slides), count: slides, engineRef };
+  const { index, count, slides, initialIndex, userMove } = useDeck(primitive);
+  if (count !== null || slides === null) return { index, count, userMove };
+  return { index: clampSlide(initialIndex, slides), count: slides, userMove };
 }
 
 /** A labelled group of buttons, one per page: one per snap point, so with
@@ -817,7 +829,7 @@ function usePages(primitive: string) {
  * deck's state, which a consumer's cannot overwrite. Absent when every slide
  * fits. */
 export function Dots(props: Omit<ComponentProps<'div'>, 'children'>) {
-  const { index, count, engineRef } = usePages('Dots');
+  const { index, count, userMove } = usePages('Dots');
   if (everySlideFits(count)) return null;
   return (
     <div
@@ -835,7 +847,7 @@ export function Dots(props: Omit<ComponentProps<'div'>, 'children'>) {
           aria-label={`Go to page ${i + 1}`}
           aria-current={i === index ? 'true' : undefined}
           data-index={i}
-          onClick={() => engineRef.current?.scrollTo(i)}
+          onClick={() => userMove()?.scrollTo(i)}
         />
       ))}
     </div>
