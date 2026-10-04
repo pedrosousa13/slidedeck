@@ -165,7 +165,7 @@ export const mouseAt = (
  */
 export async function expectSnaps(viewport: HTMLElement) {
   const rest = viewport.scrollLeft;
-  viewport.scrollLeft = rest + 40;
+  viewport.scrollLeft = rest + (rest > 0 ? -40 : 40); // away from the clamped end
   await expectSettledTo(() => viewport.scrollLeft, rest);
 }
 
