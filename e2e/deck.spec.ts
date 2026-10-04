@@ -13,7 +13,8 @@ const stories = [
   'deck--right-to-left',
   'deck--progress',
   'deck--fade',
-  'deck--curve'
+  'deck--curve',
+  'deck--autoplay'
 ];
 
 for (const id of stories) {
@@ -384,4 +385,30 @@ test('a curve deck fans its cards on an arc, settles upright on Next, and drags 
 
   await expect(deck).toHaveAttribute('data-index', '2');
   await expect.poll(angles).toEqual([-42, -19, 0, 19, 42, 90]);
+});
+
+test('an autoplay deck rotates quietly until its toggle stops it', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--autoplay&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const live = deck.locator('[aria-live]');
+  await expect(live).toHaveAttribute('aria-live', 'off');
+
+  await expect(deck).toHaveAttribute('data-index', '1', { timeout: 5000 });
+  await expect(live).toHaveAttribute('aria-live', 'off');
+
+  await deck.getByRole('button', { name: 'Stop slide rotation' }).click();
+  // Off the deck, so the pointer pauses nothing.
+  await page.mouse.move(0, 0);
+
+  const toggle = deck.getByRole('button', { name: 'Start slide rotation' });
+  await expect(toggle).toBeVisible();
+  await expect(live).toHaveAttribute('aria-live', 'polite');
+  await page.waitForTimeout(4000);
+  await expect(deck).toHaveAttribute('data-index', '1');
+
+  // A change the user makes is announced.
+  await deck.getByRole('button', { name: 'Next' }).click();
+  await expect(live).toHaveText('Slide 3 of 6');
 });

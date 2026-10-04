@@ -87,6 +87,16 @@ Scrolling past the last snap point arrives at the first, and back, with no
 visible jump.
 _Avoid_: infinite, wrap-around
 
+**Autoplay**:
+The deck moving itself one snap point on, on an interval. _Stopped_ by the
+user, the user moving the deck, focus entering the deck or a preference for
+reduced motion, until the user starts it again; _paused_ only while a pointer
+is over the deck or the document is hidden. It also stops where a step leaves
+the deck at the same snap point, as at the last one. Autoplay that is on is
+_playing_, paused or not; playing and not paused, it is _rotating_ the deck,
+the APG carousel's "slide rotation". Only moves the user makes are announced.
+_Avoid_: autoscroll, slideshow
+
 ### Outputs
 
 **Progress**:

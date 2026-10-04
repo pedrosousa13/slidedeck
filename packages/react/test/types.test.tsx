@@ -39,6 +39,12 @@ test('orientation is horizontal or vertical', () => {
   expectTypeOf<Deck.Orientation>().toEqualTypeOf<'horizontal' | 'vertical'>();
 });
 
+test('autoplay is an interval in milliseconds', () => {
+  void (<Root autoplay={5000} />);
+  // @ts-expect-error -- autoplay takes its interval, not a switch
+  void (<Root autoplay />);
+});
+
 test('the ref is the div, and handleRef is a RootHandle', () => {
   void (<Root ref={createRef<HTMLDivElement>()} />);
   void (<Root handleRef={createRef<Deck.RootHandle>()} />);

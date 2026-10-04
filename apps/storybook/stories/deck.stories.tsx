@@ -408,3 +408,27 @@ export const Curve: Story = {
     </Deck.Root>
   )
 };
+
+/**
+ * A hero that rotates on its own: `autoplay={3000}` moves the deck one snap
+ * point on every three seconds, counted from when it comes to rest, and
+ * stops at the last. `Deck.AutoplayToggle` stops and starts it (WCAG 2.2.2);
+ * it comes first, ahead of the slides, so keyboard users reach it before the
+ * moving content. A pointer over the deck or a hidden tab pauses it; focus
+ * entering the deck, other than on the toggle, or a swipe, drag or wheel
+ * scroll stops it until the toggle starts it again, and under reduced motion
+ * it starts stopped. Changes the
+ * user makes are announced politely; autoplay's are not.
+ */
+export const Autoplay: Story = {
+  args: { autoplay: 3000 },
+  render: (args) => (
+    <Deck.Root {...args}>
+      <Deck.AutoplayToggle />
+      <Deck.Viewport className="viewport">{slides}</Deck.Viewport>
+      <Deck.Prev />
+      <Deck.Next />
+      <Deck.Dots />
+    </Deck.Root>
+  )
+};
