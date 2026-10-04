@@ -2,7 +2,13 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   build: {
-    lib: { entry: 'src/index.tsx', formats: ['es'], fileName: 'index' },
+    // Each effect is its own entry, so a deck that imports none ships none
+    // of its code.
+    lib: {
+      entry: { index: 'src/index.tsx', fade: 'src/fade.ts' },
+      formats: ['es'],
+      fileName: (_format, name) => `${name}.js`
+    },
     rollupOptions: {
       external: ['@slidedeck/core', 'react', 'react/jsx-runtime', 'react-dom']
     },

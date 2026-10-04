@@ -318,9 +318,48 @@ function useDevWarnings(
   }, [both, switched, readOnly, wasControlled]);
 }
 
-const SlideContext = createContext<{ index: number; count: number } | null>(
-  null
-);
+const SlideContext = createContext<{
+  index: number;
+  count: number;
+  /** Whether an effect stacks the slides in one place. */
+  stacked: boolean;
+  /** The effect's inline styles for each slide. */
+  style: CSSProperties | undefined;
+} | null>(null);
+
+/**
+ * A transition built on progress while the viewport keeps scrolling natively
+ * (CONTEXT.md), passed to `Deck.Viewport`'s `effect`. Each effect is its own
+ * entry point, such as `@slidedeck/react/fade`, so a deck that imports none
+ * ships none of their code.
+ */
+export interface Effect {
+  /** Names the effect's stylesheet, so a page holds one copy of it. */
+  name: string;
+  /** The effect's appearance, read from `--deck-progress` and the slides'
+   * data attributes. Zero-specificity `:where()` rules, so consumer CSS
+   * overrides any of them (ADR-0003). */
+  css: string;
+  /** The structural styles the effect needs, set inline as the deck's own
+   * are, for a deck of `count` slides. With `target`, the viewport holds an
+   * empty snap target per slide after the slides, styled by it: the slides
+   * stack in one place, the engine measures each by its target, and every
+   * slide but the focal one is inert, as it cannot be seen. */
+  layout?: (
+    orientation: Orientation,
+    count: number
+  ) => {
+    viewport?: CSSProperties;
+    slide?: CSSProperties;
+    target?: (index: number) => CSSProperties;
+  };
+}
+
+export interface ViewportProps extends ComponentProps<'div'> {
+  /** An effect, imported from its own entry point, such as `fade` from
+   * `@slidedeck/react/fade`. */
+  effect?: Effect;
+}
 
 const viewportStyles: Record<Orientation, CSSProperties> = {
   horizontal: {
@@ -336,10 +375,13 @@ const viewportStyles: Record<Orientation, CSSProperties> = {
   }
 };
 
-/** The native scroll container. Its children are the deck's slides. */
-export function Viewport({ style, children, ...props }: ComponentProps<'div'>) {
+/** The native scroll container. Its children are the deck's slides; an
+ * `effect` may add a snap target after them for each. */
+export function Viewport({ style, children, effect, ...props }: ViewportProps) {
   const { viewportRef, engineRef, orientation } = useDeck('Viewport');
   const slides = Children.toArray(children);
+  const layout = effect?.layout?.(orientation, slides.length);
+  const target = layout?.target;
   // Adding or removing a slide can change the snap points without resizing
   // the viewport, which is all the engine observes.
   useLayoutEffect(() => {
@@ -351,22 +393,46 @@ export function Viewport({ style, children, ...props }: ComponentProps<'div'>) {
       tabIndex={0}
       data-slidedeck-viewport=""
       data-orientation={orientation}
-      style={{ ...viewportStyles[orientation], ...style }}
+      data-slidedeck-effect={effect?.name}
+      style={{
+        ...viewportStyles[orientation],
+        ...layout?.viewport,
+        ...style
+      }}
       {...props}
     >
       <style href="slidedeck-slide" precedence="slidedeck">
         {slideDefaults}
       </style>
+      {effect && (
+        <style href={`slidedeck-${effect.name}`} precedence="slidedeck">
+          {effect.css}
+        </style>
+      )}
       {slides.map((slide, index) => (
         // `toArray` gives every element a key derived from the consumer's,
         // so a reordered slide moves instead of remounting.
         <SlideContext
           key={isValidElement(slide) ? slide.key : index}
-          value={{ index, count: slides.length }}
+          value={{
+            index,
+            count: slides.length,
+            stacked: target !== undefined,
+            style: layout?.slide
+          }}
         >
           {slide}
         </SlideContext>
       ))}
+      {target &&
+        slides.map((_, index) => (
+          <div
+            key={`target-${index}`}
+            aria-hidden="true"
+            data-slidedeck-snap-target=""
+            style={target(index)}
+          />
+        ))}
     </div>
   );
 }
@@ -386,16 +452,32 @@ const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;
  * For CSS to read, it carries `--deck-index`, its index, from the first
  * render; once mounted, `--deck-progress`, its signed distance from the focal
  * position in slides, and `data-in-view` while any of it is in view, both
- * kept up to date as the deck scrolls without a React render. */
+ * kept up to date as the deck scrolls without a React render. Where an effect
+ * stacks the slides, as fade does, every slide but the focal one is inert. */
 export function Slide({ style, ...props }: ComponentProps<'div'>) {
   const deck = useDeck('Slide');
   const slide = use(SlideContext);
   if (!slide) throw new Error('Deck.Slide must be inside Deck.Viewport');
-  const { index, count } = slide;
+  const { index, count, stacked } = slide;
   const start = index === clampSlide(deck.initialIndex, count);
   // Until the viewport is measured, the slide it starts at.
   const current = deck.slide === null ? start : index === deck.slide;
   const focal = deck.focal === null ? start : index === deck.focal;
+  // Stacked, only the focal slide can be seen, so only it can be reached.
+  const inert = stacked && !focal;
+  const { viewportRef } = deck;
+  // Focus in a slide that goes inert would drop to the body: it moves to the
+  // viewport instead, where arrow keys still move the deck.
+  useLayoutEffect(() => {
+    if (!inert) return;
+    const viewport = viewportRef.current;
+    const focused = document.activeElement?.closest(
+      '[data-slidedeck-slide][inert]'
+    );
+    if (viewport && focused?.parentElement === viewport) {
+      viewport.focus({ preventScroll: true });
+    }
+  }, [inert, viewportRef]);
   return (
     <div
       role="group"
@@ -404,6 +486,7 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
       data-slidedeck-slide=""
       data-current={current ? '' : undefined}
       data-focal={focal ? '' : undefined}
+      inert={inert}
       style={{
         flexShrink: 0,
         // A slide's place in the deck, for CSS such as an entry stagger.
@@ -414,6 +497,7 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
         // supported; elsewhere Root's layout effect scrolls before paint.
         // Exact with one slide per snap point; see createDeck's mount.
         ...(start && initialTarget),
+        ...slide.style,
         ...style
       }}
       {...props}

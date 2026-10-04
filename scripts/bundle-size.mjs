@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Prints the gzipped size of every publishable package's built entry. A
+// Prints the gzipped size of every publishable package's built entries. A
 // report, never a gate: bundle size is an aim, not a limit (ADR-0001), so
 // this exits 0 whatever the numbers are. Run it after `pnpm build`.
 
@@ -11,15 +11,18 @@ import { publishablePackages } from './workspace-packages.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 
-const rows = publishablePackages(repoRoot).map((pkg) => {
-  const entry = pkg.manifest.exports['.'].default;
-  const source = readFileSync(join(pkg.path, entry));
-  return {
-    name: pkg.manifest.name,
-    raw: source.length,
-    gzip: gzipSync(source).length
-  };
-});
+// One row per entry point: an effect's own entry is shipped only by a deck
+// that imports it, so it is measured apart from the main one.
+const rows = publishablePackages(repoRoot).flatMap((pkg) =>
+  Object.entries(pkg.manifest.exports).map(([subpath, entry]) => {
+    const source = readFileSync(join(pkg.path, entry.default));
+    return {
+      name: join(pkg.manifest.name, subpath),
+      raw: source.length,
+      gzip: gzipSync(source).length
+    };
+  })
+);
 
 const width = Math.max(...rows.map((row) => row.name.length));
 /** @param {number} bytes */

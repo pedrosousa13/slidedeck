@@ -4,7 +4,10 @@
     "composite": true,
     "noEmit": true,
     "types": ["node", "@vitest/browser-playwright"],
-    "paths": { "@slidedeck/react": ["./src/index.tsx"] },
+    "paths": {
+      "@slidedeck/react": ["./src/index.tsx"],
+      "@slidedeck/react/fade": ["./src/fade.ts"]
+    },
     "tsBuildInfoFile": "dist/.tsbuildinfo.test"
   },
   "references": [{ "path": "../core" }],

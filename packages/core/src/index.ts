@@ -4,12 +4,11 @@ export interface DeckState {
   index: number;
   /** How many snap points the viewport has. One means every slide fits. */
   count: number;
-  /** The current slide: the first child of the viewport resting at the
-   * current snap point. */
+  /** The current slide: the first slide resting at the current snap point. */
   slide: number;
-  /** The focal slide: the child of the viewport nearest the snap alignment
-   * point, read from the current slide's `scroll-snap-align`. Not the
-   * current slide where several slides are in view; -1 if no slide snaps. */
+  /** The focal slide: the slide nearest the snap alignment point, read from
+   * the current slide's `scroll-snap-align`. Not the current slide where
+   * several slides are in view; -1 if no slide snaps. */
   focal: number;
 }
 
@@ -58,7 +57,12 @@ export interface DeckEngine {
  * move. The browser does the scrolling and snapping; the engine reads where
  * it settled from layout, so slide size, gap and alignment stay plain CSS.
  *
- * It also writes to each child of the viewport, for CSS to read, once a
+ * The slides are the viewport's children, except snap targets (see
+ * `slidesOf`): where an effect stacks the slides in one place, an empty snap
+ * target per slide lays out along the axis in its stead, and the engine
+ * measures each slide by its target.
+ *
+ * It also writes to each slide, for CSS to read, once a
  * frame while the viewport scrolls and whenever it settles, never through
  * `onChange` (ADR-0003):
  *
@@ -72,8 +76,9 @@ export interface DeckEngine {
  *   slide's progress is a whole number whatever the gap. Where the scroll
  *   range keeps the focal slide from reaching it, as at either end of a
  *   centred deck, progress stays fractional at rest. Measured from the
- *   slides' boxes as they are drawn, so an effect should not move a slide's
- *   alignment point: scale about it (`transform-origin`), not away from it.
+ *   slides' boxes as they are drawn (their snap targets', where there are
+ *   any), so an effect should not move a slide's alignment point: scale
+ *   about it (`transform-origin`), not away from it.
  * - `data-in-view`: present on each slide with at least one pixel inside the
  *   viewport's scrollport, partly in view included. It hides nothing.
  */
@@ -119,7 +124,8 @@ export function createDeck(
     const { points, slides } = snapPoints(viewport, along);
     const index = nearest(points, along.position);
     const slide = slides.indexOf(index);
-    align = slide === -1 ? 'start' : along.snapAlign(viewport.children[slide]);
+    align =
+      slide === -1 ? 'start' : along.snapAlign(slidesOf(viewport).boxes[slide]);
     paint(along);
     publish({
       index,
@@ -385,17 +391,13 @@ export function createDeck(
     while (slide && slide.parentElement !== viewport) {
       slide = slide.parentElement;
     }
-    if (!slide) return;
+    const index = slide ? slidesOf(viewport).slides.indexOf(slide) : -1;
+    if (index === -1) return;
     // The snap point of the clicked slide's page. One slide to a page, that
     // is the slide's own.
     const along = axis();
     const { slides } = snapPoints(viewport, along);
-    const owner = pageOwner(
-      viewport,
-      along,
-      slides,
-      [...viewport.children].indexOf(slide)
-    );
+    const owner = pageOwner(viewport, along, slides, index);
     if (owner !== -1) scrollTo(slides[owner]);
   };
   viewport.addEventListener('click', onClick);
@@ -422,7 +424,7 @@ export function createDeck(
     destroy() {
       clearTimeout(quiet);
       cancelAnimationFrame(frame);
-      for (const slide of viewport.children) {
+      for (const slide of slidesOf(viewport).slides) {
         slide.removeAttribute(IN_VIEW);
         if (slide instanceof HTMLElement) slide.style.removeProperty(PROGRESS);
       }
@@ -446,6 +448,7 @@ export function createDeck(
 const SCROLL_END_DEBOUNCE_MS = 100;
 
 const PROGRESS = '--deck-progress';
+const SNAP_TARGET = 'data-slidedeck-snap-target';
 const IN_VIEW = 'data-in-view';
 /** How much of a slide the scrollport must show for it to be in view. */
 const IN_VIEW_MIN_PX = 1;
@@ -492,9 +495,30 @@ function nearest(points: number[], position: number): number {
 }
 
 /**
+ * The viewport's slides, and the box each is measured by: its own, or where
+ * the viewport holds snap targets (children marked `data-slidedeck-snap-target`),
+ * the target in the same place among them. Snap targets are not slides. An
+ * effect that stacks the slides in one place, where none of them could mark a
+ * snap point, lays out one per slide along the axis instead.
+ */
+function slidesOf(viewport: HTMLElement): {
+  slides: Element[];
+  boxes: Element[];
+} {
+  const slides: Element[] = [];
+  const targets: Element[] = [];
+  for (const child of viewport.children) {
+    (child.hasAttribute(SNAP_TARGET) ? targets : slides).push(child);
+  }
+  if (targets.length === 0) return { slides, boxes: slides };
+  return { slides, boxes: slides.map((slide, i) => targets[i] ?? slide) };
+}
+
+/**
  * The scroll positions the viewport can rest at, ascending, as the browser
- * derives them from each slide's `scroll-snap-align`, and for each child of
- * the viewport the index of the point it rests at (-1 if it does not snap).
+ * derives them from each slide's `scroll-snap-align`, and for each slide the
+ * index of the point it rests at (-1 if it does not snap). A slide's snap
+ * alignment and position are its measured box's (see `slidesOf`).
  * Slides that clamp to the same scroll position share one snap point.
  */
 function snapPoints(
@@ -508,7 +532,7 @@ function snapPoints(
   const position = axis.position;
   const view = axis.view();
   const positions: (number | null)[] = [];
-  for (const slide of viewport.children) {
+  for (const slide of slidesOf(viewport).boxes) {
     const align = axis.snapAlign(slide);
     if (align === 'none') {
       positions.push(null);
@@ -539,9 +563,10 @@ function pageOwner(
   index: number
 ): number {
   let owner = -1;
+  const { boxes } = slidesOf(viewport);
   slides.forEach((point, i) => {
     if (point === -1) return;
-    const align = axis.snapAlign(viewport.children[i]);
+    const align = axis.snapAlign(boxes[i]);
     if ((align === 'start' && i > index) || (align === 'end' && i < index)) {
       return;
     }
@@ -647,12 +672,12 @@ function spanOffset([start, end]: Span, view: Span, align: string): number {
       : start - view[0];
 }
 
-/** The child of the viewport nearest the alignment point for `align`. */
+/** The slide nearest the alignment point for `align`, by its measured box. */
 function focalSlide(viewport: HTMLElement, axis: Axis, align: string): number {
   const view = axis.view();
   let best = -1;
   let distance = Infinity;
-  [...viewport.children].forEach((slide, i) => {
+  slidesOf(viewport).boxes.forEach((slide, i) => {
     const d = Math.abs(alignOffset(axis, view, slide, align));
     if (d < distance) {
       best = i;
@@ -669,8 +694,8 @@ function focalSlide(viewport: HTMLElement, axis: Axis, align: string): number {
  */
 function writeProgress(viewport: HTMLElement, axis: Axis, align: string) {
   const view = axis.view();
-  const slides = [...viewport.children];
-  const spans = slides.map((slide) => axis.span(slide.getBoundingClientRect()));
+  const { slides, boxes } = slidesOf(viewport);
+  const spans = boxes.map((box) => axis.span(box.getBoundingClientRect()));
   const focal = focalPosition(
     spans.map((span) => spanOffset(span, view, align)),
     spans

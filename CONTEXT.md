@@ -53,6 +53,13 @@ _Avoid_: left/right for start/end
 A scroll position the viewport can come to rest at, as the browser computes it
 from the slides' `scroll-snap-align`.
 
+**Snap target**:
+An empty element an effect lays out along the axis for each slide when it
+stacks the slides in one place, as fade does. It stands in for its slide:
+the browser snaps to it, and the slide's snap point, progress, focal position
+and in-view state are measured from it. Not a slide.
+_Avoid_: placeholder, spacer
+
 **Page**:
 A group of slides that snap together when a deck snaps in groups. Dots and the
 counter count pages; with one slide per snap point, a page is a slide.
