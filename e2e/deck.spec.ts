@@ -119,6 +119,36 @@ test('moving the main deck marks its thumbnail and brings it into view in the st
   await expect(thumb(7)).toBeInViewport({ ratio: 1 });
 });
 
+test('following the main deck scrolls the strip, never the page', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--thumbnails&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const strip = page.getByRole('region', { name: 'Thumbnails' });
+  // A window just tall enough for the main deck puts the strip below the fold.
+  const stripTop = await strip.evaluate((el) => el.getBoundingClientRect().top);
+  await page.setViewportSize({ width: 1280, height: Math.floor(stripTop) });
+  await expect(strip).not.toBeInViewport();
+  const thumbInStrip = (n: number) =>
+    strip.getByRole('button', { name: `Slide ${n}` }).evaluate((thumb) => {
+      const t = thumb.getBoundingClientRect();
+      const s = thumb
+        .closest('[data-slidedeck-viewport]')!
+        .getBoundingClientRect();
+      return t.left >= s.left - 1 && t.right <= s.right + 1;
+    });
+  expect(await thumbInStrip(6)).toBe(false);
+
+  for (let i = 0; i < 5; i++) {
+    await deck.getByRole('button', { name: 'Next' }).click();
+  }
+
+  await expect(deck).toHaveAttribute('data-index', '5');
+  await expect.poll(() => thumbInStrip(6)).toBe(true);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  await expect(strip).not.toBeInViewport();
+});
+
 test('a dot moves the deck to its page and the counter follows', async ({
   page
 }) => {

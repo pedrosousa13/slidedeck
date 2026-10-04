@@ -92,14 +92,21 @@ function ControlledDeck() {
  * the buttons set it, and scrolling the deck updates it. */
 export const Controlled: Story = { render: () => <ControlledDeck /> };
 
-const thumbnailSlides = slidesOf(8);
-
-function SyncedDecks() {
-  const [selected, setSelected] = useState(0);
+function ThumbnailDecks() {
+  const [index, setIndex] = useState(0);
   const thumbs = useRef<(HTMLButtonElement | null)[]>([]);
-  const select = (i: number) => {
-    setSelected(i);
-    thumbs.current[i]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  const goTo = (i: number) => {
+    setIndex(i);
+    const thumb = thumbs.current[i];
+    const strip = thumb?.closest<HTMLElement>('[data-slidedeck-viewport]');
+    if (thumb && strip) {
+      const t = thumb.getBoundingClientRect();
+      const s = strip.getBoundingClientRect();
+      strip.scrollBy({
+        left: Math.min(0, t.left - s.left) || Math.max(0, t.right - s.right),
+        top: Math.min(0, t.top - s.top) || Math.max(0, t.bottom - s.bottom)
+      });
+    }
   };
   return (
     <div className="synced">
@@ -116,24 +123,24 @@ function SyncedDecks() {
       `}</style>
       <Deck.Root
         aria-label="Featured slides"
-        index={selected}
-        onIndexChange={select}
+        index={index}
+        onIndexChange={goTo}
       >
-        <Deck.Viewport className="viewport">{thumbnailSlides}</Deck.Viewport>
+        <Deck.Viewport className="viewport">{slidesOf(8)}</Deck.Viewport>
         <Deck.Prev />
         <Deck.Next />
       </Deck.Root>
       <Deck.Root aria-label="Thumbnails" className="thumbs">
         <Deck.Viewport className="viewport">
-          {thumbnailSlides.map((_, i) => (
+          {Array.from({ length: 8 }, (_, i) => (
             <Deck.Slide key={i} className="slide">
               <button
                 ref={(button) => {
                   thumbs.current[i] = button;
                 }}
                 type="button"
-                aria-current={i === selected ? 'true' : undefined}
-                onClick={() => select(i)}
+                aria-current={i === index ? 'true' : undefined}
+                onClick={() => goTo(i)}
               >
                 Slide {i + 1}
               </button>
@@ -147,53 +154,73 @@ function SyncedDecks() {
 
 /**
  * Two decks sharing state: a thumbnail strip drives a main deck and follows
- * it back. There is no sync feature; the selected slide is the parent's
- * state, as in Controlled.
+ * it back. There is no sync feature; the main deck's current index is the
+ * parent's state, as in Controlled.
  *
  * ```tsx
- * const [selected, setSelected] = useState(0);
+ * const [index, setIndex] = useState(0);
  * const thumbs = useRef<(HTMLButtonElement | null)[]>([]);
- * const select = (i: number) => {
- *   setSelected(i);
- *   thumbs.current[i]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+ * const goTo = (i: number) => {
+ *   setIndex(i);
+ *   const thumb = thumbs.current[i];
+ *   const strip = thumb?.closest<HTMLElement>('[data-slidedeck-viewport]');
+ *   if (thumb && strip) {
+ *     const t = thumb.getBoundingClientRect();
+ *     const s = strip.getBoundingClientRect();
+ *     strip.scrollBy({
+ *       left: Math.min(0, t.left - s.left) || Math.max(0, t.right - s.right),
+ *       top: Math.min(0, t.top - s.top) || Math.max(0, t.bottom - s.bottom)
+ *     });
+ *   }
  * };
  *
- * <Deck.Root aria-label="Featured slides" index={selected} onIndexChange={select}>
- *   <Deck.Viewport>{slides}</Deck.Viewport>
- * </Deck.Root>
- * <Deck.Root aria-label="Thumbnails">
- *   <Deck.Viewport>
- *     {slides.map((_, i) => (
- *       <Deck.Slide key={i}>
- *         <button
- *           ref={(button) => { thumbs.current[i] = button; }}
- *           type="button"
- *           aria-current={i === selected ? 'true' : undefined}
- *           onClick={() => select(i)}
- *         >
- *           Slide {i + 1}
- *         </button>
- *       </Deck.Slide>
- *     ))}
- *   </Deck.Viewport>
- * </Deck.Root>
+ * <>
+ *   <Deck.Root aria-label="Featured slides" index={index} onIndexChange={goTo}>
+ *     <Deck.Viewport>{slides}</Deck.Viewport>
+ *   </Deck.Root>
+ *   <Deck.Root aria-label="Thumbnails">
+ *     <Deck.Viewport>
+ *       {slides.map((_, i) => (
+ *         <Deck.Slide key={i}>
+ *           <button
+ *             ref={(button) => { thumbs.current[i] = button; }}
+ *             type="button"
+ *             aria-current={i === index ? 'true' : undefined}
+ *             onClick={() => goTo(i)}
+ *           >
+ *             Slide {i + 1}
+ *           </button>
+ *         </Deck.Slide>
+ *       ))}
+ *     </Deck.Viewport>
+ *   </Deck.Root>
+ * </>
  * ```
  *
- * The main deck is controlled: a thumbnail sets `selected` and the deck
- * scrolls there, and a scroll of the main deck reports through
- * `onIndexChange`, which marks the thumbnail with `aria-current`.
+ * The main deck is controlled: a thumbnail sets `index` and the deck scrolls
+ * there, and a scroll of the main deck reports through `onIndexChange`, which
+ * marks the thumbnail for the current slide with `aria-current`.
  *
  * The strip is uncontrolled and has no `onIndexChange`. Its index is the snap
  * point its viewport rests at, with several thumbnails in view, not the
- * selected slide, so it scrolls freely and never feeds back into the main
- * deck. To follow the main deck it scrolls the selected thumbnail into view,
- * `nearest` so a thumbnail already in view leaves the strip where it is.
+ * current slide, so it scrolls freely and never feeds back into the main
+ * deck. To follow the main deck it scrolls the thumbnail for the current
+ * slide into view, nearest edge first, so a thumbnail already in view leaves
+ * the strip where it is.
+ *
+ * It scrolls the strip's viewport by hand rather than calling `scrollTo` on
+ * the strip's `handleRef`, which aligns to a snap point and moves the strip even when the
+ * thumbnail is in view. It does not use `scrollIntoView` either, which also
+ * scrolls the page to the strip when the strip is off-screen.
+ *
+ * Without CSS the strip shows one full-width thumbnail per view; set slides
+ * per view on the strip's slides, as in Peek.
  *
  * Each thumbnail is a button named for its slide, so a screen reader hears
  * "Slide 3, button, current". Clicking one leaves focus on it; the main deck
  * announces the slide it moves to.
  */
-export const Thumbnails: Story = { render: () => <SyncedDecks /> };
+export const Thumbnails: Story = { render: () => <ThumbnailDecks /> };
 
 /**
  * Snapping in pages of several slides is consumer CSS too: only the first
