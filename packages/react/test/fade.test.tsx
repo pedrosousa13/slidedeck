@@ -212,6 +212,18 @@ describe('fade', () => {
     );
   });
 
+  test('keeps focus in the deck when the focused slide goes inert, so arrow keys go on', async () => {
+    const { viewport, opacity } = renderDeck();
+    screen.getByRole('button', { name: 'Button 1' }).focus();
+
+    await userEvent.keyboard('{ArrowRight}');
+    await expectSettledTo(opacity, [0, 1, 0, 0]);
+    expect(document.activeElement).toBe(viewport);
+
+    await userEvent.keyboard('{ArrowRight}');
+    await expectSettledTo(opacity, [0, 0, 1, 0]);
+  });
+
   test('steps one slide at a time, with group snapping not applying', async () => {
     addStyle(pagesOf(2));
     const { next, opacity, root } = renderDeck({ viewportClassName: 'pages' });
@@ -264,6 +276,21 @@ describe('fade under reduced motion', () => {
       }
     }
   );
+
+  test('shows exactly one slide when the scroll rests exactly halfway', async () => {
+    await setReducedMotion(true);
+    try {
+      const { viewport, opacity } = renderDeck();
+      viewport.style.scrollSnapType = 'none';
+      viewport.scrollLeft = WIDTH / 2;
+      await nextFrame();
+      await nextFrame();
+
+      expect(opacity()).toEqual([0, 1, 0, 0]);
+    } finally {
+      await setReducedMotion(false);
+    }
+  });
 
   test('jumps on Next with no frame in between', async () => {
     await setReducedMotion(true);

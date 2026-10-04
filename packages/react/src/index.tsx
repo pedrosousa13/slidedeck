@@ -463,6 +463,21 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
   // Until the viewport is measured, the slide it starts at.
   const current = deck.slide === null ? start : index === deck.slide;
   const focal = deck.focal === null ? start : index === deck.focal;
+  // Stacked, only the focal slide can be seen, so only it can be reached.
+  const inert = stacked && !focal;
+  const { viewportRef } = deck;
+  // Focus in a slide that goes inert would drop to the body: it moves to the
+  // viewport instead, where arrow keys still move the deck.
+  useLayoutEffect(() => {
+    if (!inert) return;
+    const viewport = viewportRef.current;
+    const focused = document.activeElement?.closest(
+      '[data-slidedeck-slide][inert]'
+    );
+    if (viewport && focused?.parentElement === viewport) {
+      viewport.focus({ preventScroll: true });
+    }
+  }, [inert, viewportRef]);
   return (
     <div
       role="group"
@@ -471,8 +486,7 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
       data-slidedeck-slide=""
       data-current={current ? '' : undefined}
       data-focal={focal ? '' : undefined}
-      // Stacked, only the focal slide can be seen, so only it can be reached.
-      inert={stacked && !focal}
+      inert={inert}
       style={{
         flexShrink: 0,
         // A slide's place in the deck, for CSS such as an entry stagger.

@@ -1,22 +1,28 @@
 import type { Effect } from './index.js';
 
-// Slides of the fade deck, and the distance of each from the focal position,
-// in slides, at most 1: from `--deck-progress`, or before the engine has
-// written it, as in server HTML, 0 for the focal slide and 1 for the rest.
+// Slides of the fade deck, the progress of each, from `--deck-progress`, or
+// before the engine has written it, as in server HTML, 0 for the focal slide
+// and 1 for the rest, and its distance from the focal position, at most 1.
 const slide = '[data-slidedeck-effect=fade]>[data-slidedeck-slide]';
-const distance = (fallback: number) => {
-  const progress = `var(--deck-progress,${fallback})`;
-  // abs() spelled with max() for older browsers.
-  return `--slidedeck-fade-distance:min(max(${progress},-1*${progress}),1)`;
-};
+const progress = (fallback: number) =>
+  `--slidedeck-fade-progress:var(--deck-progress,${fallback})`;
+const p = 'var(--slidedeck-fade-progress)';
+// abs() spelled with max() for older browsers.
+const distance = `--slidedeck-fade-distance:min(max(${p},-1*${p}),1)`;
+
+// Under reduced motion, opacity is a step: this steep a ramp goes from 0 to 1
+// within a thousandth of a slide, the precision the engine writes progress
+// at. A slide is shown while its progress is above -0.5 and at most 0.5, so
+// exactly halfway between two slides, only the one ahead is shown.
+const STEP = 1000;
 
 const css =
-  `:where(${slide}){${distance(1)};` +
+  `:where(${slide}){${progress(1)};${distance};` +
   'opacity:calc(1 - var(--slidedeck-fade-distance))}' +
-  `:where(${slide}[data-focal]){${distance(0)}}` +
+  `:where(${slide}[data-focal]){${progress(0)}}` +
   // No animated crossfade: the slide shown cuts to the next halfway there.
   '@media (prefers-reduced-motion:reduce){' +
-  `:where(${slide}){opacity:clamp(0,(0.5 - var(--slidedeck-fade-distance))*1000,1)}}`;
+  `:where(${slide}){opacity:clamp(0,min(0.5 + ${p},${0.5 + 1 / STEP} - ${p})*${STEP},1)}}`;
 
 /**
  * Crossfades the slides in place while the viewport scrolls, snaps and drags

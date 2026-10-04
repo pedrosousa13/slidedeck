@@ -106,9 +106,5 @@ _Avoid_: visible, active
 
 **Effect**:
 A transition built on progress while the viewport keeps scrolling natively —
-fade and curve are effects, not separate engines. Each is its own entry point,
-such as `@slidedeck/react/fade`, passed to `Deck.Viewport` as `effect`, so a
-deck that imports none ships none of their code. Fade stacks the slides over
-snap targets and shows only the focal slide's: the others are inert, and
-group snapping does not apply.
+fade and curve are effects, not separate engines.
 _Avoid_: transition mode, render mode
