@@ -77,6 +77,78 @@ const copiesIn = (viewport: HTMLElement) => [
   ...viewport.querySelectorAll('[data-slidedeck-copy]')
 ];
 
+/** Samples the viewport's scroll position every frame until `against` is
+ * read. */
+function trackMotion(viewport: HTMLElement) {
+  const positions: number[] = [];
+  let done = false;
+  const sample = () => {
+    positions.push(viewport.scrollLeft);
+    if (!done) requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
+  return {
+    /** Every frame's move against `way` (1 on, -1 back), but for a jump of
+     * at least `jump` px off a copy. */
+    against(way: 1 | -1, jump: number) {
+      done = true;
+      return positions
+        .slice(1)
+        .map((at, i) => (at - positions[i]) * way)
+        .filter((d) => Math.abs(d) < jump && d < -1);
+    }
+  };
+}
+
+/**
+ * Waits for the deck to stop moving, then checks it rests as a deck should:
+ * on a slide's snap point (the current slide, never a copy, at the snap
+ * alignment point), with snapping back on, and, if it reported a move, the
+ * page it shows, of `pageSize` slides.
+ */
+async function expectRestOnASlide(
+  viewport: HTMLElement,
+  root: HTMLElement,
+  onIndexChange: ReturnType<typeof vi.fn>,
+  pageSize = 1
+) {
+  let last = NaN;
+  await expect
+    .poll(
+      async () => {
+        const at = viewport.scrollLeft;
+        await sleep(300);
+        const still = at === last && at === viewport.scrollLeft;
+        last = viewport.scrollLeft;
+        return still;
+      },
+      { timeout: 8000 }
+    )
+    .toBe(true);
+  expect(viewport.style.scrollSnapType).not.toBe('none');
+  const current = viewport.querySelector<HTMLElement>('[data-current]')!;
+  expect(current.hasAttribute('data-slidedeck-copy')).toBe(false);
+  const box = current.getBoundingClientRect();
+  const view = viewport.getBoundingClientRect();
+  const centre = getComputedStyle(current).scrollSnapAlign.includes('center');
+  expect(
+    Math.abs(
+      centre
+        ? (box.left + box.right) / 2 - (view.left + view.right) / 2
+        : box.left - view.left
+    )
+  ).toBeLessThan(1);
+  const shown = String(
+    Math.floor(
+      (Number(current.getAttribute('aria-label')!.split(' ')[0]) - 1) / pageSize
+    )
+  );
+  expect(root.dataset.index).toBe(shown);
+  if (onIndexChange.mock.calls.length > 0) {
+    expect(onIndexChange.mock.calls.at(-1)).toEqual([Number(shown)]);
+  }
+}
+
 describe('loop', () => {
   test('Next on the last snap point moves across the seam to the first', async () => {
     const { root, next, onIndexChange, offsetOf } = renderLoop({
@@ -221,8 +293,9 @@ describe('loop', () => {
     expect(Math.abs(after - before)).toBeLessThanOrEqual(0.5 + 2 / 64);
   });
 
-  // Presses about as fast as the deck moves take it past the copies of where
-  // it is heading: it must still never move against the press.
+  // Presses about as fast as the deck moves outrun the copies of where it is
+  // heading: the deck then passes fewer slides than were pressed, but never
+  // moves against the press, and comes to rest on a slide.
   for (const [button, start, presses, spacing, centred] of [
     ['Next', 3, 7, 120, false],
     ['Next', 3, 12, 120, false],
@@ -234,21 +307,14 @@ describe('loop', () => {
     ['Next', 3, 12, 120, true],
     ['Previous', 1, 14, 120, true]
   ] as const) {
-    test(`${presses} presses of ${button} ${spacing}ms apart only ever move ${button === 'Next' ? 'on' : 'back'}, and count${centred ? ', centred' : ''}`, async () => {
+    test(`${presses} presses of ${button} ${spacing}ms apart only ever move ${button === 'Next' ? 'on' : 'back'}, and rest on a slide${centred ? ', centred' : ''}`, async () => {
       if (centred) addStyle(CENTRED);
       const { viewport, root, onIndexChange } = renderLoop({
         defaultIndex: start,
         viewportClassName: centred ? 'centred' : undefined
       });
       const way = button === 'Next' ? 1 : -1;
-      const expected = (((start + way * presses) % 5) + 5) % 5;
-      const positions: number[] = [];
-      let done = false;
-      const sample = () => {
-        positions.push(viewport.scrollLeft);
-        if (!done) requestAnimationFrame(sample);
-      };
-      requestAnimationFrame(sample);
+      const motion = trackMotion(viewport);
 
       const press = screen.getByRole('button', { name: button });
       for (let i = 0; i < presses; i++) {
@@ -256,17 +322,8 @@ describe('loop', () => {
         await sleep(spacing);
       }
 
-      await expectSettledTo(() => root.dataset.index, String(expected));
-      done = true;
-      await nextFrame();
-      expect(onIndexChange.mock.calls.at(-1)).toEqual([expected]);
-      // Frame to frame, the deck moves the way it was pressed, but for a
-      // jump of a set (five slides) off a copy.
-      const against = positions
-        .slice(1)
-        .map((at, i) => (at - positions[i]) * way)
-        .filter((d) => Math.abs(d) < (centred ? 200 : 2.5 * WIDTH) && d < -1);
-      expect(against).toEqual([]);
+      await expectRestOnASlide(viewport, root, onIndexChange);
+      expect(motion.against(way, centred ? 200 : 2.5 * WIDTH)).toEqual([]);
     });
   }
 
@@ -496,6 +553,65 @@ describe('loop with pages', () => {
   });
 });
 
+describe('loop, presses that outrun the copies', () => {
+  test('pages of 3 over 10, Next eleven times 120ms apart, comes to rest on a page and moves on after', async () => {
+    addStyle(`${pagesOf(3)} .pages > * { width: calc(100% / 3); }`);
+    const { viewport, root, next, prev, onIndexChange } = renderLoop({
+      slides: 10,
+      viewportClassName: 'pages',
+      defaultIndex: 1
+    });
+    const motion = trackMotion(viewport);
+
+    for (let i = 0; i < 11; i++) {
+      next.click();
+      await sleep(120);
+    }
+
+    await expectRestOnASlide(viewport, root, onIndexChange, 3);
+    expect(motion.against(1, 500)).toEqual([]);
+    const rest = root.dataset.index;
+    await userEvent.click(next);
+    await expect.poll(() => root.dataset.index).not.toBe(rest);
+    await userEvent.click(prev);
+    await expectSettledTo(() => root.dataset.index, rest);
+  });
+
+  /** From slide 4, Next six times at once, then twice more once the deck is
+   * on the copies after the slides: the last presses outrun the copies. */
+  const outrun = async () => {
+    const deck = renderLoop({ defaultIndex: 3 });
+    for (let i = 0; i < 6; i++) deck.next.click();
+    await expect.poll(() => deck.viewport.scrollLeft).toBeGreaterThan(3600);
+    deck.next.click();
+    deck.next.click();
+    return deck;
+  };
+
+  test('a mouse drag after the deck rests at the end of the copies settles, with snapping back', async () => {
+    const { viewport, root, onIndexChange } = await outrun();
+    // At rest at the end of the copies, it jumps back a set.
+    await expect.poll(() => viewport.scrollLeft).toBeLessThan(3000);
+
+    await mouseDrag(viewport, 100, { holdMs: 150 });
+
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await expect.poll(() => viewport.scrollLeft % WIDTH).toBe(0);
+  });
+
+  test('a wheel back while the deck heads on is where the deck goes', async () => {
+    const { viewport, root, onIndexChange } = await outrun();
+
+    await gestureScroll(viewport, -600);
+    // From the gesture's end, nothing moves the deck on again.
+    const motion = trackMotion(viewport);
+
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(motion.against(-1, 2.5 * WIDTH)).toEqual([]);
+  });
+});
+
 describe('loop, controlled', () => {
   function Controlled({ onIndexChange }: { onIndexChange: () => void }) {
     const [index, setIndex] = useState(4);
@@ -598,6 +714,19 @@ describe('loop in an engine without scrollend', () => {
     };
   });
   afterEach(() => restore());
+
+  test('Next twelve times 40ms apart never hangs, and leaves snapping on', async () => {
+    const { viewport, root, next, onIndexChange } = renderLoop({
+      defaultIndex: 3
+    });
+
+    for (let i = 0; i < 12; i++) {
+      next.click();
+      await sleep(40);
+    }
+
+    await expectRestOnASlide(viewport, root, onIndexChange);
+  });
 
   test('Prev on the first snap point still crosses the seam', async () => {
     expect('onscrollend' in window).toBe(false);

@@ -147,8 +147,6 @@ export function createDeck(
     align =
       slide === -1 ? 'start' : along.snapAlign(run.boxes[run.first + slide]);
     paint(along);
-    // Resting on the way to a carried target is not where the move ends.
-    if (carried !== null) return;
     publish({
       index,
       count: points.length,
@@ -167,10 +165,7 @@ export function createDeck(
       at < points[0] - 1 ? length : at > points[0] + length - 1 ? -length : 0;
     if (shift === 0) return;
     const point = points.find((p) => Math.abs(at + shift - p) <= 1);
-    if (point === undefined) return;
-    along.scrollTo(point, 'instant');
-    // A target carried past the copies moves with the viewport.
-    if (carried !== null) carried += Math.sign(shift) * points.length;
+    if (point !== undefined) along.scrollTo(point, 'instant');
   };
 
   // The snap point a step is scrolling to, until the scroll ends: a second
@@ -178,13 +173,6 @@ export function createDeck(
   // loop it may be a set of slides past either end, on the copies there (see
   // `positionOf`).
   let target: number | null = null;
-  // With loop, a target too far ahead for the copies to reach: the deck
-  // scrolls to the end of the copies, jumps, and goes on there (see
-  // `scrollTo`).
-  let carried: number | null = null;
-  // Where a carried move jumped to and went on from: the jump's own
-  // `scrollend` comes after the move goes on, and does not end it.
-  let resumed: number | null = null;
 
   // Mouse drag (ADR-0006): see the pointer handlers below.
   let dragEnabled = true;
@@ -241,14 +229,6 @@ export function createDeck(
   const scrollEnded = () => {
     // The pointer, not the browser, says where a drag ends.
     if (drag === 'dragging') return;
-    if (
-      resumed !== null &&
-      target !== null &&
-      Math.abs(axis().position - resumed) < 1
-    ) {
-      return;
-    }
-    resumed = null;
     // A drag's release rests on its snap point now: snapping can come back
     // without moving it.
     if (drag === 'releasing') {
@@ -258,16 +238,6 @@ export function createDeck(
     scrolling = false;
     target = null;
     settle();
-    if (carried === null) return;
-    const next = carried;
-    carried = null;
-    resumed = axis().position;
-    scrollTo(next, true);
-    // Nowhere further to go: this is where the move ends.
-    if (target === null) {
-      carried = null;
-      settle();
-    }
   };
 
   // Chromium can fire `scrollsnapchange` as a scroll the engine started
@@ -296,36 +266,40 @@ export function createDeck(
       deferred = { index, across };
       return;
     }
-    carried = null;
     const along = axis();
     const geometry = snapPoints(viewport, along);
     const count = geometry.points.length;
     // Nowhere to scroll to: a target set now would never clear either.
     if (!Number.isFinite(index) || count === 0) return;
     let next = across && geometry.length > 0 ? index : clamp(index, count);
-    // A loop has no end: a move past the copies, as when presses come
-    // faster than the deck moves, goes to the same slide's nearest copy, or
-    // the slide, ahead of the viewport the way the move goes, so the deck
-    // only travels less far. Where none is ahead, as when the viewport has
-    // overtaken them, the deck goes on to the furthest snap point ahead, at
-    // the end of the copies, and carries the target: at rest there it jumps
-    // a set back, as from any copy, and goes on to it. It never moves
-    // against the move, nor jumps mid-motion. A copy's snap point past
-    // either end of the scroll range, as a centred deck's last copies' are,
-    // is out of reach like one past the copies.
+    // A loop has no end, but a move can only run as far as the copies: a
+    // move past them, as when presses come faster than the deck moves, goes
+    // to the same slide's nearest copy, or the slide, ahead of the viewport
+    // the way the move goes. Where none is ahead, as when presses come about
+    // as fast as the deck moves and the viewport has overtaken them, it goes
+    // to the furthest snap point ahead the copies reach, and a press beyond
+    // that is dropped. So the deck passes fewer slides than were pressed, but
+    // never moves against a press, never jumps mid-motion, and only ever
+    // goes where it reports it rests (ADR-0009). Ahead means at least half
+    // a snap point on: the viewport as read can trail the scroll by a frame.
+    // A copy's snap point past either end of the scroll range, as a centred
+    // deck's last copies' are, is out of reach like one past the copies.
     if (across && geometry.length > 0 && !reachable(geometry, along, next)) {
       const at = along.position;
       const ahead = Math.sign(positionOf(geometry, next) - at) || 1;
+      const margin = geometry.length / count / 2;
       const distance = (i: number) => (positionOf(geometry, i) - at) * ahead;
       const onward = [-1, 0, 1]
         .map((set) => wrap(next, count) + set * count)
-        .filter((i) => reachable(geometry, along, i) && distance(i) > 0);
+        .filter((i) => reachable(geometry, along, i) && distance(i) > margin);
       if (onward.length > 0) {
         next = onward.reduce((a, b) => (distance(b) < distance(a) ? b : a));
       } else {
-        carried = next;
-        next = ahead > 0 ? 2 * count - 1 : -count;
-        while (!reachable(geometry, along, next)) next -= ahead;
+        let furthest = ahead > 0 ? 2 * count - 1 : -count;
+        while (!reachable(geometry, along, furthest)) furthest -= ahead;
+        // Already there, or heading there: the press is dropped.
+        if (furthest === target || distance(furthest) <= margin) return;
+        next = furthest;
       }
     }
     const to = positionOf(geometry, next);
@@ -400,7 +374,6 @@ export function createDeck(
       // where the deck goes now is decided when the pointer lets go.
       drag = 'dragging';
       target = null;
-      carried = null;
       removeSnap();
       viewport.setPointerCapture(pointer);
     }
@@ -522,9 +495,8 @@ export function createDeck(
   // a step from a copy the deck could not jump off still goes the way it is
   // pressed.
   const step = (delta: number) => {
-    const heading = carried ?? target;
-    if (heading !== null) {
-      scrollTo(heading + delta, true);
+    if (target !== null) {
+      scrollTo(target + delta, true);
       return;
     }
     const along = axis();
@@ -565,10 +537,7 @@ export function createDeck(
     next: () => step(1),
     prev: () => step(-1),
     // A target on the copies is the slides' snap point it copies.
-    target: () => {
-      const heading = carried ?? target;
-      return heading === null ? null : wrap(heading, state.count);
-    },
+    target: () => (target === null ? null : wrap(target, state.count)),
     refresh,
     setDrag(enabled) {
       dragEnabled = enabled;
