@@ -36,7 +36,7 @@ export interface DeckEngine {
   next(): void;
   prev(): void;
   /** The snap point a scroll the engine started is heading to, until it
-   * ends; null when none is in flight. */
+   * ends or the user's scroll takes over; null when none is in flight. */
   target(): number | null;
   /** Re-reads the snap points, as after slides are added or removed. */
   refresh(): void;
@@ -168,11 +168,20 @@ export function createDeck(
     if (point !== undefined) along.scrollTo(point, 'instant');
   };
 
-  // The snap point a step is scrolling to, until the scroll ends: a second
-  // press steps on from there, not from where the viewport last rested. With
-  // loop it may be a set of slides past either end, on the copies there (see
-  // `positionOf`).
-  let target: number | null = null;
+  // The engine's move, a scroll it started (ADR-0006): null when idle, or
+  // moving to `target`, the snap point it heads to, until it ends or the
+  // user's scroll takes over. A second press steps on from the target, not
+  // from where the viewport last rested. With loop it may be a set of slides
+  // past either end, on the copies there (see `positionOf`). `stalled` once
+  // a quiet has found it short of its target, until its next scroll event.
+  // `startMove` and `endMove` below own it, with the quiet that ends it.
+  let move: { target: number; stalled: boolean } | null = null;
+  // The move has arrived: the viewport is at its target, its end not seen.
+  const arrived = ({ target }: { target: number }) => {
+    const along = axis();
+    const geometry = snapPoints(viewport, along);
+    return Math.abs(along.position - positionOf(geometry, target)) < 1;
+  };
 
   // Mouse drag (ADR-0006): see the pointer handlers below.
   let dragEnabled = true;
@@ -214,17 +223,80 @@ export function createDeck(
   // Set by any scroll, cleared when it ends. A position read mid-scroll is
   // not a settled one, so a refresh then waits for the scroll's end.
   let scrolling = false;
-  // Where `scrollend` is missing, a scroll has ended once no scroll event has
-  // come for this long (ADR-0006).
+  // Quiet (ADR-0006): a scroll has ended once no scroll event has come for
+  // this long. It ends every scroll where `scrollend` is missing, and a move
+  // in every engine, as the move's end event may never come. A move short of
+  // its target ends only at a second quiet with no scroll between: the
+  // first can come just after a long task held the main thread, before the
+  // browser has gone on with the scroll, or sent its scroll events.
   const hasScrollEnd = 'onscrollend' in window;
   let quiet: ReturnType<typeof setTimeout> | undefined;
+  const stopQuiet = () => clearTimeout(quiet);
+  const awaitQuiet = () => {
+    stopQuiet();
+    quiet = setTimeout(onQuiet, SCROLL_END_DEBOUNCE_MS);
+  };
+  const onQuiet = () => {
+    if (move && !move.stalled && !arrived(move)) {
+      move.stalled = true;
+      awaitQuiet();
+      return;
+    }
+    scrollEnded();
+  };
   const onScroll = () => {
     scrolling = true;
     frame ||= requestAnimationFrame(() => paint());
-    if (hasScrollEnd) return;
-    clearTimeout(quiet);
-    quiet = setTimeout(scrollEnded, SCROLL_END_DEBOUNCE_MS);
+    if (move) move.stalled = false;
+    if (!hasScrollEnd || move) awaitQuiet();
   };
+  const startMove = (target: number) => {
+    move = { target, stalled: false };
+    awaitQuiet();
+  };
+  // Ends the move, if any, without a settle. Where `scrollend` is there, a
+  // scroll the engine did not start ends at its own end event, not quiet.
+  const endMove = () => {
+    move = null;
+    if (hasScrollEnd) stopQuiet();
+  };
+
+  // Pointers pressed on the viewport, by id, with their type, until they
+  // let go. While one is down the deck does not settle, so it never jumps
+  // off a copy under a finger or the mouse; the settle waits for the last
+  // to let go. A release must never go unheard, or the deck would never
+  // settle again: the window hears every pointerup and pointercancel first,
+  // before any listener can stop it; a pointer that moves or comes over
+  // anything with no button down has let go; losing focus lets go of all,
+  // as the release may then come to another window; and a primary pointer
+  // pressed lets go of any other of its type, as none can still be down.
+  const pressed = new Map<number, string>();
+  let settleOwed = false;
+  // Lets go of pointer `id`, or of every pointer.
+  const letGo = (id?: number) => {
+    if (id === undefined) pressed.clear();
+    else if (!pressed.delete(id)) return;
+    if (pressed.size > 0 || !settleOwed) return;
+    settleOwed = false;
+    // A scroll since, as a touch pan, settles at its own end.
+    if (!scrolling && !move && drag !== 'dragging') settle();
+  };
+  const onWindowPointer = (event: PointerEvent) => {
+    if (
+      event.type === 'pointerup' ||
+      event.type === 'pointercancel' ||
+      event.buttons === 0
+    ) {
+      letGo(event.pointerId);
+    }
+  };
+  const onBlur = () => letGo();
+  const WINDOW_POINTER = [
+    'pointerup',
+    'pointercancel',
+    'pointermove',
+    'pointerover'
+  ] as const;
 
   const scrollEnded = () => {
     // The pointer, not the browser, says where a drag ends.
@@ -236,25 +308,52 @@ export function createDeck(
       restoreSnap();
     }
     scrolling = false;
-    target = null;
+    endMove();
+    if (pressed.size > 0) {
+      settleOwed = true;
+      return;
+    }
     settle();
   };
 
-  // Chromium can fire `scrollsnapchange` as a scroll the engine started
-  // begins, before the viewport moves: that is not the scroll's end, and
-  // clearing the target then would lose where it is heading. `scrollend`
-  // still ends any scroll, including one a user interrupts.
-  const onSnapChange = () => {
-    if (target !== null) {
-      const along = axis();
-      const geometry = snapPoints(viewport, along);
-      if (Math.abs(along.position - positionOf(geometry, target)) >= 1) return;
-    }
+  // `scrollend` and `scrollsnapchange` end a move only once it has arrived.
+  // Before that, an end is not the move's: it is the late end of an earlier
+  // scroll, which Chromium sends a few milliseconds after the viewport
+  // arrives, after a move started in those milliseconds, or of a scroll that
+  // interrupted the move; or `scrollsnapchange` as the move begins. Quiet
+  // ends the move then.
+  const onEnd = () => {
+    if (move && !arrived(move)) return;
     scrollEnded();
   };
 
+  // The user's scroll ends a move without a settle: the scroll in flight
+  // ends as the user's, and nothing the engine asked for resumes. A wheel,
+  // a key that scrolls, a touch or pen pan, which the browser takes over
+  // with `pointercancel`, and a mouse drag (below). A click, typing or Tab
+  // scrolls nothing and leaves the move going.
+  const onWheel = () => endMove();
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || !SCROLL_KEYS.has(event.key)) return;
+    const on = event.target;
+    if (
+      on instanceof HTMLElement &&
+      (on.isContentEditable ||
+        on.matches('input, textarea, select') ||
+        // Space presses a button rather than scroll.
+        (event.key === ' ' && on.matches('button, summary')))
+    ) {
+      return;
+    }
+    endMove();
+  };
+  const onPointerCancel = (event: PointerEvent) => {
+    if (event.pointerType !== 'mouse') endMove();
+    onPointerUp(event);
+  };
+
   const refresh = () => {
-    if (!scrolling && target === null && drag !== 'dragging') settle();
+    if (!scrolling && !move && drag !== 'dragging') settle();
     else paint();
   };
 
@@ -269,7 +368,7 @@ export function createDeck(
     const along = axis();
     const geometry = snapPoints(viewport, along);
     const count = geometry.points.length;
-    // Nowhere to scroll to: a target set now would never clear either.
+    // Nowhere to scroll to: a move started now would never arrive either.
     if (!Number.isFinite(index) || count === 0) return;
     let next = across && geometry.length > 0 ? index : clamp(index, count);
     // A loop has no end, but a move can only run as far as the copies: a
@@ -298,15 +397,18 @@ export function createDeck(
         let furthest = ahead > 0 ? 2 * count - 1 : -count;
         while (!reachable(geometry, along, furthest)) furthest -= ahead;
         // Already there, or heading there: the press is dropped.
-        if (furthest === target || distance(furthest) <= margin) return;
+        if (furthest === move?.target || distance(furthest) <= margin) {
+          return;
+        }
         next = furthest;
       }
     }
     const to = positionOf(geometry, next);
-    // A scroll to where the viewport already rests ends no scroll, so a
-    // target set for it would never clear and would block every refresh.
-    if (target === null && Math.abs(along.position - to) < 1) return;
-    target = next;
+    // A scroll to where the viewport already rests is no move: there is
+    // nowhere to go.
+    if (!move && Math.abs(along.position - to) < 1) return;
+    // A move in flight, arrived or not, is superseded: it never settles.
+    startMove(next);
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     along.scrollTo(to, reduce ? 'instant' : 'smooth');
   };
@@ -324,8 +426,10 @@ export function createDeck(
   // `scrollsnapchange` reports a settled snap target where it exists, no
   // later than `scrollend`; `publish` drops whichever report comes second.
   viewport.addEventListener('scroll', onScroll, { passive: true });
-  viewport.addEventListener('scrollsnapchange', onSnapChange);
-  viewport.addEventListener('scrollend', scrollEnded);
+  viewport.addEventListener('scrollsnapchange', onEnd);
+  viewport.addEventListener('scrollend', onEnd);
+  viewport.addEventListener('wheel', onWheel, { passive: true });
+  viewport.addEventListener('keydown', onKeyDown);
   // A resize can add or remove snap points without any scroll, and only
   // Chromium reports that through `scrollsnapchange`.
   const resizes = new ResizeObserver(refresh);
@@ -341,6 +445,15 @@ export function createDeck(
   // when that scroll ends. Restoring snapping at release instead lets the
   // browser re-snap before the next frame, ignoring a flick.
   const onPointerDown = (event: PointerEvent) => {
+    // A mouse's other buttons open menus, which can swallow the pointerup.
+    if (event.pointerType !== 'mouse' || event.button === 0) {
+      if (event.isPrimary) {
+        for (const [id, type] of pressed) {
+          if (type === event.pointerType) pressed.delete(id);
+        }
+      }
+      pressed.set(event.pointerId, event.pointerType);
+    }
     if (
       !dragEnabled ||
       event.pointerType !== 'mouse' ||
@@ -373,7 +486,7 @@ export function createDeck(
       // The drag takes over any scroll in flight, its own release included:
       // where the deck goes now is decided when the pointer lets go.
       drag = 'dragging';
-      target = null;
+      endMove();
       removeSnap();
       viewport.setPointerCapture(pointer);
     }
@@ -428,7 +541,7 @@ export function createDeck(
     else scrollTo(next - reach, true);
     deferred = null;
     // Already resting there, or nowhere to go: no scroll will end.
-    if (target === null) scrollEnded();
+    if (!move) scrollEnded();
   };
 
   // A drag ends in a click on whatever the pointer pressed, such as a link
@@ -451,7 +564,11 @@ export function createDeck(
   viewport.addEventListener('pointerdown', onPointerDown);
   viewport.addEventListener('pointermove', onPointerMove);
   viewport.addEventListener('pointerup', onPointerUp);
-  viewport.addEventListener('pointercancel', onPointerUp);
+  viewport.addEventListener('pointercancel', onPointerCancel);
+  for (const type of WINDOW_POINTER) {
+    window.addEventListener(type, onWindowPointer, { capture: true });
+  }
+  window.addEventListener('blur', onBlur);
   viewport.addEventListener('lostpointercapture', onLostCapture);
   viewport.addEventListener('dragstart', onDragStart);
 
@@ -495,8 +612,8 @@ export function createDeck(
   // a step from a copy the deck could not jump off still goes the way it is
   // pressed.
   const step = (delta: number) => {
-    if (target !== null) {
-      scrollTo(target + delta, true);
+    if (move) {
+      scrollTo(move.target + delta, true);
       return;
     }
     const along = axis();
@@ -537,7 +654,7 @@ export function createDeck(
     next: () => step(1),
     prev: () => step(-1),
     // A target on the copies is the slides' snap point it copies.
-    target: () => (target === null ? null : wrap(target, state.count)),
+    target: () => (move ? wrap(move.target, state.count) : null),
     refresh,
     setDrag(enabled) {
       dragEnabled = enabled;
@@ -550,7 +667,7 @@ export function createDeck(
       refresh();
     },
     destroy() {
-      clearTimeout(quiet);
+      stopQuiet();
       cancelAnimationFrame(frame);
       for (const slide of slidesOf(viewport).run) {
         slide.removeAttribute(IN_VIEW);
@@ -559,12 +676,18 @@ export function createDeck(
       resizes.disconnect();
       window.removeEventListener('resize', refresh);
       viewport.removeEventListener('scroll', onScroll);
-      viewport.removeEventListener('scrollsnapchange', onSnapChange);
-      viewport.removeEventListener('scrollend', scrollEnded);
+      viewport.removeEventListener('scrollsnapchange', onEnd);
+      viewport.removeEventListener('scrollend', onEnd);
+      viewport.removeEventListener('wheel', onWheel);
+      viewport.removeEventListener('keydown', onKeyDown);
       viewport.removeEventListener('pointerdown', onPointerDown);
       viewport.removeEventListener('pointermove', onPointerMove);
       viewport.removeEventListener('pointerup', onPointerUp);
-      viewport.removeEventListener('pointercancel', onPointerUp);
+      viewport.removeEventListener('pointercancel', onPointerCancel);
+      for (const type of WINDOW_POINTER) {
+        window.removeEventListener(type, onWindowPointer, { capture: true });
+      }
+      window.removeEventListener('blur', onBlur);
       viewport.removeEventListener('lostpointercapture', onLostCapture);
       viewport.removeEventListener('dragstart', onDragStart);
       viewport.removeEventListener('click', onClick);
@@ -574,6 +697,18 @@ export function createDeck(
 }
 
 const SCROLL_END_DEBOUNCE_MS = 100;
+/** Keys a focused scroller scrolls by. */
+const SCROLL_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+  ' '
+]);
 
 const PROGRESS = '--deck-progress';
 /** Marks a viewport child as a snap target rather than a slide. */

@@ -109,6 +109,32 @@ paused, it is _rotating_ the deck, the APG carousel's "slide rotation". Only
 moves the user makes are announced.
 _Avoid_: autoscroll, slideshow
 
+### Movement
+
+**Move**:
+A scroll slidedeck starts toward a snap point: Prev, Next, a dot, `scrollTo`,
+a new controlled `index`, a drag's release. A new move replaces the one in
+flight; the user's own scroll ends it (ADR-0006).
+_Avoid_: animation, transition
+
+**Arrive**:
+A move has arrived once the viewport is at its target snap point, before the
+browser reports the scroll's end. Arrival is read from the viewport, not
+stored.
+_Avoid_: land, reach
+
+**Settle**:
+What the deck does when a scroll ends: it reads where the viewport rests,
+jumps off a copy to its slide, and publishes the current index, slide and
+focal slide. The only time `onIndexChange` and `onFocalChange` fire.
+_Avoid_: snap, finish
+
+**Quiet**:
+No scroll event for 100ms: how slidedeck tells a scroll has ended where the
+browser sends no end event, and how a move ends when its end event never
+comes.
+_Avoid_: debounce, idle
+
 ### Outputs
 
 **Progress**:

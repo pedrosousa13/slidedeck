@@ -51,6 +51,10 @@ the viewport, a copy's included. A copy's snap point past either end of the
 scroll range, as a centred deck's last copies' are, counts as past the
 copies.
 
+A press as the deck arrives on a copy, before that scroll's end, goes on
+from the copy. The arrived move does not jump; the new move does at its end
+(ADR-0006, a move's lifecycle).
+
 Two other rules were tried and rejected. Moving the viewport back a set
 mid-motion to make room: the instant scroll ends with a `scrollend` of its
 own, which settled the deck, and a jump mid-motion is what ADR-0006 rules

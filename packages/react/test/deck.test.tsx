@@ -1,6 +1,6 @@
 import { Profiler, type ComponentProps } from 'react';
 import { render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
@@ -13,7 +13,8 @@ import {
   TestDeck,
   touchSwipe,
   viewportOf,
-  WIDTH
+  WIDTH,
+  withoutScrollEnd
 } from './fixtures';
 
 const renderDeck = (props: Parameters<typeof TestDeck>[0] = {}) => {
@@ -238,29 +239,7 @@ describe('state as data attributes', () => {
 });
 
 describe('in an engine without scrollend', () => {
-  // Chromium with `scrollend` undetectable and neither it nor
-  // `scrollsnapchange` reaching the deck, as in Safari before 26.
-  const block = (event: Event) => event.stopImmediatePropagation();
-  let restore = () => {};
-  beforeEach(() => {
-    const hosts = [window, Document.prototype, HTMLElement.prototype].filter(
-      (host) => Object.hasOwn(host, 'onscrollend')
-    );
-    const saved = hosts.map((host) =>
-      Object.getOwnPropertyDescriptor(host, 'onscrollend')!
-    );
-    hosts.forEach((host) => delete (host as Partial<Window>).onscrollend);
-    window.addEventListener('scrollend', block, true);
-    window.addEventListener('scrollsnapchange', block, true);
-    restore = () => {
-      hosts.forEach((host, i) =>
-        Object.defineProperty(host, 'onscrollend', saved[i])
-      );
-      window.removeEventListener('scrollend', block, true);
-      window.removeEventListener('scrollsnapchange', block, true);
-    };
-  });
-  afterEach(() => restore());
+  withoutScrollEnd();
 
   test('onIndexChange still fires once per settled scroll', async () => {
     expect('onscrollend' in window).toBe(false);

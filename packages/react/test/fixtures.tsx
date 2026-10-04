@@ -1,5 +1,11 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { expect, onTestFinished } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  expect,
+  onTestFinished,
+  type Mock
+} from 'vitest';
 import { cdp } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 
@@ -244,4 +250,105 @@ export async function setForcedColors(active: boolean) {
   await cdp().send('Emulation.setEmulatedMedia', {
     features: [{ name: 'forced-colors', value: active ? 'active' : '' }]
   });
+}
+
+/** Samples the viewport's scroll position every frame until `against` is
+ * read. */
+export function trackMotion(viewport: HTMLElement) {
+  const positions: number[] = [];
+  let done = false;
+  const sample = () => {
+    positions.push(viewport.scrollLeft);
+    if (!done) requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
+  return {
+    /** Every frame's move against `way` (1 on, -1 back), but for a jump of
+     * at least `jump` px off a copy. */
+    against(way: 1 | -1, jump: number) {
+      done = true;
+      return positions
+        .slice(1)
+        .map((at, i) => (at - positions[i]) * way)
+        .filter((d) => Math.abs(d) < jump && d < -1);
+    }
+  };
+}
+
+/**
+ * Waits for the deck to stop moving, then checks it rests as a deck should:
+ * on a slide's snap point (the current slide, never a copy, at the snap
+ * alignment point), with snapping back on, and, if it reported a move, the
+ * page it shows, of `pageSize` slides.
+ */
+export async function expectRestOnASlide(
+  viewport: HTMLElement,
+  root: HTMLElement,
+  onIndexChange: Mock,
+  pageSize = 1
+) {
+  let last = NaN;
+  await expect
+    .poll(
+      async () => {
+        const at = viewport.scrollLeft;
+        await sleep(300);
+        const still = at === last && at === viewport.scrollLeft;
+        last = viewport.scrollLeft;
+        return still;
+      },
+      { timeout: 8000 }
+    )
+    .toBe(true);
+  expect(viewport.style.scrollSnapType).not.toBe('none');
+  const current = viewport.querySelector<HTMLElement>('[data-current]')!;
+  expect(current.hasAttribute('data-slidedeck-copy')).toBe(false);
+  const box = current.getBoundingClientRect();
+  const view = viewport.getBoundingClientRect();
+  const centre = getComputedStyle(current).scrollSnapAlign.includes('center');
+  expect(
+    Math.abs(
+      centre
+        ? (box.left + box.right) / 2 - (view.left + view.right) / 2
+        : box.left - view.left
+    )
+  ).toBeLessThan(1);
+  const shown = String(
+    Math.floor(
+      (Number(current.getAttribute('aria-label')!.split(' ')[0]) - 1) / pageSize
+    )
+  );
+  expect(root.dataset.index).toBe(shown);
+  if (onIndexChange.mock.calls.length > 0) {
+    expect(onIndexChange.mock.calls.at(-1)).toEqual([Number(shown)]);
+  }
+}
+
+/**
+ * Called in a describe block, makes each of its tests run in an engine
+ * without `scrollend`: Chromium with `scrollend` undetectable and neither it
+ * nor `scrollsnapchange` reaching the deck, as in Safari before 26.
+ */
+export function withoutScrollEnd() {
+  const block = (event: Event) => event.stopImmediatePropagation();
+  let restore = () => {};
+  beforeEach(() => {
+    const hosts = [window, Document.prototype, HTMLElement.prototype].filter(
+      (host) => Object.hasOwn(host, 'onscrollend')
+    );
+    const saved = hosts.map((host) =>
+      Object.getOwnPropertyDescriptor(host, 'onscrollend')!
+    );
+    hosts.forEach((host) => delete (host as Partial<Window>).onscrollend);
+    window.addEventListener('scrollend', block, true);
+    window.addEventListener('scrollsnapchange', block, true);
+    restore = () => {
+      hosts.forEach((host, i) =>
+        Object.defineProperty(host, 'onscrollend', saved[i])
+      );
+      window.removeEventListener('scrollend', block, true);
+      window.removeEventListener('scrollsnapchange', block, true);
+    };
+  });
+  afterEach(() => restore());
 }

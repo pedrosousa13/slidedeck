@@ -1,14 +1,6 @@
 import { useState } from 'react';
 import { render, screen, within } from '@testing-library/react';
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  onTestFinished,
-  test,
-  vi
-} from 'vitest';
+import { beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import { curve } from '@slidedeck/react/curve';
@@ -16,6 +8,7 @@ import { fade } from '@slidedeck/react/fade';
 import {
   addStyle,
   CENTRED,
+  expectRestOnASlide,
   expectSettledTo,
   gestureScroll,
   mouseAt,
@@ -26,8 +19,10 @@ import {
   setReducedMotion,
   sleep,
   TestDeck,
+  trackMotion,
   viewportOf,
-  WIDTH
+  WIDTH,
+  withoutScrollEnd
 } from './fixtures';
 
 // Loop (CONTEXT.md; clone and jump, ADR-0006, as built in ADR-0009): a
@@ -76,78 +71,6 @@ const renderLoop = (props: Parameters<typeof TestDeck>[0] = {}) => {
 const copiesIn = (viewport: HTMLElement) => [
   ...viewport.querySelectorAll('[data-slidedeck-copy]')
 ];
-
-/** Samples the viewport's scroll position every frame until `against` is
- * read. */
-function trackMotion(viewport: HTMLElement) {
-  const positions: number[] = [];
-  let done = false;
-  const sample = () => {
-    positions.push(viewport.scrollLeft);
-    if (!done) requestAnimationFrame(sample);
-  };
-  requestAnimationFrame(sample);
-  return {
-    /** Every frame's move against `way` (1 on, -1 back), but for a jump of
-     * at least `jump` px off a copy. */
-    against(way: 1 | -1, jump: number) {
-      done = true;
-      return positions
-        .slice(1)
-        .map((at, i) => (at - positions[i]) * way)
-        .filter((d) => Math.abs(d) < jump && d < -1);
-    }
-  };
-}
-
-/**
- * Waits for the deck to stop moving, then checks it rests as a deck should:
- * on a slide's snap point (the current slide, never a copy, at the snap
- * alignment point), with snapping back on, and, if it reported a move, the
- * page it shows, of `pageSize` slides.
- */
-async function expectRestOnASlide(
-  viewport: HTMLElement,
-  root: HTMLElement,
-  onIndexChange: ReturnType<typeof vi.fn>,
-  pageSize = 1
-) {
-  let last = NaN;
-  await expect
-    .poll(
-      async () => {
-        const at = viewport.scrollLeft;
-        await sleep(300);
-        const still = at === last && at === viewport.scrollLeft;
-        last = viewport.scrollLeft;
-        return still;
-      },
-      { timeout: 8000 }
-    )
-    .toBe(true);
-  expect(viewport.style.scrollSnapType).not.toBe('none');
-  const current = viewport.querySelector<HTMLElement>('[data-current]')!;
-  expect(current.hasAttribute('data-slidedeck-copy')).toBe(false);
-  const box = current.getBoundingClientRect();
-  const view = viewport.getBoundingClientRect();
-  const centre = getComputedStyle(current).scrollSnapAlign.includes('center');
-  expect(
-    Math.abs(
-      centre
-        ? (box.left + box.right) / 2 - (view.left + view.right) / 2
-        : box.left - view.left
-    )
-  ).toBeLessThan(1);
-  const shown = String(
-    Math.floor(
-      (Number(current.getAttribute('aria-label')!.split(' ')[0]) - 1) / pageSize
-    )
-  );
-  expect(root.dataset.index).toBe(shown);
-  if (onIndexChange.mock.calls.length > 0) {
-    expect(onIndexChange.mock.calls.at(-1)).toEqual([Number(shown)]);
-  }
-}
 
 describe('loop', () => {
   test('Next on the last snap point moves across the seam to the first', async () => {
@@ -693,27 +616,7 @@ describe('loop, controlled by a parent that sets a new index', () => {
 });
 
 describe('loop in an engine without scrollend', () => {
-  const block = (event: Event) => event.stopImmediatePropagation();
-  let restore = () => {};
-  beforeEach(() => {
-    const hosts = [window, Document.prototype, HTMLElement.prototype].filter(
-      (host) => Object.hasOwn(host, 'onscrollend')
-    );
-    const saved = hosts.map((host) =>
-      Object.getOwnPropertyDescriptor(host, 'onscrollend')!
-    );
-    hosts.forEach((host) => delete (host as Partial<Window>).onscrollend);
-    window.addEventListener('scrollend', block, true);
-    window.addEventListener('scrollsnapchange', block, true);
-    restore = () => {
-      hosts.forEach((host, i) =>
-        Object.defineProperty(host, 'onscrollend', saved[i])
-      );
-      window.removeEventListener('scrollend', block, true);
-      window.removeEventListener('scrollsnapchange', block, true);
-    };
-  });
-  afterEach(() => restore());
+  withoutScrollEnd();
 
   test('Next twelve times 40ms apart never hangs, and leaves snapping on', async () => {
     const { viewport, root, next, onIndexChange } = renderLoop({
