@@ -1,6 +1,7 @@
 import { createRef, type ComponentProps } from 'react';
 import { expectTypeOf, test } from 'vitest';
 import * as Deck from '@slidedeck/react';
+import { fade } from '@slidedeck/react/fade';
 
 // Compile-time checks: `pnpm typecheck` fails if a line expected to error
 // compiles, or an unmarked one does not.
@@ -62,4 +63,11 @@ test('Dots and Counter render their own content, so take no children', () => {
   void (<Deck.Dots>dots</Deck.Dots>);
   // @ts-expect-error -- Counter renders "n / m"
   void (<Deck.Counter>1 of 5</Deck.Counter>);
+});
+
+test('an effect is imported from its own entry point, not named', () => {
+  void (<Deck.Viewport effect={fade} />);
+  expectTypeOf(fade).toEqualTypeOf<Deck.Effect>();
+  // @ts-expect-error -- an effect is the imported value, not its name
+  void (<Deck.Viewport effect="fade" />);
 });

@@ -11,7 +11,8 @@ const stories = [
   'deck--click-to-focus',
   'deck--vertical',
   'deck--right-to-left',
-  'deck--progress'
+  'deck--progress',
+  'deck--fade'
 ];
 
 for (const id of stories) {
@@ -257,4 +258,64 @@ test('data-in-view marks the slides in view, and progress scales them', async ({
   await expectInViewMatchesViewport();
   await expect.poll(() => scale(3)).toBe('1');
   await expect.poll(() => scale(4)).toBe('0.8');
+});
+
+test('a fade deck crossfades in place on Next, settles with one slide shown, and drags on', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--fade&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const viewport = deck.locator('[data-slidedeck-viewport]');
+  const slides = deck.locator('[data-slidedeck-slide]');
+  const opacities = () =>
+    slides.evaluateAll((all) =>
+      all.map((slide) => Number(getComputedStyle(slide).opacity))
+    );
+  await expect.poll(opacities).toEqual([1, 0, 0, 0]);
+
+  // Sample every frame while Next scrolls: the two slides are seen part
+  // shown together, and every slide stays where the viewport is.
+  const sampled = page.evaluate(
+    () =>
+      new Promise<{ mixed: boolean; moved: boolean }>((resolve) => {
+        const viewport = document.querySelector('[data-slidedeck-viewport]')!;
+        const all = [...viewport.querySelectorAll('[data-slidedeck-slide]')];
+        let mixed = false;
+        let moved = false;
+        const start = performance.now();
+        const sample = () => {
+          const box = viewport.getBoundingClientRect();
+          for (const slide of all) {
+            const opacity = Number(getComputedStyle(slide).opacity);
+            if (opacity > 0.05 && opacity < 0.95) mixed = true;
+            const rect = slide.getBoundingClientRect();
+            if (Math.abs(rect.left - box.left) > 1) moved = true;
+          }
+          if (performance.now() - start < 1500) requestAnimationFrame(sample);
+          else resolve({ mixed, moved });
+        };
+        requestAnimationFrame(sample);
+      })
+  );
+  await deck.getByRole('button', { name: 'Next' }).click();
+  expect(await sampled).toEqual({ mixed: true, moved: false });
+
+  await expect(deck).toHaveAttribute('data-index', '1');
+  await expect.poll(opacities).toEqual([0, 1, 0, 0]);
+  await expect(slides.nth(1)).toHaveAttribute('data-focal');
+  // The viewport scrolled natively; the slide shown is still at its start.
+  expect(await viewport.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+  await expect(slides.nth(1)).toBeInViewport({ ratio: 1 });
+
+  // A mouse drag moves the deck on and settles on the next slide.
+  const box = (await viewport.boundingBox())!;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width - 20, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.3, y, { steps: 12 });
+  await page.mouse.up();
+
+  await expect(deck).toHaveAttribute('data-index', '2');
+  await expect.poll(opacities).toEqual([0, 0, 1, 0]);
+  await expect(deck.getByRole('button', { name: 'Action 3' })).toBeInViewport();
 });

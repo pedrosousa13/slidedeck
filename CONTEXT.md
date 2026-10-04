@@ -53,6 +53,13 @@ _Avoid_: left/right for start/end
 A scroll position the viewport can come to rest at, as the browser computes it
 from the slides' `scroll-snap-align`.
 
+**Snap target**:
+An empty element an effect lays out along the axis for each slide when it
+stacks the slides in one place, as fade does. It stands in for its slide:
+the browser snaps to it, and the slide's snap point, progress, focal position
+and in-view state are measured from it. Not a slide.
+_Avoid_: placeholder, spacer
+
 **Page**:
 A group of slides that snap together when a deck snaps in groups. Dots and the
 counter count pages; with one slide per snap point, a page is a slide.
@@ -99,5 +106,9 @@ _Avoid_: visible, active
 
 **Effect**:
 A transition built on progress while the viewport keeps scrolling natively —
-fade and curve are effects, not separate engines.
+fade and curve are effects, not separate engines. Each is its own entry point,
+such as `@slidedeck/react/fade`, passed to `Deck.Viewport` as `effect`, so a
+deck that imports none ships none of their code. Fade stacks the slides over
+snap targets and shows only the focal slide's: the others are inert, and
+group snapping does not apply.
 _Avoid_: transition mode, render mode

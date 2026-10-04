@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as Deck from '@slidedeck/react';
+import { fade } from '@slidedeck/react/fade';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
 const slidesOf = (count: number) =>
@@ -297,6 +298,47 @@ export const Progress: Story = {
       </Deck.Viewport>
       <Deck.Prev />
       <Deck.Next />
+    </Deck.Root>
+  )
+};
+
+/**
+ * A hero that crossfades. `effect={fade}`, imported from
+ * `@slidedeck/react/fade`, stacks the slides in place: the viewport still
+ * scrolls, snaps and drags natively, and each slide's opacity follows its
+ * progress, so a swipe or a drag crossfades as far as it goes. Only the slide
+ * shown can be reached; the others are inert. Each slide fills the viewport,
+ * so group snapping does not apply. Under reduced motion there is no
+ * crossfade: the slide shown cuts to the next halfway there, and Next jumps.
+ * A deck that does not import the effect ships none of its code.
+ */
+export const Fade: Story = {
+  decorators: [
+    (Story) => (
+      <>
+        <style>{`
+          .hero .slide {
+            display: grid;
+            place-content: center;
+            min-height: 240px;
+            background: #eef;
+          }
+          .hero .slide:nth-child(even) { background: #fee; }
+        `}</style>
+        <div className="hero">
+          <Story />
+        </div>
+      </>
+    )
+  ],
+  render: (args) => (
+    <Deck.Root {...args}>
+      <Deck.Viewport className="viewport" effect={fade}>
+        {slidesOf(4)}
+      </Deck.Viewport>
+      <Deck.Prev />
+      <Deck.Next />
+      <Deck.Dots />
     </Deck.Root>
   )
 };

@@ -15,6 +15,12 @@ export default defineConfig({
         )
       },
       {
+        find: /^@slidedeck\/react\/fade$/,
+        replacement: fileURLToPath(
+          new URL('./packages/react/src/fade.ts', import.meta.url)
+        )
+      },
+      {
         find: /^@slidedeck\/react$/,
         replacement: fileURLToPath(
           new URL('./packages/react/src/index.tsx', import.meta.url)
