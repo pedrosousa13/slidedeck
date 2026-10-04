@@ -4,19 +4,21 @@ import { beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
-  mouseAt,
+  gestureScroll,
+  parkMouse,
   setReducedMotion,
   sleep,
   TestDeck,
+  touchSwipe,
   viewportOf,
   WIDTH
 } from './fixtures';
 
+/** The autoplay interval most tests use, in milliseconds: short enough to
+ * step several times within a poll's timeout. */
 const INTERVAL = 300;
 
-// The pointer rests wherever the last test left it, which may be over where
-// the next deck renders: a pointer over a deck pauses its autoplay.
-beforeEach(() => mouseAt('mouseMoved', 5, window.innerHeight - 5, 0));
+beforeEach(parkMouse);
 
 const renderDeck = (props: Parameters<typeof TestDeck>[0] = {}) => {
   render(
@@ -111,6 +113,19 @@ describe('autoplay', () => {
     await expect.poll(() => viewport.scrollLeft, { timeout: 2000 }).toBe(0);
   });
 
+  test('a step a controlled parent refuses ends autoplay', async () => {
+    const onIndexChange = vi.fn();
+    const { root, viewport } = renderDeck({ index: 0, onIndexChange });
+
+    await expect
+      .poll(() => toggleOf().textContent, { timeout: 3000 })
+      .toBe('Start slide rotation');
+    expect(toggleOf().hasAttribute('data-playing')).toBe(false);
+    await expectStill(root, '0');
+    expect(viewport.scrollLeft).toBe(0);
+    expect(onIndexChange).toHaveBeenCalledTimes(1);
+  });
+
   test('a controlled parent that takes the move advances', async () => {
     function Controlled() {
       const [index, setIndex] = useState(0);
@@ -192,6 +207,35 @@ describe('pausing', () => {
   });
 });
 
+describe('a move the user makes', () => {
+  test('a touch swipe stops it, and its settle is announced', async () => {
+    const { root, viewport } = renderDeck({ autoplay: 1500 });
+    const live = liveRegionOf(root);
+
+    await touchSwipe(viewport, 150);
+
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect.poll(() => live.textContent).toBe('Slide 2 of 5');
+    expect(live.getAttribute('aria-live')).toBe('polite');
+    expect(toggleOf().textContent).toBe('Start slide rotation');
+    await expectStill(root, '1');
+  });
+
+  test('a wheel scroll stops it, and its settle is announced', async () => {
+    const { root, viewport } = renderDeck({ autoplay: 1500 });
+    const live = liveRegionOf(root);
+
+    await gestureScroll(viewport, WIDTH);
+
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await parkMouse();
+    await expect.poll(() => live.textContent).toBe('Slide 2 of 5');
+    expect(live.getAttribute('aria-live')).toBe('polite');
+    expect(toggleOf().textContent).toBe('Start slide rotation');
+    await expectStill(root, '1');
+  });
+});
+
 describe('Deck.AutoplayToggle', () => {
   test('is a button named for the action it takes, marked while playing', async () => {
     const { root } = renderDeck();
@@ -246,6 +290,51 @@ describe('the live region', () => {
 
     await pressToggle();
     expect(live.getAttribute('aria-live')).toBe('polite');
+  });
+
+  test('does not announce a step autoplay started, though stopped mid-step', async () => {
+    const { root, viewport } = renderDeck();
+    const live = liveRegionOf(root);
+    toggleOf().focus();
+    await new Promise((resolve) =>
+      viewport.addEventListener('scroll', resolve, { once: true })
+    );
+
+    await userEvent.keyboard('{Enter}');
+
+    expect(live.getAttribute('aria-live')).toBe('polite');
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await sleep(INTERVAL);
+    expect(live.textContent).toBe('');
+  });
+
+  test('announces a user move to the slide last announced, after autoplay moved on', async () => {
+    const { root } = renderDeck();
+    const live = liveRegionOf(root);
+    const texts: string[] = [];
+    const observer = new MutationObserver(() => texts.push(live.textContent!));
+    observer.observe(live, {
+      childList: true,
+      characterData: true,
+      subtree: true
+    });
+    onTestFinished(() => observer.disconnect());
+    const press = async (name: string) => {
+      screen.getByRole('button', { name }).focus();
+      await userEvent.keyboard('{Enter}');
+    };
+
+    await press('Next');
+    await expect.poll(() => live.textContent).toBe('Slide 2 of 5');
+    await pressToggle();
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('2');
+    await press('Previous');
+
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect
+      .poll(() => texts.filter((t) => t === 'Slide 2 of 5').length)
+      .toBe(2);
+    expect(texts).not.toContain('Slide 3 of 5');
   });
 
   test('is polite while a pointer pauses autoplay', async () => {

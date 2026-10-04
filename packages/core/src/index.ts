@@ -448,7 +448,8 @@ export function createDeck(
 const SCROLL_END_DEBOUNCE_MS = 100;
 
 const PROGRESS = '--deck-progress';
-const SNAP_TARGET = 'data-slidedeck-snap-target';
+/** Marks a viewport child as a snap target rather than a slide. */
+export const SNAP_TARGET = 'data-slidedeck-snap-target';
 const IN_VIEW = 'data-in-view';
 /** How much of a slide the scrollport must show for it to be in view. */
 const IN_VIEW_MIN_PX = 1;

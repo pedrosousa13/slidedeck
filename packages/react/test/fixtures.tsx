@@ -197,6 +197,15 @@ export const mouseAt = (
   });
 
 /**
+ * Moves the mouse to the page's bottom-left corner, off any deck. The pointer
+ * rests wherever the last test left it, and Chromium fires `pointerenter` on a
+ * deck rendered under a resting cursor: a pointer over a deck pauses its
+ * autoplay.
+ */
+export const parkMouse = () =>
+  mouseAt('mouseMoved', 5, window.innerHeight - 5, 0);
+
+/**
  * Checks the deck snaps, as a user sees it: a native scroll that stops just
  * past where the deck rests comes back to rest there.
  */

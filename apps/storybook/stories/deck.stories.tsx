@@ -415,8 +415,9 @@ export const Curve: Story = {
  * stops at the last. `Deck.AutoplayToggle` stops and starts it (WCAG 2.2.2);
  * it comes first, ahead of the slides, so keyboard users reach it before the
  * moving content. A pointer over the deck or a hidden tab pauses it; focus
- * entering the deck, other than on the toggle, stops it until the toggle
- * starts it again, and under reduced motion it starts stopped. Changes the
+ * entering the deck, other than on the toggle, or a swipe, drag or wheel
+ * scroll stops it until the toggle starts it again, and under reduced motion
+ * it starts stopped. Changes the
  * user makes are announced politely; autoplay's are not.
  */
 export const Autoplay: Story = {

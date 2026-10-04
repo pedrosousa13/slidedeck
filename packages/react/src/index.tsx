@@ -15,7 +15,12 @@ import {
   type Ref,
   type RefObject
 } from 'react';
-import { createDeck, type DeckEngine, type Orientation } from '@slidedeck/core';
+import {
+  createDeck,
+  SNAP_TARGET,
+  type DeckEngine,
+  type Orientation
+} from '@slidedeck/core';
 
 export type { Orientation };
 
@@ -40,7 +45,7 @@ interface DeckContextValue {
   viewportRef: RefObject<HTMLDivElement | null>;
   engineRef: RefObject<DeckEngine | null>;
   /** Whether Root has `autoplay`. */
-  autoplay: boolean;
+  hasAutoplay: boolean;
   /** Whether autoplay is on: the user has not stopped it. A pointer over the
    * deck or a hidden document pauses it without turning it off. */
   playing: boolean;
@@ -94,10 +99,12 @@ interface RootBaseProps extends ComponentProps<'div'> {
    * Defaults to horizontal. */
   orientation?: Orientation;
   /** Moves the deck one snap point on every this many milliseconds, counted
-   * from when it comes to rest, and stops at the last. A pointer over the
-   * deck or a hidden document pauses it; focus entering the deck, other than
-   * on `Deck.AutoplayToggle`, stops it until the toggle starts it again, and
-   * so does a preference for reduced motion, from the start. Pair it with
+   * from when it comes to rest, and stops at the last, or where a step
+   * leaves the deck where it was, as when a controlled parent refuses it. A
+   * pointer over the deck or a hidden document pauses it; focus entering the
+   * deck, other than on `Deck.AutoplayToggle`, or the user moving it stops it
+   * until the toggle starts it again, and so does a preference for reduced
+   * motion, from the start. Pair it with
    * `Deck.AutoplayToggle` (WCAG 2.2.2). Off by default. */
   autoplay?: number;
 }
@@ -126,7 +133,8 @@ interface UncontrolledProps {
 
 export type RootProps = RootBaseProps & (ControlledProps | UncontrolledProps);
 
-/** One deck: a labelled carousel region holding a viewport and its controls. */
+/** One deck: a labelled carousel region holding a viewport, its controls and
+ * a live region announcing the slide the user moves it to. */
 export function Root({
   index,
   defaultIndex,
@@ -141,6 +149,9 @@ export function Root({
   onFocus,
   onPointerEnter,
   onPointerLeave,
+  onPointerDown,
+  onKeyDown,
+  onWheel,
   ...props
 }: RootProps) {
   // Core starts a non-finite index at 0; so must the first render.
@@ -173,6 +184,12 @@ export function Root({
   const [hidden, setHidden] = useState(false);
   // Autoplay stopped because the deck could not move on: Start rewinds.
   const endedRef = useRef(false);
+  // Autoplay started the deck's latest move: its settles are not announced.
+  // The user's input, or an API call, takes the move over.
+  const autoplayMovedRef = useRef(false);
+  // Where autoplay last stepped from: resting there again, the step did not
+  // move the deck.
+  const stepFromRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     onIndexChangeRef.current = onIndexChange;
@@ -205,8 +222,10 @@ export function Root({
         }
         if (settled !== undefined && next.index !== settled) {
           endedRef.current = false;
+          // Cleared rather than kept after an autoplay move, so the user's
+          // next move is announced even to the slide last announced.
           setAnnouncement(
-            next.slide === -1
+            next.slide === -1 || autoplayMovedRef.current
               ? ''
               : `Slide ${next.slide + 1} of ${slideCount(viewport)}`
           );
@@ -242,16 +261,22 @@ export function Root({
   // to it after a scroll the parent did not take, as a controlled input
   // reverts an edit its parent ignores. Compared with where a scroll in
   // flight is heading, if any, so an `index` changed back mid-flight wins.
+  // A new `index` is the parent's move, so it is announced; a return to
+  // it belongs to the move it undoes.
+  const previousIndexRef = useRef(index);
   useLayoutEffect(() => {
     const engine = engineRef.current;
+    if (index !== previousIndexRef.current) autoplayMovedRef.current = false;
+    previousIndexRef.current = index;
     if (index !== undefined && state.count !== null && engine) {
       const heading = engine.target() ?? state.index;
       if (clampSlide(index, state.count) !== heading) engine.scrollTo(index);
     }
   }, [index, state.index, state.count]);
 
-  // Without autoplay, none of its state is tracked: hover and focus would
-  // re-render the deck for nothing (ADR-0003).
+  // Autoplay's user-driven state (playing, hover, a hidden document)
+  // re-renders an autoplay deck, an accepted exception in ADR-0003; scroll
+  // never does. Without autoplay none of it is tracked, so nothing changes.
   const autoplaying = autoplay !== undefined;
 
   useLayoutEffect(() => {
@@ -282,11 +307,18 @@ export function Root({
     !everySlideFits(state.count);
 
   // One step per interval, counted afresh each time the deck comes to rest
-  // on a new snap point. A step that cannot move the deck ends autoplay;
-  // where next() wraps, as it will with loop, it never ends.
+  // on a new snap point. A step that does not bring the deck to rest on a
+  // new snap point ends autoplay: at the last one, or where a controlled
+  // parent refuses it. Where next() goes on from the last snap point to the
+  // first, as it will with loop, it never ends.
   useEffect(() => {
     if (!rotating) return;
     let timer: ReturnType<typeof setTimeout>;
+    const end = () => {
+      endedRef.current = true;
+      stepFromRef.current = null;
+      setPlaying(false);
+    };
     const tick = () => {
       const engine = engineRef.current;
       if (!engine) return;
@@ -295,11 +327,14 @@ export function Root({
         timer = setTimeout(tick, autoplay);
         return;
       }
-      engine.next();
-      if (engine.target() === null) {
-        endedRef.current = true;
-        setPlaying(false);
+      if (stepFromRef.current === state.index) {
+        end();
+        return;
       }
+      stepFromRef.current = state.index;
+      autoplayMovedRef.current = true;
+      engine.next();
+      if (engine.target() === null) end();
     };
     timer = setTimeout(tick, autoplay);
     return () => clearTimeout(timer);
@@ -310,19 +345,40 @@ export function Root({
       setPlaying(false);
       return;
     }
+    stepFromRef.current = null;
     if (endedRef.current) {
       endedRef.current = false;
+      autoplayMovedRef.current = true;
       engineRef.current?.scrollTo(0);
     }
     setPlaying(true);
   };
 
+  // The user's input anywhere in the deck but the toggle takes over the
+  // deck's move, so its settle is announced. In the viewport, where a press,
+  // wheel or key moves the deck, it also stops autoplay, as focus entering
+  // the deck does, whatever the pointer type.
+  const userInput = ({ target }: { target: EventTarget }) => {
+    const element = target as Element;
+    if (element.closest('[data-slidedeck-autoplay-toggle]')) return;
+    takeOver();
+    if (autoplaying && viewportRef.current?.contains(element)) {
+      setPlaying(false);
+    }
+  };
+
+  /** The engine, for a move that is not autoplay's. */
+  const takeOver = () => {
+    autoplayMovedRef.current = false;
+    return engineRef.current;
+  };
+
   useImperativeHandle(
     handleRef,
     () => ({
-      scrollTo: (index) => engineRef.current?.scrollTo(index),
-      next: () => engineRef.current?.next(),
-      prev: () => engineRef.current?.prev()
+      scrollTo: (index) => takeOver()?.scrollTo(index),
+      next: () => takeOver()?.next(),
+      prev: () => takeOver()?.prev()
     }),
     []
   );
@@ -340,7 +396,7 @@ export function Root({
         orientation,
         viewportRef,
         engineRef,
-        autoplay: autoplaying,
+        hasAutoplay: autoplaying,
         playing,
         togglePlaying
       }}
@@ -374,11 +430,24 @@ export function Root({
           onPointerLeave?.(event);
           if (autoplaying) setHovered(false);
         }}
+        onPointerDown={(event) => {
+          onPointerDown?.(event);
+          userInput(event);
+        }}
+        onKeyDown={(event) => {
+          onKeyDown?.(event);
+          userInput(event);
+        }}
+        onWheel={(event) => {
+          onWheel?.(event);
+          userInput(event);
+        }}
       >
         {children}
-        {/* Announces the slide the deck moves to, except while autoplay
-            rotates it (APG carousel). Empty until the deck first moves, so
-            hydration announces nothing. */}
+        {/* Announces the slide the deck moves to, unless autoplay started
+            the move; off while autoplay rotates the deck (APG carousel).
+            Empty until the deck first moves, so hydration announces
+            nothing. */}
         <div
           aria-live={rotating ? 'off' : 'polite'}
           aria-atomic="true"
@@ -406,9 +475,8 @@ const visuallyHidden: CSSProperties = {
 
 /** The viewport's slides: its children but snap targets. */
 const slideCount = (viewport: HTMLElement) =>
-  [...viewport.children].filter(
-    (child) => !child.hasAttribute('data-slidedeck-snap-target')
-  ).length;
+  [...viewport.children].filter((child) => !child.hasAttribute(SNAP_TARGET))
+    .length;
 
 /** The slides in the first Deck.Viewport among `children`, looking through
  * elements and fragments but not into components, which Root cannot render
@@ -812,8 +880,9 @@ export function AutoplayToggle({
   children,
   ...props
 }: ComponentProps<'button'>) {
-  const { autoplay, playing, togglePlaying, count } = useDeck('AutoplayToggle');
-  if (!autoplay || everySlideFits(count)) return null;
+  const { hasAutoplay, playing, togglePlaying, count } =
+    useDeck('AutoplayToggle');
+  if (!hasAutoplay || everySlideFits(count)) return null;
   return (
     <button
       type="button"
