@@ -68,12 +68,13 @@ interface RootBaseProps extends ComponentProps<'div'> {
    * go. A drag never clicks what it started on. Touch, pen and trackpad
    * always scroll natively. Defaults to true. */
   drag?: boolean;
-  /** Called once each time the focal slide changes, with its slide index:
-   * when a scroll settles, never during one, and not for where the deck
-   * starts. */
+  /** Called once each time the focal slide changes, with its slide index,
+   * or -1 when no slide snaps: when a scroll settles, never during one, and
+   * not for where the deck starts. */
   onFocalChange?: (slide: number) => void;
   /** Whether clicking a slide brings it to the focal position, as near as
-   * the scroll range allows. A click that ends a mouse drag does not.
+   * the scroll range allows; with pages, its page. A click that ends a mouse
+   * drag does not, nor does a keyboard click (Enter or Space on a control).
    * Defaults to false. */
   clickToFocus?: boolean;
 }

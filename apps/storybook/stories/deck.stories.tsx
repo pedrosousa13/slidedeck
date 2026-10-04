@@ -156,11 +156,12 @@ export const Drag: Story = {
 };
 
 /**
- * The focal slide is the one at the snap alignment point, here the centre,
- * marked `data-focal` for CSS and reported by `onFocalChange`. With several
- * slides in view it is not the current slide, which is the first slide
- * resting at the snap point. With `clickToFocus`, clicking a slide brings it
- * to the centre, as near as the scroll range allows; it is off by default.
+ * The focal slide is the one at the snap alignment point (here the slides
+ * use `scroll-snap-align: center`), marked `data-focal` for CSS and reported
+ * by `onFocalChange`. With several slides in view it is not the current
+ * slide, which is the first slide resting at the snap point. With
+ * `clickToFocus`, clicking a slide brings it to the snap alignment point, as
+ * near as the scroll range allows; it is off by default.
  */
 export const ClickToFocus: Story = {
   args: { clickToFocus: true },

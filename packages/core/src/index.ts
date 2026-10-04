@@ -35,10 +35,11 @@ export interface DeckEngine {
   /** Turns mouse drag on or off; on from the start. A drag already under way
    * finishes. */
   setDrag(enabled: boolean): void;
-  /** Turns click-to-focus on or off; off from the start. On, a click on a
-   * slide scrolls to the snap point nearest to where that slide is at the
-   * alignment point, so a slide the scroll range cannot align goes as near as
-   * it can. A click that ends a mouse drag never reaches it. */
+  /** Turns click-to-focus on or off; off from the start. On, a pointer click
+   * on a slide scrolls to the snap point of its page: with one slide to a
+   * page, where that slide is at the alignment point, or as near as the
+   * scroll range allows. A click that ends a mouse drag never reaches it,
+   * and a keyboard click is ignored. */
   setClickToFocus(enabled: boolean): void;
   destroy(): void;
 }
@@ -324,17 +325,21 @@ export function createDeck(
 
   let clickToFocus = false;
   // A bubbling listener: the click ending a drag is swallowed before it.
+  // A pointer affordance: a keyboard click (detail 0) leaves the deck alone,
+  // as focus moving into a slide already scrolls it into view.
   const onClick = (event: MouseEvent) => {
-    if (!clickToFocus || state.slide === -1) return;
+    if (!clickToFocus || state.slide === -1 || event.detail === 0) return;
     let slide = event.target instanceof Element ? event.target : null;
     while (slide && slide.parentElement !== viewport) {
       slide = slide.parentElement;
     }
     if (!slide) return;
-    const { points } = snapPoints(viewport);
-    const at =
-      viewport.scrollLeft + alignOffset(viewport, slide, alignOf(state.slide));
-    scrollTo(nearest(points, at));
+    // The snap point of the clicked slide's page: of the nearest slide at or
+    // before it that snaps. One slide to a page, that is the slide's own.
+    const { slides } = snapPoints(viewport);
+    let i = [...viewport.children].indexOf(slide);
+    while (i > 0 && slides[i] === -1) i--;
+    if (slides[i] !== -1) scrollTo(slides[i]);
   };
   viewport.addEventListener('click', onClick);
 

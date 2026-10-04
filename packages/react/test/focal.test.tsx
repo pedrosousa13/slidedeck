@@ -1,4 +1,4 @@
-import { createRef, type ComponentProps } from 'react';
+import { createRef, type ComponentProps, type ReactNode } from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, test, vi } from 'vitest';
@@ -33,12 +33,14 @@ function addStyle(css: string) {
 type FocalDeckProps = ComponentProps<typeof Deck.Root> & {
   slides?: number;
   viewportClassName?: string;
+  slideContent?: (index: number) => ReactNode;
 };
 
-/** Slides of plain text, so a click on one focuses nothing in it. */
+/** Slides of plain text by default, so a click on one focuses nothing in it. */
 function FocalDeck({
   slides = 7,
   viewportClassName = 'centred',
+  slideContent = (i) => `Slide ${i + 1}`,
   ...props
 }: FocalDeckProps) {
   return (
@@ -46,7 +48,7 @@ function FocalDeck({
       <Deck.Viewport className={viewportClassName} style={{ width: WIDTH }}>
         {Array.from({ length: slides }, (_, i) => (
           <Deck.Slide key={i} style={{ height: 100 }}>
-            Slide {i + 1}
+            {slideContent(i)}
           </Deck.Slide>
         ))}
       </Deck.Viewport>
@@ -145,18 +147,21 @@ describe('data-focal', () => {
     expect(root.dataset.index).toBe('3');
   });
 
-  test('follows a breakpoint that changes the slides in view', async () => {
-    // One slide in view on narrow screens, 3.5 centred from 600px.
-    addStyle(`@media (min-width: 600px) { ${CENTRED} }`);
-    await page.viewport(400, 600);
-    const { focal, onFocalChange } = renderDeck();
-    expect(focal()).toEqual([0]);
+  describe('across a breakpoint', () => {
+    afterEach(() => page.viewport(414, 896));
 
-    await page.viewport(800, 600);
+    test('follows a breakpoint that changes the slides in view', async () => {
+      // One slide in view on narrow screens, 3.5 centred from 600px.
+      addStyle(`@media (min-width: 600px) { ${CENTRED} }`);
+      await page.viewport(400, 600);
+      const { focal, onFocalChange } = renderDeck();
+      expect(focal()).toEqual([0]);
 
-    await expectSettledTo(focal, [1]);
-    expect(onFocalChange.mock.calls).toEqual([[1]]);
-    await page.viewport(414, 896);
+      await page.viewport(800, 600);
+
+      await expectSettledTo(focal, [1]);
+      expect(onFocalChange.mock.calls).toEqual([[1]]);
+    });
   });
 
   test('server HTML marks the slide the deck starts at', () => {
@@ -297,6 +302,29 @@ describe('click-to-focus', () => {
     expect(onFocalChange).not.toHaveBeenCalled();
   });
 
+  test('a keyboard click on a button in a non-focal slide runs the button, not click-to-focus', async () => {
+    addStyle(CENTRED);
+    const onPress = vi.fn();
+    const { viewport, focal, onFocalChange } = renderDeck({
+      clickToFocus: true,
+      slideContent: (i) => (
+        <button type="button" onClick={() => onPress(i)}>
+          Button {i + 1}
+        </button>
+      )
+    });
+    await expect.poll(focal).toEqual([1]);
+
+    // Slide 2 is wholly in view, so focus moving into it scrolls nothing.
+    screen.getByRole('button', { name: 'Button 3' }).focus();
+    await userEvent.keyboard('{Enter}');
+    await sleep(400);
+
+    expect(onPress.mock.calls).toEqual([[2]]);
+    expect(viewport.scrollLeft).toBe(0);
+    expect(onFocalChange).not.toHaveBeenCalled();
+  });
+
   test('can be turned on after mount', async () => {
     addStyle(CENTRED);
     const { viewport, focal, rerender } = renderDeck();
@@ -305,5 +333,49 @@ describe('click-to-focus', () => {
     await clickSlide(viewport, 3);
 
     await expectSettledTo(focal, [3]);
+  });
+});
+
+// Three slides in view, three to a page: page starts at slides 0, 3 and 6, and
+// the last page, slide 9 alone, rests at the end of the range.
+describe('click-to-focus with pages of three', () => {
+  const PAGES = `
+    .pages > * { width: calc(100% / 3); }
+    .pages > :nth-child(3n + 1) { scroll-snap-align: start; }
+    .pages > :not(:nth-child(3n + 1)) { scroll-snap-align: none; }
+  `;
+  const renderPages = () =>
+    renderDeck({ slides: 10, viewportClassName: 'pages', clickToFocus: true });
+
+  test('clicking a slide in the current page leaves the deck where it is', async () => {
+    addStyle(PAGES);
+    const { root, viewport, handle, onFocalChange } = renderPages();
+
+    await clickSlide(viewport, 2);
+    await sleep(400);
+    expect(viewport.scrollLeft).toBe(0);
+
+    act(() => handle.current!.scrollTo(1));
+    await expectSettledTo(() => viewport.scrollLeft, WIDTH);
+    onFocalChange.mockClear();
+    await clickSlide(viewport, 5);
+    await sleep(400);
+
+    expect(viewport.scrollLeft).toBe(WIDTH);
+    expect(root.dataset.index).toBe('1');
+    expect(onFocalChange).not.toHaveBeenCalled();
+  });
+
+  test('clicking a slide in another page goes to that page', async () => {
+    addStyle(PAGES);
+    const { root, viewport, handle } = renderPages();
+    act(() => handle.current!.scrollTo(3));
+    await expectSettledTo(() => root.dataset.index, '3');
+
+    // At the end, slides 7, 8 and 9 are in view; slide 7 is in page 2.
+    await clickSlide(viewport, 7);
+
+    await expectSettledTo(() => root.dataset.index, '2');
+    expect(viewport.scrollLeft).toBe(2 * WIDTH);
   });
 });

@@ -154,7 +154,7 @@ test('with drag off, a mouse drag leaves the deck where it is', async ({
   await expect(deck).toHaveAttribute('data-index', '0');
 });
 
-test('the focal slide is the centred one, and clicking a slide in view brings it there', async ({
+test('the focal slide is at the snap alignment point, and clicking a slide in view brings it there', async ({
   page
 }) => {
   await page.goto('/iframe.html?id=deck--click-to-focus&viewMode=story');
