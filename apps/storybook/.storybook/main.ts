@@ -19,6 +19,9 @@ const config: StorybookConfig = {
         '@slidedeck/react/fade': fileURLToPath(
           new URL('../../../packages/react/src/fade.ts', import.meta.url)
         ),
+        '@slidedeck/react/curve': fileURLToPath(
+          new URL('../../../packages/react/src/curve.ts', import.meta.url)
+        ),
         '@slidedeck/react': fileURLToPath(
           new URL('../../../packages/react/src/index.tsx', import.meta.url)
         )

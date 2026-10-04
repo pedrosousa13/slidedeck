@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as Deck from '@slidedeck/react';
+import { curve } from '@slidedeck/react/curve';
 import { fade } from '@slidedeck/react/fade';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
@@ -335,6 +336,71 @@ export const Fade: Story = {
     <Deck.Root {...args}>
       <Deck.Viewport className="viewport" effect={fade}>
         {slidesOf(4)}
+      </Deck.Viewport>
+      <Deck.Prev />
+      <Deck.Next />
+      <Deck.Dots />
+    </Deck.Root>
+  )
+};
+
+// One card per curve slide, filling it: the curve turns a slide's content.
+const cards = Array.from({ length: 6 }, (_, i) => (
+  <Deck.Slide key={i} className="slide">
+    <div className="card">
+      <p>Slide {i + 1}</p>
+      <button type="button">Action {i + 1}</button>
+    </div>
+  </Deck.Slide>
+));
+
+/**
+ * A showcase that fans out. `effect={curve}`, imported from
+ * `@slidedeck/react/curve`, turns each slide's content about its centre and
+ * drops it onto a circle under the focal slide, fading the slide with
+ * distance, as the viewport scrolls, snaps and drags natively. The slides
+ * stay in place: here they snap at their centre, set in CSS. Each slide
+ * holds one card that fills it, as the slide's own background would not
+ * turn. The circle's radius, in slides, is `--deck-curve-radius` (4 by
+ * default): here 3, set in CSS. The viewport clips the arc across the axis,
+ * so it never shows a scrollbar; its bottom padding gives the arc room.
+ * Under reduced motion the cards stay flat and the slides only fade. A deck
+ * that does not import the effect ships none of its code.
+ */
+export const Curve: Story = {
+  decorators: [
+    (Story) => (
+      <>
+        <style>{`
+          .showcase .viewport {
+            --deck-curve-radius: 3;
+            box-sizing: border-box;
+            gap: 16px;
+            padding: 16px calc(50% - 90px) 96px;
+          }
+          .showcase .slide {
+            width: 180px;
+            scroll-snap-align: center;
+          }
+          .showcase .card {
+            display: grid;
+            place-content: center;
+            min-height: 220px;
+            border-radius: 12px;
+            background: #eef;
+          }
+          .showcase .slide:nth-child(even) .card { background: #fee; }
+        `}</style>
+        <div className="showcase">
+          <Story />
+        </div>
+      </>
+    )
+  ],
+  render: (args) => (
+    <Deck.Root {...args}>
+      <Deck.Viewport className="viewport" effect={curve}>
+        {cards}
       </Deck.Viewport>
       <Deck.Prev />
       <Deck.Next />

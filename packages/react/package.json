@@ -18,6 +18,10 @@
     "./fade": {
       "types": "./dist/fade.d.ts",
       "default": "./dist/fade.js"
+    },
+    "./curve": {
+      "types": "./dist/curve.d.ts",
+      "default": "./dist/curve.js"
     }
   },
   "files": [

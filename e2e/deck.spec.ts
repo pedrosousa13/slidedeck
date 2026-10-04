@@ -12,7 +12,8 @@ const stories = [
   'deck--vertical',
   'deck--right-to-left',
   'deck--progress',
-  'deck--fade'
+  'deck--fade',
+  'deck--curve'
 ];
 
 for (const id of stories) {
@@ -318,4 +319,69 @@ test('a fade deck crossfades in place on Next, settles with one slide shown, and
   await expect(deck).toHaveAttribute('data-index', '2');
   await expect.poll(opacities).toEqual([0, 0, 1, 0]);
   await expect(deck.getByRole('button', { name: 'Action 3' })).toBeInViewport();
+});
+
+test('a curve deck fans its cards on an arc, settles upright on Next, and drags on with no page scrollbar', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--curve&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const viewport = deck.locator('[data-slidedeck-viewport]');
+  const slides = deck.locator('[data-slidedeck-slide]');
+  /** Each slide's card's rotation in whole degrees, clockwise. */
+  const angles = () =>
+    slides.evaluateAll((all) =>
+      all.map((slide) => {
+        const card = slide.firstElementChild!;
+        const m = new DOMMatrix(getComputedStyle(card).transform);
+        return Math.round((Math.atan2(m.b, m.a) * 180) / Math.PI);
+      })
+    );
+  await expect.poll(angles).toEqual([0, 19, 42, 90, 90, 90]);
+
+  await deck.getByRole('button', { name: 'Next' }).click();
+  await expect(deck).toHaveAttribute('data-index', '1');
+  await expect.poll(angles).toEqual([-19, 0, 19, 42, 90, 90]);
+  await expect(slides.nth(1)).toHaveAttribute('data-focal');
+
+  // Sample the page every frame while a mouse drag moves the deck on: its
+  // size never changes and it never overflows, so no scrollbar can appear.
+  const sampled = page.evaluate(
+    () =>
+      new Promise<string[]>((resolve) => {
+        const html = document.documentElement;
+        const seen = new Set<string>();
+        const start = performance.now();
+        const sample = () => {
+          seen.add(
+            [
+              html.scrollWidth - html.clientWidth,
+              html.scrollHeight - html.clientHeight,
+              html.clientWidth,
+              html.clientHeight
+            ].join()
+          );
+          if (performance.now() - start < 1500) requestAnimationFrame(sample);
+          else resolve([...seen]);
+        };
+        requestAnimationFrame(sample);
+      })
+  );
+  const box = (await viewport.boundingBox())!;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width / 2 + 60, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 70, y, { steps: 12 });
+  // Held still before letting go, so the deck settles on the nearest slide
+  // rather than flinging on.
+  await page.waitForTimeout(200);
+  await page.mouse.up();
+  const frames = await sampled;
+  expect(frames).toHaveLength(1);
+  const [overX, overY] = frames[0].split(',').map(Number);
+  expect(overX).toBeLessThanOrEqual(0);
+  expect(overY).toBeLessThanOrEqual(0);
+
+  await expect(deck).toHaveAttribute('data-index', '2');
+  await expect.poll(angles).toEqual([-42, -19, 0, 19, 42, 90]);
 });

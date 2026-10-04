@@ -9,6 +9,7 @@ import {
   CENTRED,
   expectSettledTo,
   mouseDrag,
+  progressOf,
   viewportOf,
   WIDTH
 } from './fixtures';
@@ -67,10 +68,7 @@ const renderDeck = (props: ProgressDeckProps = {}) => {
     viewport,
     onRender,
     next: screen.getByRole('button', { name: 'Next' }),
-    progress: () =>
-      slides().map((slide) =>
-        Number(slide.style.getPropertyValue('--deck-progress'))
-      ),
+    progress: () => progressOf(viewport),
     inView: () =>
       slides().flatMap((slide, i) =>
         slide.hasAttribute('data-in-view') ? [i] : []
