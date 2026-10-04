@@ -206,3 +206,20 @@ test('index={NaN} renders and hydrates as index 0', async () => {
   expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining('NaN'));
   consoleError.mockRestore();
 });
+
+// Server HTML holds a loop's copies too, so it already starts on the slide at
+// defaultIndex, not on a copy, and hydration moves nothing.
+test('a looping deck starts on the slide at defaultIndex without layout shift', async () => {
+  const slideOffset = (viewport: HTMLElement) =>
+    viewport
+      .querySelector('[aria-label="3 of 5"]:not([data-slidedeck-copy])')!
+      .getBoundingClientRect().left - viewport.getBoundingClientRect().left;
+  const { viewport, index } = await hydrate(
+    { loop: true, defaultIndex: 2 },
+    (viewport) => expect(slideOffset(viewport)).toBe(0)
+  );
+
+  expect(slideOffset(viewport)).toBe(0);
+  expect(viewport.scrollLeft).toBe(7 * WIDTH);
+  expect(index).toBe('2');
+});

@@ -32,6 +32,7 @@ interface DeckContextValue {
    * where Root cannot see Viewport's children. */
   slides: number | null;
   initialIndex: number;
+  loop: boolean;
   viewportRef: RefObject<HTMLDivElement | null>;
   engineRef: RefObject<DeckEngine | null>;
 }
@@ -62,6 +63,10 @@ export interface RootHandle {
 interface RootBaseProps extends ComponentProps<'div'> {
   /** The deck's moves; `ref` is the region element, as on every primitive. */
   handleRef?: Ref<RootHandle>;
+  /** Past the last snap point is the first, and back: Prev and Next are never
+   * disabled. Viewport renders an inert, aria-hidden copy of every slide on
+   * each side of them; indexes count the slides only. */
+  loop?: boolean;
 }
 
 /** Controlled like a React input's `value`: the deck scrolls to `index` when
@@ -94,6 +99,7 @@ export function Root({
   defaultIndex,
   onIndexChange,
   handleRef,
+  loop = false,
   ...props
 }: RootProps) {
   // Core starts a non-finite index at 0; so must the first render.
@@ -127,6 +133,7 @@ export function Root({
     let settled: number | undefined;
     const engine = createDeck(viewport, {
       index: initialIndex,
+      loop,
       onChange(next) {
         setState(next);
         // A change is a settle on a new snap point; a report of a new count
@@ -149,7 +156,7 @@ export function Root({
       engine.destroy();
       engineRef.current = null;
     };
-  }, [initialIndex]);
+  }, [initialIndex, loop]);
 
   // Controlled, the deck rests at `index`: it follows a new one, and returns
   // to it after a scroll the parent did not take, as a controlled input
@@ -179,7 +186,7 @@ export function Root({
 
   return (
     <DeckContext
-      value={{ ...state, slides, initialIndex, viewportRef, engineRef }}
+      value={{ ...state, slides, initialIndex, loop, viewportRef, engineRef }}
     >
       <div
         role="region"
@@ -260,9 +267,12 @@ function useDevWarnings(
   }, [both, switched, readOnly, wasControlled]);
 }
 
-const SlideContext = createContext<{ index: number; count: number } | null>(
-  null
-);
+const SlideContext = createContext<{
+  index: number;
+  count: number;
+  /** A loop's copy of the slide, not the slide. */
+  copy: boolean;
+} | null>(null);
 
 const viewportStyle: CSSProperties = {
   display: 'flex',
@@ -270,9 +280,10 @@ const viewportStyle: CSSProperties = {
   scrollSnapType: 'x mandatory'
 };
 
-/** The native scroll container. Its children are the deck's slides. */
+/** The native scroll container. Its children are the deck's slides; a
+ * looping deck's also has a copy of every slide on each side of them. */
 export function Viewport({ style, children, ...props }: ComponentProps<'div'>) {
-  const { viewportRef, engineRef } = useDeck('Viewport');
+  const { viewportRef, engineRef, loop } = useDeck('Viewport');
   const slides = Children.toArray(children);
   // Adding or removing a slide can change the snap points without resizing
   // the viewport, which is all the engine observes.
@@ -290,19 +301,24 @@ export function Viewport({ style, children, ...props }: ComponentProps<'div'>) {
       <style href="slidedeck-slide" precedence="slidedeck">
         {slideDefaults}
       </style>
-      {slides.map((slide, index) => (
-        // `toArray` gives every element a key derived from the consumer's,
-        // so a reordered slide moves instead of remounting.
-        <SlideContext
-          key={isValidElement(slide) ? slide.key : index}
-          value={{ index, count: slides.length }}
-        >
-          {slide}
-        </SlideContext>
-      ))}
+      {loop && <Fragment key="before">{set(slides, true)}</Fragment>}
+      <Fragment key="slides">{set(slides, false)}</Fragment>
+      {loop && <Fragment key="after">{set(slides, true)}</Fragment>}
     </div>
   );
 }
+
+const set = (slides: ReactNode[], copy: boolean) =>
+  slides.map((slide, index) => (
+    // `toArray` gives every element a key derived from the consumer's, so a
+    // reordered slide moves instead of remounting.
+    <SlideContext
+      key={isValidElement(slide) ? slide.key : index}
+      value={{ index, count: slides.length, copy }}
+    >
+      {slide}
+    </SlideContext>
+  ));
 
 // A slide's size and alignment are geometry, which belongs to consumer CSS
 // (ADR-0003). These defaults make a deck work with no stylesheet, and their
@@ -314,21 +330,29 @@ const slideDefaults =
 // Not yet in React's CSSProperties.
 const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;
 
-/** One slide, labelled "n of m". Its size and alignment are consumer CSS. */
+/** One slide, labelled "n of m". Its size and alignment are consumer CSS.
+ * A loop's copy of it is inert and aria-hidden, and never current. */
 export function Slide({ style, ...props }: ComponentProps<'div'>) {
   const deck = useDeck('Slide');
   const slide = use(SlideContext);
   if (!slide) throw new Error('Deck.Slide must be inside Deck.Viewport');
-  const { index, count } = slide;
-  const start = index === clampSlide(deck.initialIndex, count);
+  const { index, count, copy } = slide;
+  const start = !copy && index === clampSlide(deck.initialIndex, count);
   // Until the viewport is measured, the slide it starts at.
-  const current = deck.slide === null ? start : index === deck.slide;
+  const current = copy
+    ? false
+    : deck.slide === null
+      ? start
+      : index === deck.slide;
   return (
     <div
       role="group"
       aria-roledescription="slide"
       aria-label={`${index + 1} of ${count}`}
       data-slidedeck-slide=""
+      data-slidedeck-copy={copy ? '' : undefined}
+      aria-hidden={copy || undefined}
+      inert={copy || undefined}
       data-current={current ? '' : undefined}
       style={{
         flexShrink: 0,
@@ -383,30 +407,30 @@ function StepButton({
   );
 }
 
-/** Moves the deck one snap point back. Disabled at the first; absent when
- * every slide fits. */
+/** Moves the deck one snap point back. Disabled at the first unless the deck
+ * loops; absent when every slide fits. */
 export function Prev(props: ComponentProps<'button'>) {
-  const { index, count, engineRef } = useDeck('Prev');
+  const { index, count, loop, engineRef } = useDeck('Prev');
   if (everySlideFits(count)) return null;
   return (
     <StepButton
       {...props}
-      atEnd={index === 0}
+      atEnd={!loop && index === 0}
       step={() => engineRef.current?.prev()}
       label="Previous"
     />
   );
 }
 
-/** Moves the deck one snap point on. Disabled at the last; absent when
- * every slide fits. */
+/** Moves the deck one snap point on. Disabled at the last unless the deck
+ * loops; absent when every slide fits. */
 export function Next(props: ComponentProps<'button'>) {
-  const { index, count, engineRef } = useDeck('Next');
+  const { index, count, loop, engineRef } = useDeck('Next');
   if (everySlideFits(count)) return null;
   return (
     <StepButton
       {...props}
-      atEnd={count !== null && index >= count - 1}
+      atEnd={!loop && count !== null && index >= count - 1}
       step={() => engineRef.current?.next()}
       label="Next"
     />
