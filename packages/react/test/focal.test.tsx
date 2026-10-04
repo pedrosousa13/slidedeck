@@ -6,6 +6,7 @@ import { page, userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
   addStyle,
+  CENTRED,
   expectSettledTo,
   mouseAt,
   mouseDrag,
@@ -19,7 +20,6 @@ import {
 // is consumer CSS (ADR-0003): here 3.5 slides in view, centred. Seven slides
 // give five snap points: slides 0 and 1 both rest at scroll 0, slides 5 and 6
 // both at the end of the range.
-const CENTRED = `.centred > * { width: calc(100% / 3.5); scroll-snap-align: center; }`;
 const SLIDE = WIDTH / 3.5;
 
 type FocalDeckProps = ComponentProps<typeof Deck.Root> & {

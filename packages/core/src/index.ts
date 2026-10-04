@@ -447,6 +447,8 @@ const SCROLL_END_DEBOUNCE_MS = 100;
 
 const PROGRESS = '--deck-progress';
 const IN_VIEW = 'data-in-view';
+/** How much of a slide the scrollport must show for it to be in view. */
+const IN_VIEW_MIN_PX = 1;
 
 /** How far a mouse moves with its button down before a press is a drag. */
 const DRAG_THRESHOLD_PX = 5;
@@ -669,18 +671,19 @@ function writeProgress(viewport: HTMLElement, axis: Axis, align: string) {
   const view = axis.view();
   const slides = [...viewport.children];
   const spans = slides.map((slide) => axis.span(slide.getBoundingClientRect()));
-  const focus = focalPosition(
+  const focal = focalPosition(
     spans.map((span) => spanOffset(span, view, align)),
     spans
   );
   slides.forEach((slide, i) => {
     const [start, end] = spans[i];
-    const inView = Math.min(end, view[1]) - Math.max(start, view[0]) >= 1;
+    const inView =
+      Math.min(end, view[1]) - Math.max(start, view[0]) >= IN_VIEW_MIN_PX;
     if (slide.hasAttribute(IN_VIEW) !== inView) {
       slide.toggleAttribute(IN_VIEW, inView);
     }
     if (!(slide instanceof HTMLElement)) return;
-    const progress = String(Math.round((i - focus) * 1000) / 1000);
+    const progress = String(Math.round((i - focal) * 1000) / 1000);
     if (slide.style.getPropertyValue(PROGRESS) !== progress) {
       slide.style.setProperty(PROGRESS, progress);
     }

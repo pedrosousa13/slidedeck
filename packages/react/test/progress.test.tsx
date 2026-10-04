@@ -6,6 +6,7 @@ import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
   addStyle,
+  CENTRED,
   expectSettledTo,
   mouseDrag,
   viewportOf,
@@ -80,9 +81,8 @@ const renderDeck = (props: ProgressDeckProps = {}) => {
 const closeTo = (values: number[]) =>
   values.map((value) => expect.closeTo(value, 2));
 
-// Three and a half slides in view, centred, as in focal.test.tsx: at scroll
-// 0 the centre falls a quarter of a slide past slide 1's centre.
-const CENTRED = `.centred > * { width: calc(100% / 3.5); scroll-snap-align: center; }`;
+// With `CENTRED`, three and a half slides in view: at scroll 0 the centre
+// falls a quarter of a slide past slide 1's centre.
 
 describe('--deck-progress', () => {
   test('is each slide’s distance from the focal slide, in slides, before the first paint', () => {

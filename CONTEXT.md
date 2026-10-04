@@ -86,8 +86,10 @@ _Avoid_: infinite, wrap-around
 How far a slide is from the focal position, in slides, signed the way the deck
 runs: 0 at the focal position, negative before it, positive after it, so 2.25
 is two and a quarter slides on. When a slide sits exactly at the focal
-position, every slide's progress is a whole number. Published as `--deck-progress` for effects to read. Never
-React state.
+position, every slide's progress is a whole number, unless an effect moves the
+slide's box at the alignment point: scale about that point
+(`transform-origin`). Published as `--deck-progress` for effects to read.
+Never React state.
 _Avoid_: offset, distance in pixels
 
 **In view**:

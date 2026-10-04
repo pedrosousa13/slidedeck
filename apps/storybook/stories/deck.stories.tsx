@@ -238,10 +238,14 @@ export const RightToLeft: Story = {
  * leave the centre: scale about the snap alignment point, here the centre,
  * so the effect does not move the point progress is measured from.
  *
- * `--deck-index` and `data-in-view` stagger an entry: a slide's card animates
- * in each time the slide comes into view, delayed by its place among the
- * slides in view together. `data-in-view` hides nothing, and server HTML has
- * none, so this animation starts at hydration. Both effects are off under
+ * `data-in-view` and progress stagger an entry: a slide's card animates in
+ * each time the slide comes into view, delayed 100ms for each slide it sits
+ * past the focal position (none before it, at most 300ms). So the slides in
+ * view together enter in order from the start; a slide brought in by Next
+ * waits a little, and one brought in by Prev does not. `--deck-index`, the
+ * slide's fixed place in the deck, sets which way its card enters: even
+ * slides rise, odd slides drop. `data-in-view` hides nothing, and server HTML
+ * has none, so the entry starts at hydration. Both effects are off under
  * reduced motion.
  */
 export const Progress: Story = {
@@ -261,10 +265,13 @@ export const Progress: Story = {
           }
           .effects .slide[data-in-view] .card {
             animation: enter 400ms ease-out both;
-            animation-delay: calc(mod(var(--deck-index), 3) * 100ms);
+            animation-delay: calc(clamp(0, var(--deck-progress), 3) * 100ms);
           }
           @keyframes enter {
-            from { opacity: 0; translate: 0 1rem; }
+            from {
+              opacity: 0;
+              translate: 0 calc((1 - 2 * mod(var(--deck-index), 2)) * 1rem);
+            }
           }
           @media (prefers-reduced-motion: reduce) {
             .effects .slide { scale: none; }
