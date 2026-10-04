@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
@@ -8,13 +9,13 @@ export default defineConfig({
       // imports it, so a deck that does not import it ships none of it.
       name: 'slidedeck-theme',
       generateBundle() {
+        const theme = fileURLToPath(new URL('src/theme.css', import.meta.url));
+        // No entry imports it, so `vite build --watch` would miss its edits.
+        this.addWatchFile(theme);
         this.emitFile({
           type: 'asset',
           fileName: 'theme.css',
-          source: readFileSync(
-            new URL('src/theme.css', import.meta.url),
-            'utf8'
-          )
+          source: readFileSync(theme, 'utf8')
         });
       }
     }

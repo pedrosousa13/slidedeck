@@ -27,6 +27,12 @@
  *     A dot that is not the current page.
  *   --deck-dot-size: 0.625rem
  *     The diameter of the dot drawn.
+ *   --deck-dot-current-width: 1.25rem
+ *     The width of the current page's dot, wider than the others so it
+ *     stands out by shape as well as colour.
+ *   --deck-dot-radius: 9999px
+ *     A dot's corner radius; past half its side it rounds a dot to a circle
+ *     and the current one to a pill.
  *   --deck-dot-target-size: 1.5rem
  *     The square a dot answers clicks in, the dot centred in it.
  *   --deck-dot-gap: 0.25rem
@@ -80,13 +86,31 @@
     (var(--deck-dot-target-size, 1.5rem) - var(--deck-dot-size, 0.625rem)) / 2
   );
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--deck-dot-radius, 9999px);
   background-color: var(--deck-dot-color, #767676);
   background-clip: content-box;
 }
 
 :where([data-slidedeck-dots] > button[aria-current='true']) {
+  inline-size: calc(
+    var(--deck-dot-target-size, 1.5rem) - var(--deck-dot-size, 0.625rem) +
+      var(--deck-dot-current-width, 1.25rem)
+  );
   background-color: var(--deck-accent, #0b5cd5);
+}
+
+/* Forced colours paint every background the page colour, dots included:
+ * draw them in system colours instead, the current one highlighted. */
+@media (forced-colors: active) {
+  :where([data-slidedeck-dots] > button) {
+    forced-color-adjust: none;
+    background-color: CanvasText;
+    outline-color: CanvasText;
+  }
+
+  :where([data-slidedeck-dots] > button[aria-current='true']) {
+    background-color: Highlight;
+  }
 }
 
 :where([data-slidedeck-counter]) {

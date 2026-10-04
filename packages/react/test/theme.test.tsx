@@ -3,7 +3,13 @@ import { beforeEach, describe, expect, onTestFinished, test } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import theme from '@slidedeck/react/theme.css?inline';
-import { addStyle, parkMouse, setReducedMotion, TestDeck } from './fixtures';
+import {
+  addStyle,
+  parkMouse,
+  setForcedColors,
+  setReducedMotion,
+  TestDeck
+} from './fixtures';
 
 // The theme's defaults, as the browser computes them.
 const ACCENT = 'rgb(11, 92, 213)';
@@ -85,9 +91,51 @@ describe('theme.css', () => {
 
     expect(style(dots[0]!).backgroundColor).toBe(ACCENT);
     expect(style(dots[1]!).backgroundColor).toBe(DOT);
-    expect(style(dots[1]!).borderTopLeftRadius).toBe('50%');
+    // A radius past half the side rounds a dot to a circle, and the current
+    // one, wider, to a pill.
+    expect(style(dots[1]!).borderTopLeftRadius).toBe('9999px');
     // A 24px target (WCAG 2.5.8), however small the dot drawn in it.
     expect(style(dots[1]!).width).toBe('24px');
+  });
+
+  test('the current dot is wider than the others, not only another colour', () => {
+    addStyle(theme);
+    const { dots } = renderDeck();
+    const drawn = (dot: Element) =>
+      parseFloat(style(dot).width) -
+      parseFloat(style(dot).paddingLeft) -
+      parseFloat(style(dot).paddingRight);
+
+    // WCAG 1.4.1: the accent alone is too close to the dot grey to tell.
+    expect(drawn(dots[0]!)).toBe(20);
+    expect(drawn(dots[1]!)).toBe(10);
+    expect(style(dots[0]!).height).toBe(style(dots[1]!).height);
+  });
+
+  test("a token sets the dots' corner radius", () => {
+    addStyle(theme);
+    addStyle('.square { --deck-dot-radius: 0px; }');
+    const { dots } = renderDeck({ className: 'square' });
+
+    expect(style(dots[1]!).borderTopLeftRadius).toBe('0px');
+  });
+
+  test('under forced colours, the dots show and the current one stands out', async () => {
+    addStyle(theme);
+    await setForcedColors(true);
+    onTestFinished(() => setForcedColors(false));
+    const { dots } = renderDeck();
+    const canvas = document.createElement('div');
+    canvas.style.backgroundColor = 'Canvas';
+    document.body.append(canvas);
+    onTestFinished(() => canvas.remove());
+    const page = style(canvas).backgroundColor;
+
+    expect(style(dots[1]!).backgroundColor).not.toBe(page);
+    expect(style(dots[0]!).backgroundColor).not.toBe(page);
+    expect(style(dots[0]!).backgroundColor).not.toBe(
+      style(dots[1]!).backgroundColor
+    );
   });
 
   test('styles the counter', () => {
