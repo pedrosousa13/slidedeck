@@ -54,16 +54,17 @@ A scroll position the viewport can come to rest at, as the browser computes it
 from the slides' `scroll-snap-align`.
 
 **Snap target**:
-An empty element an effect lays out along the axis for each slide when it
-stacks the slides in one place, as fade does. It stands in for its slide:
-the browser snaps to it, and the slide's snap point, progress, focal position
-and in-view state are measured from it. Not a slide.
+An empty element an effect lays out along the axis for each slide, and for
+each copy where the deck loops, when it stacks the slides in one place, as
+fade does. It stands in for its slide or copy: the browser snaps to it, and
+the slide's snap point, progress, focal position and in-view state are
+measured from it. Not a slide.
 _Avoid_: placeholder, spacer
 
 **Page**:
 A group of slides that snap together when a deck snaps in groups. Dots and the
 counter count pages; with one slide per snap point, a page is a slide.
-_Avoid_: group, set
+_Avoid_: group, set (a set is loop's word: see **Copy**)
 
 **Current index**:
 The index of the snap point the viewport is resting at. What `index`,
@@ -87,14 +88,25 @@ Scrolling past the last snap point arrives at the first, and back, with no
 visible jump.
 _Avoid_: infinite, wrap-around
 
+**Copy**:
+A duplicate of a slide that loop lays out before or after the slides, inert
+and `aria-hidden`, so the deck can scroll on across the seam. Loop lays out
+two _sets_ of copies, one before the slides and one after, each a copy of
+every slide, so a set runs as far as the slides do. Once the deck rests on a
+copy it jumps a set back to the identical slide. Not a slide: indexes, Dots
+and Counter never count copies. "Clone and jump" (ADR-0006) is the name of
+the technique; the elements are copies.
+_Avoid_: clone
+
 **Autoplay**:
 The deck moving itself one snap point on, on an interval. _Stopped_ by the
 user, the user moving the deck, focus entering the deck or a preference for
 reduced motion, until the user starts it again; _paused_ only while a pointer
 is over the deck or the document is hidden. It also stops where a step leaves
-the deck at the same snap point, as at the last one. Autoplay that is on is
-_playing_, paused or not; playing and not paused, it is _rotating_ the deck,
-the APG carousel's "slide rotation". Only moves the user makes are announced.
+the deck at the same snap point, as at the last one of a deck that does not
+loop. Autoplay that is on is _playing_, paused or not; playing and not
+paused, it is _rotating_ the deck, the APG carousel's "slide rotation". Only
+moves the user makes are announced.
 _Avoid_: autoscroll, slideshow
 
 ### Outputs

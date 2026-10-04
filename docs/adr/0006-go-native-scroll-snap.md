@@ -19,7 +19,8 @@ momentum; one viewport of copies was too short for a hard scroll across the
 seam. Reposition was rejected: its runway is about n/2 slides (4.8 forward
 in a 12-slide deck, so a wheel burst hit the end), and moving DOM nodes
 trapped Tab: 40 presses never left the deck. Its CSS `order` variant fixes
-Tab but splits visual order from reading order.
+Tab but splits visual order from reading order. As built, the copies are
+rendered by `Deck.Viewport` and never counted (ADR-0009).
 
 **Drag: scripted handoff.** Snapping is off while the mouse drags. On
 release slidedeck projects the velocity to a snap point, smooth-scrolls

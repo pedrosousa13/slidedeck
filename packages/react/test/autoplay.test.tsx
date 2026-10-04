@@ -92,6 +92,16 @@ describe('autoplay', () => {
     await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
   });
 
+  test('with loop, goes on from the last snap point to the first, quietly', async () => {
+    const { root } = renderDeck({ slides: 3, defaultIndex: 1, loop: true });
+
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('2');
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('0');
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    expect(toggleOf().textContent).toBe('Stop slide rotation');
+    expect(liveRegionOf(root).textContent).toBe('');
+  });
+
   test('without autoplay, the deck stays put and there is no toggle', async () => {
     const { root } = renderDeck({ autoplay: undefined });
 
