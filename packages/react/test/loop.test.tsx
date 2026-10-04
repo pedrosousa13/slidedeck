@@ -1,14 +1,6 @@
 import { useState } from 'react';
 import { render, screen, within } from '@testing-library/react';
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  onTestFinished,
-  test,
-  vi
-} from 'vitest';
+import { beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import { curve } from '@slidedeck/react/curve';
@@ -29,7 +21,8 @@ import {
   TestDeck,
   trackMotion,
   viewportOf,
-  WIDTH
+  WIDTH,
+  withoutScrollEnd
 } from './fixtures';
 
 // Loop (CONTEXT.md; clone and jump, ADR-0006, as built in ADR-0009): a
@@ -623,27 +616,7 @@ describe('loop, controlled by a parent that sets a new index', () => {
 });
 
 describe('loop in an engine without scrollend', () => {
-  const block = (event: Event) => event.stopImmediatePropagation();
-  let restore = () => {};
-  beforeEach(() => {
-    const hosts = [window, Document.prototype, HTMLElement.prototype].filter(
-      (host) => Object.hasOwn(host, 'onscrollend')
-    );
-    const saved = hosts.map((host) =>
-      Object.getOwnPropertyDescriptor(host, 'onscrollend')!
-    );
-    hosts.forEach((host) => delete (host as Partial<Window>).onscrollend);
-    window.addEventListener('scrollend', block, true);
-    window.addEventListener('scrollsnapchange', block, true);
-    restore = () => {
-      hosts.forEach((host, i) =>
-        Object.defineProperty(host, 'onscrollend', saved[i])
-      );
-      window.removeEventListener('scrollend', block, true);
-      window.removeEventListener('scrollsnapchange', block, true);
-    };
-  });
-  afterEach(() => restore());
+  withoutScrollEnd();
 
   test('Next twelve times 40ms apart never hangs, and leaves snapping on', async () => {
     const { viewport, root, next, onIndexChange } = renderLoop({

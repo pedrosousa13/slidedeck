@@ -1,12 +1,13 @@
 import { createContext, createRef, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
   addStyle,
   expectRestOnASlide,
+  mouseAt,
   mouseDrag,
   nextFrame,
   pagesOf,
@@ -15,7 +16,8 @@ import {
   TestDeck,
   trackMotion,
   viewportOf,
-  WIDTH
+  WIDTH,
+  withoutScrollEnd
 } from './fixtures';
 
 // A scroll's `scrollend` comes a few milliseconds after the viewport arrives
@@ -59,20 +61,27 @@ function Uncontrolled({
   );
 }
 
+/** Holds the main thread for `ms`, as a long task on the page does. */
+function busy(ms: number) {
+  const until = performance.now() + ms;
+  while (performance.now() < until);
+}
+
 /**
  * Renders `deck`, starting on the slide labelled `start`, and at every delay
  * presses `button` twice that far apart, one deck each: the deck must rest on
- * the page `expected`, of `pageSize` slides, every time.
+ * the page `expected`, of `pageSize` slides, every time. With `busyMs`, a
+ * long task holds the main thread that long right after the second press.
  */
 async function pressTwiceAtEveryDelay(
   deck: () => ReactNode,
   start: string,
   button: 'Next' | 'Previous',
   expected: string,
-  pageSize = 1
+  { pageSize = 1, delays = DELAYS, busyMs = 0 } = {}
 ) {
   let arrived = 0;
-  for (const delay of DELAYS) {
+  for (const delay of delays) {
     const onIndexChange = vi.fn();
     const { unmount } = render(
       <OnIndexChange.Provider value={onIndexChange}>
@@ -88,6 +97,7 @@ async function pressTwiceAtEveryDelay(
     press.click();
     // Read after the press: the new scroll has yet to move.
     const pressedAt = viewport.scrollLeft;
+    busy(busyMs);
 
     await expectRestOnASlide(viewport, root, onIndexChange, pageSize);
     expect({ delay, index: root.dataset.index }).toEqual({
@@ -184,7 +194,7 @@ describe('a press as the deck arrives, before its scroll ends', () => {
         '4 of 10',
         'Previous',
         '3',
-        3
+        { pageSize: 3 }
       );
     },
     SWEEP_MS
@@ -192,27 +202,7 @@ describe('a press as the deck arrives, before its scroll ends', () => {
 });
 
 describe('a press as the deck arrives, in an engine without scrollend', () => {
-  const block = (event: Event) => event.stopImmediatePropagation();
-  let restore = () => {};
-  beforeEach(() => {
-    const hosts = [window, Document.prototype, HTMLElement.prototype].filter(
-      (host) => Object.hasOwn(host, 'onscrollend')
-    );
-    const saved = hosts.map((host) =>
-      Object.getOwnPropertyDescriptor(host, 'onscrollend')!
-    );
-    hosts.forEach((host) => delete (host as Partial<Window>).onscrollend);
-    window.addEventListener('scrollend', block, true);
-    window.addEventListener('scrollsnapchange', block, true);
-    restore = () => {
-      hosts.forEach((host, i) =>
-        Object.defineProperty(host, 'onscrollend', saved[i])
-      );
-      window.removeEventListener('scrollend', block, true);
-      window.removeEventListener('scrollsnapchange', block, true);
-    };
-  });
-  afterEach(() => restore());
+  withoutScrollEnd();
 
   test(
     'looping, Next twice from the last slide rests on the second',
@@ -223,6 +213,40 @@ describe('a press as the deck arrives, in an engine without scrollend', () => {
         '5 of 5',
         'Next',
         '1'
+      );
+    },
+    SWEEP_MS
+  );
+});
+
+describe('a long task as the deck arrives', () => {
+  // The browser goes on scrolling while the page's script holds the main
+  // thread, and sends no scroll event until it lets go.
+  const delays = Array.from({ length: 11 }, (_, i) => 260 + i * 8);
+
+  test(
+    'Next twice from the first slide rests on the third',
+    async () => {
+      await pressTwiceAtEveryDelay(
+        () => <Uncontrolled />,
+        '1 of 5',
+        'Next',
+        '2',
+        { delays, busyMs: 150 }
+      );
+    },
+    SWEEP_MS
+  );
+
+  test(
+    'looping, Next twice from the last slide rests on the second',
+    async () => {
+      await pressTwiceAtEveryDelay(
+        () => <Uncontrolled loop defaultIndex={4} />,
+        '5 of 5',
+        'Next',
+        '1',
+        { delays, busyMs: 150 }
       );
     },
     SWEEP_MS
@@ -404,4 +428,126 @@ describe("the user's own scroll as the deck arrives", () => {
     },
     SWEEP_MS
   );
+});
+
+describe('input that does not scroll, during a move', () => {
+  // Only the user's scroll ends a move: a click, typing or Tab in a slide
+  // leaves it going, so a second press still steps on from where it heads.
+  function WithInput() {
+    return (
+      <Deck.Root aria-label="Test deck" defaultIndex={1}>
+        <Deck.Prev />
+        <Deck.Viewport style={{ width: WIDTH }}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <Deck.Slide key={i}>
+              {/* Clear of the slide's start edge, so it stays in view as the
+                  deck moves on and typing scrolls nothing. */}
+              {i === 1 ? (
+                <input
+                  aria-label="Note"
+                  style={{ marginInlineStart: 180, width: 80 }}
+                />
+              ) : (
+                `Slide ${i + 1}`
+              )}
+            </Deck.Slide>
+          ))}
+        </Deck.Viewport>
+        <Deck.Next />
+      </Deck.Root>
+    );
+  }
+
+  /** From the second slide, Next, then `input` 60ms on, then Next: where
+   * the deck rests, and the snap point nearest the viewport as Next is
+   * pressed the second time. */
+  async function nextInputNext(input: (viewport: HTMLElement) => unknown) {
+    render(<WithInput />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+    const next = screen.getByRole('button', { name: 'Next' });
+    screen.getByRole('textbox', { name: 'Note' }).focus();
+
+    next.click();
+    await sleep(60);
+    await input(viewport);
+    const from = String(Math.round(viewport.scrollLeft / WIDTH));
+    next.click();
+
+    await expectRestOnASlide(viewport, root, vi.fn());
+    return { index: root.dataset.index, from };
+  }
+
+  test('a click in a slide', async () => {
+    const { index } = await nextInputNext(async (viewport) => {
+      const box = viewport.getBoundingClientRect();
+      const y = (box.top + box.bottom) / 2;
+      await mouseAt('mousePressed', box.left + 60, y, 1);
+      await mouseAt('mouseReleased', box.left + 60, y, 0);
+    });
+    expect(index).toBe('3');
+  });
+
+  test('typing in a text box in a slide', async () => {
+    const { index } = await nextInputNext(() => userEvent.keyboard('a'));
+    expect(index).toBe('3');
+    expect(screen.getByRole('textbox', { name: 'Note' })).toHaveProperty(
+      'value',
+      'a'
+    );
+  });
+
+  test('Shift+Tab out of a slide', async () => {
+    const { index } = await nextInputNext(() =>
+      userEvent.keyboard('{Shift>}{Tab}{/Shift}')
+    );
+    expect(index).toBe('3');
+    // Focus goes back to the viewport, outside every slide.
+    expect(document.activeElement).toHaveProperty(
+      'dataset.slidedeckViewport',
+      ''
+    );
+  });
+
+  // The user's scroll, by contrast, ends the move: the second press steps
+  // on from the snap point nearest where the user has taken the deck, not
+  // from where the move was heading.
+  test('an arrow key back on the viewport', async () => {
+    const { index, from } = await nextInputNext((viewport) => {
+      viewport.focus();
+      return userEvent.keyboard('{ArrowLeft}');
+    });
+    expect(index).toBe(String(Number(from) + 1));
+  });
+
+  test('a wheel back', async () => {
+    const { index, from } = await nextInputNext((viewport) =>
+      userEvent.wheel(viewport, { delta: { x: -100 } })
+    );
+    expect(index).toBe(String(Number(from) + 1));
+  });
+});
+
+describe('a pointer held on the deck', () => {
+  test('as the deck arrives on a copy, it jumps off the copy only once the pointer lets go', async () => {
+    const onIndexChange = vi.fn();
+    render(<TestDeck loop defaultIndex={4} onIndexChange={onIndexChange} />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+    const box = viewport.getBoundingClientRect();
+    const [x, y] = [box.left + 60, (box.top + box.bottom) / 2];
+    // Five copies before the slides: slide 1's copy after them is at 10.
+    const copy = 10 * WIDTH;
+
+    screen.getByRole('button', { name: 'Next' }).click();
+    await sleep(100);
+    await mouseAt('mousePressed', x, y, 1);
+    await expect.poll(() => viewport.scrollLeft).toBe(copy);
+    await sleep(300);
+    expect(viewport.scrollLeft).toBe(copy);
+
+    await mouseAt('mouseReleased', x, y, 0);
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(root.dataset.index).toBe('0');
+  });
 });

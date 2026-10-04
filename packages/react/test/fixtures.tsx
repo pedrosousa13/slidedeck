@@ -1,5 +1,11 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { expect, onTestFinished, type Mock } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  expect,
+  onTestFinished,
+  type Mock
+} from 'vitest';
 import { cdp } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 
@@ -316,4 +322,33 @@ export async function expectRestOnASlide(
   if (onIndexChange.mock.calls.length > 0) {
     expect(onIndexChange.mock.calls.at(-1)).toEqual([Number(shown)]);
   }
+}
+
+/**
+ * Called in a describe block, makes each of its tests run in an engine
+ * without `scrollend`: Chromium with `scrollend` undetectable and neither it
+ * nor `scrollsnapchange` reaching the deck, as in Safari before 26.
+ */
+export function withoutScrollEnd() {
+  const block = (event: Event) => event.stopImmediatePropagation();
+  let restore = () => {};
+  beforeEach(() => {
+    const hosts = [window, Document.prototype, HTMLElement.prototype].filter(
+      (host) => Object.hasOwn(host, 'onscrollend')
+    );
+    const saved = hosts.map((host) =>
+      Object.getOwnPropertyDescriptor(host, 'onscrollend')!
+    );
+    hosts.forEach((host) => delete (host as Partial<Window>).onscrollend);
+    window.addEventListener('scrollend', block, true);
+    window.addEventListener('scrollsnapchange', block, true);
+    restore = () => {
+      hosts.forEach((host, i) =>
+        Object.defineProperty(host, 'onscrollend', saved[i])
+      );
+      window.removeEventListener('scrollend', block, true);
+      window.removeEventListener('scrollsnapchange', block, true);
+    };
+  });
+  afterEach(() => restore());
 }
