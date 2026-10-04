@@ -382,7 +382,11 @@ const slideDefaults =
 // Not yet in React's CSSProperties.
 const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;
 
-/** One slide, labelled "n of m". Its size and alignment are consumer CSS. */
+/** One slide, labelled "n of m". Its size and alignment are consumer CSS.
+ * For CSS to read, it carries `--deck-index`, its index, from the first
+ * render; once mounted, `--deck-progress`, its signed distance from the focal
+ * position in slides, and `data-in-view` while any of it is in view, both
+ * kept up to date as the deck scrolls without a React render. */
 export function Slide({ style, ...props }: ComponentProps<'div'>) {
   const deck = useDeck('Slide');
   const slide = use(SlideContext);
@@ -402,6 +406,10 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
       data-focal={focal ? '' : undefined}
       style={{
         flexShrink: 0,
+        // A slide's place in the deck, for CSS such as an entry stagger.
+        // Static, so server HTML has it; the engine writes the values that
+        // change as the deck scrolls (`--deck-progress`, `data-in-view`).
+        ...({ '--deck-index': index } as CSSProperties),
         // Server HTML paints at defaultIndex before any script runs, where
         // supported; elsewhere Root's layout effect scrolls before paint.
         // Exact with one slide per snap point; see createDeck's mount.

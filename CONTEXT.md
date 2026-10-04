@@ -83,8 +83,17 @@ _Avoid_: infinite, wrap-around
 ### Outputs
 
 **Progress**:
-How far a slide is from the focal position, published as a CSS custom property
-for effects to read. Never React state.
+How far a slide is from the focal position, in slides, signed the way the deck
+runs: 0 at the focal position, negative before it, positive after it, so 2.25
+is two and a quarter slides on. When a slide sits exactly at the focal
+position, every slide's progress is a whole number. Published as `--deck-progress` for effects to read. Never
+React state.
+_Avoid_: offset, distance in pixels
+
+**In view**:
+A slide with any part showing in the viewport, partly shown included. Marked
+`data-in-view`; it hides nothing. Never React state.
+_Avoid_: visible, active
 
 **Effect**:
 A transition built on progress while the viewport keeps scrolling natively —

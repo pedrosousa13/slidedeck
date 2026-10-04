@@ -229,3 +229,67 @@ export const RightToLeft: Story = {
     )
   ]
 };
+
+/**
+ * Effects in CSS alone. Each slide carries `--deck-progress`, its signed
+ * distance from the focal position in slides (0 at the focal position,
+ * negative before it, positive after), updated every frame as the deck
+ * scrolls without a React render. Here it scales the slides down as they
+ * leave the centre: scale about the snap alignment point, here the centre,
+ * so the effect does not move the point progress is measured from.
+ *
+ * `--deck-index` and `data-in-view` stagger an entry: a slide's card animates
+ * in each time the slide comes into view, delayed by its place among the
+ * slides in view together. `data-in-view` hides nothing, and server HTML has
+ * none, so this animation starts at hydration. Both effects are off under
+ * reduced motion.
+ */
+export const Progress: Story = {
+  decorators: [
+    (Story) => (
+      <>
+        <style>{`
+          .effects .viewport { gap: 16px; }
+          .effects .slide {
+            width: calc((100% - 2 * 16px) / 2.5);
+            scroll-snap-align: center;
+            background: #eef;
+            /* abs() spelled with max() for older browsers. */
+            scale: calc(
+              1 - min(max(var(--deck-progress), -1 * var(--deck-progress)), 1) * 0.2
+            );
+          }
+          .effects .slide[data-in-view] .card {
+            animation: enter 400ms ease-out both;
+            animation-delay: calc(mod(var(--deck-index), 3) * 100ms);
+          }
+          @keyframes enter {
+            from { opacity: 0; translate: 0 1rem; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .effects .slide { scale: none; }
+            .effects .slide[data-in-view] .card { animation: none; }
+          }
+        `}</style>
+        <div className="effects">
+          <Story />
+        </div>
+      </>
+    )
+  ],
+  render: (args) => (
+    <Deck.Root {...args}>
+      <Deck.Viewport className="viewport">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Deck.Slide key={i} className="slide">
+            <div className="card">
+              <p>Card {i + 1}</p>
+            </div>
+          </Deck.Slide>
+        ))}
+      </Deck.Viewport>
+      <Deck.Prev />
+      <Deck.Next />
+    </Deck.Root>
+  )
+};

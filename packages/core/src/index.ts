@@ -57,6 +57,25 @@ export interface DeckEngine {
  * Tracks the snap point a native scroll container rests at and asks it to
  * move. The browser does the scrolling and snapping; the engine reads where
  * it settled from layout, so slide size, gap and alignment stay plain CSS.
+ *
+ * It also writes to each child of the viewport, for CSS to read, once a
+ * frame while the viewport scrolls and whenever it settles, never through
+ * `onChange` (ADR-0003):
+ *
+ * - `--deck-progress`: the slide's progress, its signed distance from the
+ *   focal position in slides. 0 at the focal position, -1 one slide before
+ *   it, 2.25 two and a quarter slides after it, the way the deck runs, so a
+ *   vertical or right-to-left deck reads the same. The focal position is the
+ *   snap alignment point of the slide resting at the current snap point (see
+ *   `DeckState.focal`), placed between the slides by where their own
+ *   alignment points are: with a slide exactly at the focal position, every
+ *   slide's progress is a whole number whatever the gap. Where the scroll
+ *   range keeps the focal slide from reaching it, as at either end of a
+ *   centred deck, progress stays fractional at rest. Measured from the
+ *   slides' boxes as they are drawn, so an effect should not move a slide's
+ *   alignment point: scale about it (`transform-origin`), not away from it.
+ * - `data-in-view`: present on each slide with at least one pixel inside the
+ *   viewport's scrollport, partly in view included. It hides nothing.
  */
 export function createDeck(
   viewport: HTMLElement,
@@ -82,25 +101,31 @@ export function createDeck(
   // Read afresh for each use: an ancestor's `dir` can change at any time.
   const axis = () => axisOf(viewport, vertical);
 
+  // The deck's snap alignment, read at each settle from the slide resting at
+  // the snap point: a slide that does not snap, as within a page, has none.
+  // Progress is measured from it; with no slide snapping, from the start.
+  let align = 'start';
+
+  // Progress and in-view, written at most once a frame while scrolling.
+  let frame = 0;
+  const paint = (along = axis()) => {
+    cancelAnimationFrame(frame);
+    frame = 0;
+    writeProgress(viewport, along, align);
+  };
+
   const settle = () => {
     const along = axis();
     const { points, slides } = snapPoints(viewport, along);
     const index = nearest(points, along.position);
     const slide = slides.indexOf(index);
+    align = slide === -1 ? 'start' : along.snapAlign(viewport.children[slide]);
+    paint(along);
     publish({
       index,
       count: points.length,
       slide,
-      // At the alignment of the slide resting at the snap point, so of the
-      // deck: a slide that does not snap, as within a page, has none.
-      focal:
-        slide === -1
-          ? -1
-          : focalSlide(
-              viewport,
-              along,
-              along.snapAlign(viewport.children[slide])
-            )
+      focal: slide === -1 ? -1 : focalSlide(viewport, along, align)
     });
   };
 
@@ -154,6 +179,7 @@ export function createDeck(
   let quiet: ReturnType<typeof setTimeout> | undefined;
   const onScroll = () => {
     scrolling = true;
+    frame ||= requestAnimationFrame(() => paint());
     if (hasScrollEnd) return;
     clearTimeout(quiet);
     quiet = setTimeout(scrollEnded, SCROLL_END_DEBOUNCE_MS);
@@ -188,6 +214,7 @@ export function createDeck(
 
   const refresh = () => {
     if (!scrolling && target === null && drag !== 'dragging') settle();
+    else paint();
   };
 
   const scrollTo = (index: number) => {
@@ -394,6 +421,11 @@ export function createDeck(
     },
     destroy() {
       clearTimeout(quiet);
+      cancelAnimationFrame(frame);
+      for (const slide of viewport.children) {
+        slide.removeAttribute(IN_VIEW);
+        if (slide instanceof HTMLElement) slide.style.removeProperty(PROGRESS);
+      }
       resizes.disconnect();
       window.removeEventListener('resize', refresh);
       viewport.removeEventListener('scroll', onScroll);
@@ -412,6 +444,9 @@ export function createDeck(
 }
 
 const SCROLL_END_DEBOUNCE_MS = 100;
+
+const PROGRESS = '--deck-progress';
+const IN_VIEW = 'data-in-view';
 
 /** How far a mouse moves with its button down before a press is a drag. */
 const DRAG_THRESHOLD_PX = 5;
@@ -598,7 +633,11 @@ function alignOffset(
   slide: Element,
   align: string
 ): number {
-  const [start, end] = axis.span(slide.getBoundingClientRect());
+  return spanOffset(axis.span(slide.getBoundingClientRect()), view, align);
+}
+
+/** `alignOffset` for a slide spanning `[start, end]` along the axis. */
+function spanOffset([start, end]: Span, view: Span, align: string): number {
   return align === 'center'
     ? (start + end) / 2 - (view[0] + view[1]) / 2
     : align === 'end'
@@ -619,4 +658,49 @@ function focalSlide(viewport: HTMLElement, axis: Axis, align: string): number {
     }
   });
   return best;
+}
+
+/**
+ * Writes each slide's progress and in-view state (see `createDeck`). Measures
+ * every slide before writing to any, and writes only what changed, so a frame
+ * lays out once.
+ */
+function writeProgress(viewport: HTMLElement, axis: Axis, align: string) {
+  const view = axis.view();
+  const slides = [...viewport.children];
+  const spans = slides.map((slide) => axis.span(slide.getBoundingClientRect()));
+  const focus = focalPosition(
+    spans.map((span) => spanOffset(span, view, align)),
+    spans
+  );
+  slides.forEach((slide, i) => {
+    const [start, end] = spans[i];
+    const inView = Math.min(end, view[1]) - Math.max(start, view[0]) >= 1;
+    if (slide.hasAttribute(IN_VIEW) !== inView) {
+      slide.toggleAttribute(IN_VIEW, inView);
+    }
+    if (!(slide instanceof HTMLElement)) return;
+    const progress = String(Math.round((i - focus) * 1000) / 1000);
+    if (slide.style.getPropertyValue(PROGRESS) !== progress) {
+      slide.style.setProperty(PROGRESS, progress);
+    }
+  });
+}
+
+/**
+ * Where the alignment point falls among the slides, in slides: 2 at slide
+ * 2's alignment point, 2.25 a quarter of the way on to slide 3's. Before the
+ * first slide's or past the last's, it carries on at the spacing of the
+ * nearest two. `offsets` are the slides' `spanOffset`s, ascending.
+ */
+function focalPosition(offsets: number[], spans: Span[]): number {
+  if (offsets.length === 0) return 0;
+  if (offsets.length === 1) {
+    const extent = spans[0][1] - spans[0][0];
+    return extent > 0 ? -offsets[0] / extent : 0;
+  }
+  const before = offsets.filter((offset) => offset <= 0).length - 1;
+  const k = clamp(before, offsets.length - 1);
+  const spacing = offsets[k + 1] - offsets[k];
+  return spacing > 0 ? k - offsets[k] / spacing : k;
 }
