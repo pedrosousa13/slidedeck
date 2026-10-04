@@ -88,9 +88,9 @@ export async function touchSwipe(el: Element, dx: number) {
 /**
  * A real mouse drag (CDP mouse events) across `el`: presses near the edge it
  * moves away from, moves `dx` in `steps` moves `stepMs` apart, holds still
- * `holdMs`, releases. Negative `dx` moves the pointer left, which drags the
- * deck forward. With `release: false` the button
- * stays down: call the function it returns to let go.
+ * `holdMs`, releases. Negative `dx` moves the pointer left (up, with `axis:
+ * 'y'`), which drags a left-to-right (vertical) deck forward. With `release:
+ * false` the button stays down: call the function it returns to let go.
  */
 export async function mouseDrag(
   el: Element,
@@ -100,20 +100,26 @@ export async function mouseDrag(
     stepMs = 16,
     holdMs = 0,
     button = 'left',
-    release = true
+    release = true,
+    axis = 'x'
   }: {
     steps?: number;
     stepMs?: number;
     holdMs?: number;
     button?: 'left' | 'middle' | 'right';
     release?: boolean;
+    axis?: 'x' | 'y';
   } = {}
 ): Promise<() => Promise<unknown>> {
   const box = el.getBoundingClientRect();
-  const y = box.top + box.height / 2;
-  const startX = dx < 0 ? box.right - 10 : box.left + 10;
+  const [low, high, across] =
+    axis === 'x'
+      ? [box.left, box.right, box.top + box.height / 2]
+      : [box.top, box.bottom, box.left + box.width / 2];
+  const startX = dx < 0 ? high - 10 : low + 10;
   const buttons = { left: 1, right: 2, middle: 4 }[button];
-  const at = (x: number) => toPage(x, y);
+  const at = (along: number) =>
+    axis === 'x' ? toPage(along, across) : toPage(across, along);
   await cdp().send('Input.dispatchMouseEvent', {
     type: 'mousePressed',
     ...at(startX),
@@ -163,10 +169,15 @@ export const mouseAt = (
  * Checks the deck snaps, as a user sees it: a native scroll that stops just
  * past where the deck rests comes back to rest there.
  */
-export async function expectSnaps(viewport: HTMLElement) {
-  const rest = viewport.scrollLeft;
-  viewport.scrollLeft = rest + (rest > 0 ? -40 : 40); // away from the clamped end
-  await expectSettledTo(() => viewport.scrollLeft, rest);
+export async function expectSnaps(
+  viewport: HTMLElement,
+  axis: 'scrollLeft' | 'scrollTop' = 'scrollLeft'
+) {
+  const rest = viewport[axis];
+  viewport[axis] = rest + 40;
+  // At the end of the range that way: go the other way instead.
+  if (viewport[axis] === rest) viewport[axis] = rest - 40;
+  await expectSettledTo(() => viewport[axis], rest);
 }
 
 /** A smooth two-finger-style scroll gesture, synthesised by Chromium. */

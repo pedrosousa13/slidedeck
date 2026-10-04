@@ -196,3 +196,36 @@ export const ClickToFocus: Story = {
     </Deck.Root>
   )
 };
+
+/**
+ * A full-height vertical feed: `orientation="vertical"` scrolls and snaps on
+ * the block axis, and Prev and Next step up and down. The viewport's height
+ * is the consumer's CSS; each slide fills it by default.
+ */
+export const Vertical: Story = {
+  args: { orientation: 'vertical' },
+  decorators: [
+    (Story) => (
+      <>
+        <style>{`.viewport { height: 240px; }`}</style>
+        <Story />
+      </>
+    )
+  ]
+};
+
+/**
+ * In a right-to-left document the deck follows the writing direction, which
+ * it reads from any ancestor's `dir`: it starts at the right, Next moves
+ * toward the inline end on the left, a mouse drag to the right moves on, and
+ * the arrow keys scroll the focused viewport the way the page reads.
+ */
+export const RightToLeft: Story = {
+  decorators: [
+    (Story) => (
+      <div dir="rtl">
+        <Story />
+      </div>
+    )
+  ]
+};

@@ -29,6 +29,14 @@ test('drag is a boolean, on unless turned off', () => {
   void (<Root drag="mouse" />);
 });
 
+test('orientation is horizontal or vertical', () => {
+  void (<Root orientation="horizontal" />);
+  void (<Root orientation="vertical" />);
+  // @ts-expect-error -- direction comes from the document's dir, not a prop
+  void (<Root orientation="rtl" />);
+  expectTypeOf<Deck.Orientation>().toEqualTypeOf<'horizontal' | 'vertical'>();
+});
+
 test('the ref is the div, and handleRef is a RootHandle', () => {
   void (<Root ref={createRef<HTMLDivElement>()} />);
   void (<Root handleRef={createRef<Deck.RootHandle>()} />);
