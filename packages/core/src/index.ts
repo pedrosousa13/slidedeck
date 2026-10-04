@@ -261,18 +261,42 @@ export function createDeck(
     if (hasScrollEnd) stopQuiet();
   };
 
-  // Pointers pressed on the viewport, until they let go. While one is down
-  // the deck does not settle, so it never jumps off a copy under a finger
-  // or the mouse; the settle waits for the last to let go.
-  const pressed = new Set<number>();
+  // Pointers pressed on the viewport, by id, with their type, until they
+  // let go. While one is down the deck does not settle, so it never jumps
+  // off a copy under a finger or the mouse; the settle waits for the last
+  // to let go. A release must never go unheard, or the deck would never
+  // settle again: the window hears every pointerup and pointercancel first,
+  // before any listener can stop it; a pointer that moves or comes over
+  // anything with no button down has let go; losing focus lets go of all,
+  // as the release may then come to another window; and a primary pointer
+  // pressed lets go of any other of its type, as none can still be down.
+  const pressed = new Map<number, string>();
   let settleOwed = false;
-  const letGo = (id: number) => {
-    if (!pressed.delete(id) || pressed.size > 0 || !settleOwed) return;
+  // Lets go of pointer `id`, or of every pointer.
+  const letGo = (id?: number) => {
+    if (id === undefined) pressed.clear();
+    else if (!pressed.delete(id)) return;
+    if (pressed.size > 0 || !settleOwed) return;
     settleOwed = false;
     // A scroll since, as a touch pan, settles at its own end.
     if (!scrolling && !move && drag !== 'dragging') settle();
   };
-  const onPointerLetGo = (event: PointerEvent) => letGo(event.pointerId);
+  const onWindowPointer = (event: PointerEvent) => {
+    if (
+      event.type === 'pointerup' ||
+      event.type === 'pointercancel' ||
+      event.buttons === 0
+    ) {
+      letGo(event.pointerId);
+    }
+  };
+  const onBlur = () => letGo();
+  const WINDOW_POINTER = [
+    'pointerup',
+    'pointercancel',
+    'pointermove',
+    'pointerover'
+  ] as const;
 
   const scrollEnded = () => {
     // The pointer, not the browser, says where a drag ends.
@@ -423,7 +447,12 @@ export function createDeck(
   const onPointerDown = (event: PointerEvent) => {
     // A mouse's other buttons open menus, which can swallow the pointerup.
     if (event.pointerType !== 'mouse' || event.button === 0) {
-      pressed.add(event.pointerId);
+      if (event.isPrimary) {
+        for (const [id, type] of pressed) {
+          if (type === event.pointerType) pressed.delete(id);
+        }
+      }
+      pressed.set(event.pointerId, event.pointerType);
     }
     if (
       !dragEnabled ||
@@ -443,8 +472,6 @@ export function createDeck(
   };
 
   const onPointerMove = (event: PointerEvent) => {
-    // A pointer let go where no pointerup reached the page.
-    if (event.buttons === 0) letGo(event.pointerId);
     if (event.pointerId !== pointer) return;
     // The button let go where the viewport did not hear it.
     if ((event.buttons & 1) === 0) {
@@ -482,7 +509,6 @@ export function createDeck(
   // pointerup, which releases the capture, the pointer is already let go.
   const onLostCapture = (event: PointerEvent) => {
     if (event.pointerId === pointer && drag === 'dragging') release(event);
-    letGo(event.pointerId);
   };
 
   const release = (event: PointerEvent) => {
@@ -539,9 +565,10 @@ export function createDeck(
   viewport.addEventListener('pointermove', onPointerMove);
   viewport.addEventListener('pointerup', onPointerUp);
   viewport.addEventListener('pointercancel', onPointerCancel);
-  // The pointer may let go off the viewport, where it hears nothing.
-  window.addEventListener('pointerup', onPointerLetGo);
-  window.addEventListener('pointercancel', onPointerLetGo);
+  for (const type of WINDOW_POINTER) {
+    window.addEventListener(type, onWindowPointer, { capture: true });
+  }
+  window.addEventListener('blur', onBlur);
   viewport.addEventListener('lostpointercapture', onLostCapture);
   viewport.addEventListener('dragstart', onDragStart);
 
@@ -657,8 +684,10 @@ export function createDeck(
       viewport.removeEventListener('pointermove', onPointerMove);
       viewport.removeEventListener('pointerup', onPointerUp);
       viewport.removeEventListener('pointercancel', onPointerCancel);
-      window.removeEventListener('pointerup', onPointerLetGo);
-      window.removeEventListener('pointercancel', onPointerLetGo);
+      for (const type of WINDOW_POINTER) {
+        window.removeEventListener(type, onWindowPointer, { capture: true });
+      }
+      window.removeEventListener('blur', onBlur);
       viewport.removeEventListener('lostpointercapture', onLostCapture);
       viewport.removeEventListener('dragstart', onDragStart);
       viewport.removeEventListener('click', onClick);

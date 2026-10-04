@@ -1,7 +1,7 @@
 import { createContext, createRef, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
@@ -14,6 +14,7 @@ import {
   parkMouse,
   sleep,
   TestDeck,
+  touchSwipe,
   trackMotion,
   viewportOf,
   WIDTH,
@@ -549,5 +550,106 @@ describe('a pointer held on the deck', () => {
     await mouseAt('mouseReleased', x, y, 0);
     await expectRestOnASlide(viewport, root, onIndexChange);
     expect(root.dataset.index).toBe('0');
+  });
+});
+
+describe('a pointer whose release the deck does not hear', () => {
+  // A pointer still down holds the settle; one whose release never reaches
+  // the deck must not hold it for good.
+  test('a touch whose pointerup and lostpointercapture a slide stops', async () => {
+    const onIndexChange = vi.fn();
+    render(<TestDeck loop defaultIndex={3} onIndexChange={onIndexChange} />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+    const next = screen.getByRole('button', { name: 'Next' });
+    const slide = screen.getByRole('group', { name: '4 of 5' });
+    const stop = (event: Event) => event.stopPropagation();
+    slide.addEventListener('pointerup', stop);
+    slide.addEventListener('lostpointercapture', stop);
+
+    await touchSwipe(slide, 0);
+    next.click();
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(root.dataset.index).toBe('4');
+    // Across the seam: it jumps off the copy.
+    next.click();
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(root.dataset.index).toBe('0');
+  });
+
+  test("a click whose pointerup a slide's React handler stops, during a move", async () => {
+    const onIndexChange = vi.fn();
+    render(
+      <Deck.Root
+        aria-label="Test deck"
+        loop
+        defaultIndex={4}
+        onIndexChange={onIndexChange}
+      >
+        <Deck.Prev />
+        <Deck.Viewport style={{ width: WIDTH }}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <Deck.Slide key={i}>
+              <div
+                style={{ height: 100 }}
+                onPointerUp={(event) => event.stopPropagation()}
+              >
+                Slide {i + 1}
+              </div>
+            </Deck.Slide>
+          ))}
+        </Deck.Viewport>
+        <Deck.Next />
+      </Deck.Root>
+    );
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+    const box = viewport.getBoundingClientRect();
+    const y = box.top + 50;
+
+    screen.getByRole('button', { name: 'Next' }).click();
+    await sleep(100);
+    await mouseAt('mousePressed', box.left + 60, y, 1);
+    await mouseAt('mouseReleased', box.left + 60, y, 0);
+
+    // The mouse does not move again: the deck must settle on its own.
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(root.dataset.index).toBe('0');
+  });
+
+  test('a mouse pressed on the deck that never lets go, then the window losing focus', async () => {
+    const onIndexChange = vi.fn();
+    render(
+      <TestDeck
+        loop
+        autoplay={300}
+        onIndexChange={onIndexChange}
+        controls={<Deck.AutoplayToggle />}
+      />
+    );
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+    const box = viewport.getBoundingClientRect();
+    const off = [5, window.innerHeight - 5] as const;
+    onTestFinished(async () => {
+      await mouseAt('mouseReleased', ...off, 0);
+    });
+
+    await mouseAt('mousePressed', box.left + 60, (box.top + box.bottom) / 2, 1);
+    // Off the deck with the button still down, where no pointerup comes.
+    await mouseAt('mouseMoved', ...off, 1);
+    // The press focused the deck, which stopped autoplay: start it again.
+    (document.activeElement as HTMLElement).blur();
+    document
+      .querySelector<HTMLButtonElement>('[data-slidedeck-autoplay-toggle]')!
+      .click();
+    await sleep(1000);
+    window.dispatchEvent(new FocusEvent('blur'));
+
+    const steps = onIndexChange.mock.calls.length;
+    await expect
+      .poll(() => onIndexChange.mock.calls.length, { timeout: 4000 })
+      .toBeGreaterThanOrEqual(steps + 3);
+    expect(viewport.style.scrollSnapType).not.toBe('none');
   });
 });

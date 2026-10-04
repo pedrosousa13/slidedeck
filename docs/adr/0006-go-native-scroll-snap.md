@@ -69,7 +69,14 @@ event cannot say which move it ends. The events, and what each does:
   page has prevented. A drag's release is a new move.
 - _A pointer held on the viewport_: an end does not settle until the last
   pointer lets go, so the deck never jumps off a copy under a finger or the
-  mouse. A scroll after the end, as a touch pan, settles at its own end.
+  mouse. A scroll after the end, as a touch pan, settles at its own end. A
+  release the engine does not hear would hold the deck unsettled for good,
+  so a pointer lets go at the first of: a `pointerup` or `pointercancel`,
+  heard on the window in the capture phase, before any page listener can
+  stop it; a `pointermove` or `pointerover` anywhere with no button down;
+  the window losing focus, as the release may then go to another window;
+  and a new primary pointer of its type pressed on the viewport, as none
+  other of that type can then still be down.
 - _The jump off a copy_ is part of a settle, so it comes only when idle or at
   a move's end. Its own end, if a new move has started, is a late end.
 
