@@ -1,6 +1,14 @@
 import { useState } from 'react';
 import { render, screen, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  onTestFinished,
+  test,
+  vi
+} from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import { curve } from '@slidedeck/react/curve';
@@ -15,6 +23,7 @@ import {
   nextFrame,
   pagesOf,
   parkMouse,
+  setReducedMotion,
   sleep,
   TestDeck,
   viewportOf,
@@ -87,6 +96,17 @@ describe('loop', () => {
 
     await expectSettledTo(() => onIndexChange.mock.calls, [[4]]);
     expect(offsetOf('5 of 5')).toBe(0);
+  });
+
+  test('under reduced motion, Next on the last snap point goes to the first at once', async () => {
+    await setReducedMotion(true);
+    onTestFinished(() => setReducedMotion(false));
+    const { next, onIndexChange, offsetOf } = renderLoop({ defaultIndex: 4 });
+
+    await userEvent.click(next);
+
+    await expectSettledTo(() => onIndexChange.mock.calls, [[0]]);
+    expect(offsetOf('1 of 5')).toBe(0);
   });
 
   test('neither Prev nor Next is ever disabled', async () => {

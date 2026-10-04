@@ -364,6 +364,40 @@ export const RightToLeft: Story = {
 };
 
 /**
+ * With `loop`, scrolling past the last slide arrives at the first, and back:
+ * Prev and Next are never disabled, and a drag, a flick or a wheel crosses the
+ * seam. The viewport holds a copy of every slide on each side of the slides,
+ * inert and hidden from assistive technology; when the deck comes to rest on
+ * a copy it jumps, unseen, to the identical slide. Here two and a half
+ * slides are in view, centred, so the last slide's copy shows before the
+ * first. Indexes, Dots and Counter count the slides only.
+ */
+export const Loop: Story = {
+  args: { loop: true },
+  decorators: Peek.decorators
+};
+
+/** Loop in pages of three over ten slides, as in Pages: the last page holds
+ * one slide, and Next from it goes on to the first page. */
+export const LoopPages: Story = {
+  ...Pages,
+  args: { loop: true }
+};
+
+/** Loop on a vertical deck: Next on the last slide steps down to the first. */
+export const LoopVertical: Story = {
+  ...Vertical,
+  args: { orientation: 'vertical', loop: true }
+};
+
+/** Loop in a right-to-left document: past the last slide, at the left, is the
+ * first. */
+export const LoopRightToLeft: Story = {
+  ...RightToLeft,
+  args: { loop: true }
+};
+
+/**
  * Effects in CSS alone. Each slide carries `--deck-progress`, its signed
  * distance from the focal position in slides (0 at the focal position,
  * negative before it, positive after), updated every frame as the deck
