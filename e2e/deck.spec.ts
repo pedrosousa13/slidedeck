@@ -321,18 +321,19 @@ test('a fade deck crossfades in place on Next, settles with one slide shown, and
   await expect(deck.getByRole('button', { name: 'Action 3' })).toBeInViewport();
 });
 
-test('a curve deck fans its slides on an arc, settles upright on Next, and drags on with no page scrollbar', async ({
+test('a curve deck fans its cards on an arc, settles upright on Next, and drags on with no page scrollbar', async ({
   page
 }) => {
   await page.goto('/iframe.html?id=deck--curve&viewMode=story');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const viewport = deck.locator('[data-slidedeck-viewport]');
   const slides = deck.locator('[data-slidedeck-slide]');
-  /** Each slide's rotation in whole degrees, clockwise. */
+  /** Each slide's card's rotation in whole degrees, clockwise. */
   const angles = () =>
     slides.evaluateAll((all) =>
       all.map((slide) => {
-        const m = new DOMMatrix(getComputedStyle(slide).transform);
+        const card = slide.firstElementChild!;
+        const m = new DOMMatrix(getComputedStyle(card).transform);
         return Math.round((Math.atan2(m.b, m.a) * 180) / Math.PI);
       })
     );

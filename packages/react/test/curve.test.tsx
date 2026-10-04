@@ -11,13 +11,17 @@ import {
   expectSnaps,
   mouseDrag,
   nextFrame,
+  pagesOf,
+  progressOf,
   setReducedMotion,
+  sleep,
   viewportOf
 } from './fixtures';
 
-// The curve effect (#16): the slides fan along an arc around the focal slide,
-// rotating and fading with their progress, while the viewport scrolls, snaps
-// and drags natively.
+// The curve effect (#16): the slides' content fans along an arc around the
+// focal slide, rotating and fading with its progress, while the viewport
+// scrolls, snaps and drags natively over slides it leaves in place
+// (ADR-0008).
 
 /** Each slide's size, square, and so the distance between two slides. */
 const SIZE = 100;
@@ -55,7 +59,9 @@ function CurveDeck({
         >
           {Array.from({ length: slides }, (_, i) => (
             <Deck.Slide key={i}>
-              <button type="button">Button {i + 1}</button>
+              <div className="card">
+                <button type="button">Button {i + 1}</button>
+              </div>
             </Deck.Slide>
           ))}
         </Deck.Viewport>
@@ -65,11 +71,15 @@ function CurveDeck({
   );
 }
 
+// Centred, so the focal slide is in the middle of the arc: alignment is the
+// consumer's.
 const SLIDE_CSS = `.curved > [data-slidedeck-slide] {
   width: ${SIZE}px;
   height: ${SIZE}px;
   box-sizing: border-box;
-}`;
+  scroll-snap-align: center;
+}
+.card { height: 100%; }`;
 
 const round = (value: number) => Math.round(value * 10) / 10 || 0;
 
@@ -78,8 +88,12 @@ const readDeck = (root: HTMLElement) => {
   const slides = () => [
     ...viewport.querySelectorAll<HTMLElement>('[data-slidedeck-slide]')
   ];
+  // The curve draws each slide's content, the card that fills it.
   const matrices = () =>
-    slides().map((slide) => new DOMMatrix(getComputedStyle(slide).transform));
+    slides().map(
+      (slide) =>
+        new DOMMatrix(getComputedStyle(slide.firstElementChild!).transform)
+    );
   return {
     root,
     viewport,
@@ -96,22 +110,24 @@ const readDeck = (root: HTMLElement) => {
         (slide) =>
           Math.round(Number(getComputedStyle(slide).opacity) * 100) / 100
       ),
-    progress: () =>
-      slides().map((slide) =>
-        Number(slide.style.getPropertyValue('--deck-progress'))
-      )
+    progress: () => progressOf(viewport)
   };
 };
 
-const renderDeck = (props: CurveDeckProps = {}) => {
-  addStyle(SLIDE_CSS);
+/** Renders a curve deck, with `css` as more consumer CSS for its slides. */
+const renderDeck = (props: CurveDeckProps = {}, css = '') => {
+  addStyle(SLIDE_CSS + css);
   render(<CurveDeck {...props} />);
   const root = screen.getByRole('region', { name: 'Test deck' });
   return {
     ...readDeck(root),
-    next: screen.getByRole('button', { name: 'Next' })
+    get next() {
+      return screen.getByRole('button', { name: 'Next' });
+    }
   };
 };
+
+const TALL = '.curved > [data-slidedeck-slide] { height: 240px; }';
 
 // With the default radius, four slides: a slide one slide from the focal
 // position turns asin(1/4), two slides asin(2/4), three asin(3/4), and drops
@@ -253,7 +269,8 @@ describe('curve', () => {
     expect(viewport.scrollTop).toBe(SIZE);
 
     // The arc bends toward the inline end: a slide below the focal one
-    // turns anticlockwise, and every slide but it moves right.
+    // turns anticlockwise, and every slide but it moves toward the inline
+    // end.
     expect(angles().slice(0, 3)).toEqual(at(TURN, [-1, 0, 1], -1));
     expect(moved().slice(0, 3)).toEqual([
       [DROP[1], 0],
@@ -280,6 +297,119 @@ describe('curve', () => {
     await userEvent.click(next);
     await expectSettledTo(progress, [-3, -2, -1, 0, 1, 2]);
     expect(viewport.scrollLeft).toBe(-3 * SIZE);
+  });
+
+  test('tabbing into a dropped slide scrolls along the axis only, to make it focal', async () => {
+    const { viewport, root, slides, opacity } = renderDeck({
+      slides: 8,
+      viewportStyle: { '--deck-curve-radius': 2 } as CSSProperties
+    });
+    screen.getByRole('button', { name: 'Button 2' }).focus();
+    await sleep(400);
+
+    // Two slides away, at a radius of two, Button 3 has dropped out of view.
+    await userEvent.tab();
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Button 3' })
+    );
+
+    await expectSettledTo(() => root.getAttribute('data-index'), '2');
+    expect(viewport.scrollTop).toBe(0);
+    expect(slides()[2].hasAttribute('data-focal')).toBe(true);
+    expect(opacity()[2]).toBe(1);
+  });
+
+  test('turned slides that fit the viewport leave it nothing to scroll', async () => {
+    const { viewport } = renderDeck(
+      { slides: 3, viewportStyle: { paddingInline: 0 } },
+      TALL
+    );
+    await nextFrame();
+
+    // Every slide fits, so the deck has nowhere to go.
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+    expect(viewport.scrollWidth).toBe(viewport.clientWidth);
+    expect(viewport.scrollHeight).toBe(viewport.clientHeight);
+  });
+
+  test('turned slides never change the scroll range while dragging', async () => {
+    const { viewport } = renderDeck(
+      { slides: 8, viewportStyle: { paddingInline: 0 } },
+      TALL
+    );
+    const seen = new Set<number>();
+    let sampling = true;
+    const sample = () => {
+      seen.add(viewport.scrollWidth);
+      if (sampling) requestAnimationFrame(sample);
+    };
+    sample();
+
+    await mouseDrag(viewport, -SIZE * 2.5, { steps: 20, holdMs: 100 });
+    await sleep(400);
+    sampling = false;
+
+    expect([...seen]).toEqual([8 * SIZE]);
+  });
+
+  test('rests exactly on the last snap point with whole progress, with no end padding', async () => {
+    const { viewport, progress } = renderDeck(
+      { slides: 8, viewportStyle: { paddingInline: 0 } },
+      TALL
+    );
+
+    viewport.scrollLeft = 8 * SIZE;
+
+    await expectSettledTo(progress, [-6, -5, -4, -3, -2, -1, 0, 1]);
+    expect(viewport.scrollLeft).toBe(5 * SIZE);
+  });
+
+  test('snaps where the consumer aligns the slides, at their start', async () => {
+    const { viewport, next, progress, angles, root } = renderDeck(
+      { viewportStyle: { paddingInline: 0 } },
+      '.curved > [data-slidedeck-slide] { scroll-snap-align: start; }'
+    );
+
+    await userEvent.click(next);
+
+    await expectSettledTo(progress, [-1, 0, 1, 2, 3, 4]);
+    expect(viewport.scrollLeft).toBe(SIZE);
+    expect(root.getAttribute('data-index')).toBe('1');
+    expect(angles()[1]).toBe(0);
+    await expectSnaps(viewport);
+  });
+
+  test('snaps in pages where the consumer groups the slides', async () => {
+    const { viewport, next, progress, root } = renderDeck(
+      { viewportStyle: { paddingInline: 0 } },
+      pagesOf(2, '.curved')
+    );
+
+    await userEvent.click(next);
+
+    await expectSettledTo(progress, [-2, -1, 0, 1, 2, 3]);
+    expect(viewport.scrollLeft).toBe(2 * SIZE);
+    expect(root.getAttribute('data-index')).toBe('1');
+  });
+
+  test('a radius of 0 keeps the focal slide shown and every other one turned away', () => {
+    const { angles, opacity } = renderDeck({
+      defaultIndex: 2,
+      viewportStyle: { '--deck-curve-radius': 0 } as CSSProperties
+    });
+
+    expect(opacity()).toEqual([0, 0, 1, 0, 0, 0]);
+    expect(angles()).toEqual([-90, -90, 0, 90, 90, 90]);
+  });
+
+  test('a negative radius bends the arc the same way as a tiny one', () => {
+    const { angles, opacity } = renderDeck({
+      defaultIndex: 2,
+      viewportStyle: { '--deck-curve-radius': -2 } as CSSProperties
+    });
+
+    expect(opacity()).toEqual([0, 0, 1, 0, 0, 0]);
+    expect(angles()).toEqual([-90, -90, 0, 90, 90, 90]);
   });
 
   test('server HTML draws the slides flat, as a plain deck, until it mounts', async () => {
