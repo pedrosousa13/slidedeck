@@ -70,8 +70,9 @@ const css =
  * Each slide contains its layout, so its turned content is drawn on the arc
  * but adds nothing the viewport can scroll to, and focus never scrolls the
  * viewport after it. The viewport clips across the axis, so the arc never
- * shows a scrollbar: give it padding there to show more of the arc. A vertical deck's arc bends toward the inline end, and a
- * right-to-left deck's mirrors. Under reduced motion the content stays flat
+ * shows a scrollbar: give it padding there to show more of the arc. A
+ * vertical deck's arc bends toward the inline end, and a right-to-left deck's
+ * mirrors. Under reduced motion the content stays flat
  * and the slides only fade.
  */
 export const curve: Effect = {

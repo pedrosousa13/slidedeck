@@ -18,14 +18,19 @@ overflow, drawn but never scrollable. `overflow: clip` with a wide
 `overflow-clip-margin` was considered, but Chromium still counts content
 inside the margin toward the viewport's scrollable overflow.
 
+Layout containment has costs of its own. Each curve slide is always a stacking
+context and the containing block for its `position: fixed` descendants, so a
+fixed element inside a slide is positioned against the slide, not the viewport.
+
 The cost is that the curve is drawn on the slide's children, not the slide.
 A slide's own background and border stay flat, and several children each turn
 about their own centre. A curve slide is best given one child that fills it,
 styled as the slide is seen.
 
-Snap targets (ADR-0007) were considered. They stack the slides, so a curve
-deck would lose the consumer's slide size and gap, and they would need another
-way to lay the slides out along the axis.
+Snap targets (ADR-0007) were considered. Fade needs them because it stacks the
+slides with `position: sticky`, and a sticky slide cannot be a snap target. A
+curve deck on snap targets would lose the consumer's slide size and gap, and
+would need another way to lay the slides out along the axis.
 
 The radius is a custom property, `--deck-curve-radius`, in slides, not an
 option: CSS can change it per breakpoint (ADR-0003), and one stylesheet serves
