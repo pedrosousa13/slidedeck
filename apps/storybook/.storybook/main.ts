@@ -15,6 +15,15 @@ const config: StorybookConfig = {
         '@slidedeck/core': fileURLToPath(
           new URL('../../../packages/core/src/index.ts', import.meta.url)
         ),
+        // A story inlines the theme into a <style>, so it applies to that
+        // story alone; a consumer imports it plain. A string key matches
+        // only the exact specifier, query and all, so each form needs one.
+        '@slidedeck/react/theme.css?inline': `${fileURLToPath(
+          new URL('../../../packages/react/src/theme.css', import.meta.url)
+        )}?inline`,
+        '@slidedeck/react/theme.css': fileURLToPath(
+          new URL('../../../packages/react/src/theme.css', import.meta.url)
+        ),
         // Before the bare specifier, which would otherwise swallow it.
         '@slidedeck/react/fade': fileURLToPath(
           new URL('../../../packages/react/src/fade.ts', import.meta.url)

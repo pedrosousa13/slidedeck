@@ -9,7 +9,9 @@
     "directory": "packages/react"
   },
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "*.css"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -22,6 +24,9 @@
     "./curve": {
       "types": "./dist/curve.d.ts",
       "default": "./dist/curve.js"
+    },
+    "./theme.css": {
+      "default": "./dist/theme.css"
     }
   },
   "files": [

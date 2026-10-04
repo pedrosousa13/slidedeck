@@ -238,3 +238,10 @@ export async function setReducedMotion(reduce: boolean) {
     ]
   });
 }
+
+/** Chromium's forced colours mode, as Windows High Contrast turns it on. */
+export async function setForcedColors(active: boolean) {
+  await cdp().send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'forced-colors', value: active ? 'active' : '' }]
+  });
+}

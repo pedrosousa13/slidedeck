@@ -15,7 +15,8 @@ const stories = [
   'deck--fade',
   'deck--curve',
   'deck--autoplay',
-  'deck--thumbnails'
+  'deck--thumbnails',
+  'deck--themed'
 ];
 
 for (const id of stories) {

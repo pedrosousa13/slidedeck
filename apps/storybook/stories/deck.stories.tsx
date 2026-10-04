@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import * as Deck from '@slidedeck/react';
 import { curve } from '@slidedeck/react/curve';
 import { fade } from '@slidedeck/react/fade';
+import theme from '@slidedeck/react/theme.css?inline';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
 const slidesOf = (count: number) =>
@@ -559,6 +560,34 @@ export const Autoplay: Story = {
       <Deck.Prev />
       <Deck.Next />
       <Deck.Dots />
+    </Deck.Root>
+  )
+};
+
+/**
+ * The optional theme, `import '@slidedeck/react/theme.css'`, styles the
+ * controls; the slides stay the consumer's CSS. Each value it sets is a
+ * `--deck-*` custom property, such as `--deck-accent`, to override from any
+ * ancestor.
+ */
+export const Themed: Story = {
+  args: { autoplay: 3000 },
+  decorators: [
+    (Story) => (
+      <>
+        <style>{theme}</style>
+        <Story />
+      </>
+    )
+  ],
+  render: (args) => (
+    <Deck.Root {...args}>
+      <Deck.AutoplayToggle />
+      <Deck.Viewport className="viewport">{slides}</Deck.Viewport>
+      <Deck.Prev />
+      <Deck.Next />
+      <Deck.Dots />
+      <Deck.Counter />
     </Deck.Root>
   )
 };
