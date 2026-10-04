@@ -33,18 +33,33 @@ either end, on the copies; `target()` reports the slide's index it copies.
 Prev and Next step across the seam; `scrollTo`, Dots and a new controlled
 `index` go the direct way, within the slides, never round the seam.
 
-**A loop has no end.** A step past the copies, as when presses come faster
-than the deck moves, goes instead to the nearest copy of the same slide, or
-the slide, ahead of the viewport the way the step goes. Every press counts,
-however many arrive mid-motion: the deck only travels less far. Moving the
-viewport back a set mid-motion to make room was tried: the instant scroll
-ends with a `scrollend` of its own, which settled the deck, and a jump
-mid-motion is what ADR-0006 rules out.
+**A loop has no end, and never runs against the press.** A step past the
+copies, as when presses come faster than the deck moves, goes instead to the
+nearest copy of the same slide, or the slide, ahead of the viewport the way
+the step goes: the deck only travels less far. Where none is ahead, as when
+presses come about as fast as the deck moves and the viewport has overtaken
+them, the deck goes on to the furthest snap point ahead, at the end of the
+copies, and carries the target. It comes to rest there, jumps a set back as
+from any copy, and goes on the same way to the target. So every press
+counts, however many arrive mid-motion; the deck never moves against them;
+the only jump is the usual one from a copy to its slide, at rest; and only
+the final rest is reported, through `onIndexChange` and the live region. A
+step from a rest the deck could not jump off, as on a copy past a centred
+deck's scroll range, goes on from that copy, not from its slide. A copy's
+snap point past either end of the scroll range counts as past the copies.
+
+Moving the viewport back a set mid-motion to make room was tried: the
+instant scroll ends with a `scrollend` of its own, which settled the deck,
+and a jump mid-motion is what ADR-0006 rules out. A carried move's own jump
+also fires `scrollend` after the move has gone on; the engine ignores it
+while the viewport is still where it jumped to.
 
 **A refused move comes back the short way.** A controlled deck whose parent
-keeps `index` after a step across the seam returns to it whichever way is
-shorter, back across the seam, rather than rewinding through every slide.
-The engine's `scrollTo` takes a way, `direct` or `short`, for this.
+keeps `index` returns to it whichever way is shorter, across the seam when
+that is shorter, whether or not the move it undoes crossed the seam: after a
+step across the seam it comes back across it, rather than rewinding through
+every slide. The engine's `scrollTo` takes a way, `direct` or `short`, for
+this.
 
 **Copies carry the outputs.** `--deck-progress` and `data-in-view` are written
 to every copy by its own place in the run, so a copy in view reads as the

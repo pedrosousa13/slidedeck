@@ -279,8 +279,9 @@ export function Root({
   // flight is heading, if any, so an `index` changed back mid-flight wins.
   // A new `index` is the parent's move, so it is announced; a return to
   // it belongs to the move it undoes. A looping deck follows a new `index`
-  // the direct way, as `scrollTo` goes, and returns the short way, back
-  // across the seam if the refused move crossed it.
+  // the direct way, as `scrollTo` goes, and returns to an `index` the parent
+  // kept whichever way is shorter, across the seam when that is shorter,
+  // whether or not the move it undoes crossed it.
   const previousIndexRef = useRef(index);
   useLayoutEffect(() => {
     const engine = engineRef.current;

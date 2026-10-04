@@ -221,6 +221,55 @@ describe('loop', () => {
     expect(Math.abs(after - before)).toBeLessThanOrEqual(0.5 + 2 / 64);
   });
 
+  // Presses about as fast as the deck moves take it past the copies of where
+  // it is heading: it must still never move against the press.
+  for (const [button, start, presses, spacing, centred] of [
+    ['Next', 3, 7, 120, false],
+    ['Next', 3, 12, 120, false],
+    ['Next', 3, 12, 40, false],
+    ['Previous', 1, 9, 120, false],
+    ['Previous', 1, 14, 120, false],
+    ['Previous', 1, 14, 40, false],
+    // Centred, the copies' last snap points are past the scroll range.
+    ['Next', 3, 12, 120, true],
+    ['Previous', 1, 14, 120, true]
+  ] as const) {
+    test(`${presses} presses of ${button} ${spacing}ms apart only ever move ${button === 'Next' ? 'on' : 'back'}, and count${centred ? ', centred' : ''}`, async () => {
+      if (centred) addStyle(CENTRED);
+      const { viewport, root, onIndexChange } = renderLoop({
+        defaultIndex: start,
+        viewportClassName: centred ? 'centred' : undefined
+      });
+      const way = button === 'Next' ? 1 : -1;
+      const expected = (((start + way * presses) % 5) + 5) % 5;
+      const positions: number[] = [];
+      let done = false;
+      const sample = () => {
+        positions.push(viewport.scrollLeft);
+        if (!done) requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+
+      const press = screen.getByRole('button', { name: button });
+      for (let i = 0; i < presses; i++) {
+        press.click();
+        await sleep(spacing);
+      }
+
+      await expectSettledTo(() => root.dataset.index, String(expected));
+      done = true;
+      await nextFrame();
+      expect(onIndexChange.mock.calls.at(-1)).toEqual([expected]);
+      // Frame to frame, the deck moves the way it was pressed, but for a
+      // jump of a set (five slides) off a copy.
+      const against = positions
+        .slice(1)
+        .map((at, i) => (at - positions[i]) * way)
+        .filter((d) => Math.abs(d) < (centred ? 200 : 2.5 * WIDTH) && d < -1);
+      expect(against).toEqual([]);
+    });
+  }
+
   test('Dots and Counter count the slides, not the copies', async () => {
     const { prev, dots, counter } = renderLoop();
 
