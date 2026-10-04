@@ -14,7 +14,8 @@ const stories = [
   'deck--progress',
   'deck--fade',
   'deck--curve',
-  'deck--autoplay'
+  'deck--autoplay',
+  'deck--thumbnails'
 ];
 
 for (const id of stories) {
@@ -70,6 +71,52 @@ test('a controlled deck follows the index its parent sets', async ({
     ratio: 1
   });
   await expect(deck).toHaveAttribute('data-index', '3');
+});
+
+test('clicking a thumbnail moves the main deck and marks the thumbnail', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--thumbnails&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const strip = page.getByRole('region', { name: 'Thumbnails' });
+
+  await strip.getByRole('button', { name: 'Slide 3' }).click();
+
+  await expect(deck.getByRole('group', { name: '3 of 8' })).toBeInViewport({
+    ratio: 1
+  });
+  await expect(deck).toHaveAttribute('data-index', '2');
+  await expect(strip.getByRole('button', { name: 'Slide 3' })).toHaveAttribute(
+    'aria-current',
+    'true'
+  );
+  await expect(
+    strip.getByRole('button', { name: 'Slide 1' })
+  ).not.toHaveAttribute('aria-current');
+});
+
+test('moving the main deck marks its thumbnail and brings it into view in the strip', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--thumbnails&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const strip = page.getByRole('region', { name: 'Thumbnails' });
+  const thumb = (n: number) =>
+    strip.getByRole('button', { name: `Slide ${n}` });
+  // The strip shows the first few thumbnails, not the last.
+  await expect(thumb(8)).not.toBeInViewport({ ratio: 1 });
+
+  await deck.getByRole('group', { name: '8 of 8' }).scrollIntoViewIfNeeded();
+
+  await expect(deck).toHaveAttribute('data-index', '7');
+  await expect(thumb(8)).toHaveAttribute('aria-current', 'true');
+  await expect(thumb(8)).toBeInViewport({ ratio: 1 });
+
+  await deck.getByRole('button', { name: 'Previous' }).click();
+
+  await expect(deck).toHaveAttribute('data-index', '6');
+  await expect(thumb(7)).toHaveAttribute('aria-current', 'true');
+  await expect(thumb(7)).toBeInViewport({ ratio: 1 });
 });
 
 test('a dot moves the deck to its page and the counter follows', async ({
