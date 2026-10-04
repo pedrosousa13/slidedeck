@@ -15,7 +15,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - run: corepack enable
@@ -29,11 +29,15 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-chromium-${{ steps.playwright-version.outputs.version }}
-      # chromium only, and without --with-deps: playdeck measured that chromium
-      # launches on ubuntu-latest with no apt packages, and apt is what wedged
-      # its installs. Bounded so a stalled download fails instead of hanging.
+          key: playwright-${{ runner.os }}-chromium-firefox-webkit-${{ steps.playwright-version.outputs.version }}
+      # chromium without --with-deps: playdeck measured that chromium launches
+      # on ubuntu-latest with no apt packages, and apt is what wedged its
+      # installs. The e2e suite also runs in Firefox and WebKit, which need
+      # their system libraries, so only they bring apt in. Bounded so a
+      # stalled download or apt fails instead of hanging.
       - run: pnpm exec playwright install chromium
         timeout-minutes: 10
+      - run: pnpm exec playwright install --with-deps firefox webkit
+        timeout-minutes: 15
       # The one gate, the same command a developer runs locally.
       - run: pnpm verify
