@@ -28,8 +28,11 @@ export interface DeckOptions {
 
 export interface DeckEngine {
   /** Scrolls to a snap point, clamped to the snap points there are. Does
-   * nothing for a non-finite index, or while there are no snap points. */
-  scrollTo(index: number): void;
+   * nothing for a non-finite index, or while there are no snap points. With
+   * loop, `direct` (the default) goes within the slides, never round the
+   * seam; `short` goes whichever way is shorter, across the seam if need be.
+   * Without loop the two are the same. */
+  scrollTo(index: number, way?: 'direct' | 'short'): void;
   next(): void;
   prev(): void;
   /** The snap point a scroll the engine started is heading to, until it
@@ -160,9 +163,8 @@ export function createDeck(
     const shift =
       at < points[0] - 1 ? length : at > points[0] + length - 1 ? -length : 0;
     if (shift === 0) return;
-    if (points.some((point) => Math.abs(at + shift - point) <= 1)) {
-      along.scrollTo(at + shift, 'instant');
-    }
+    const point = points.find((p) => Math.abs(at + shift - p) <= 1);
+    if (point !== undefined) along.scrollTo(point, 'instant');
   };
 
   // The snap point a step is scrolling to, until the scroll ends: a second
@@ -268,10 +270,21 @@ export function createDeck(
     const count = geometry.points.length;
     // Nowhere to scroll to: a target set now would never clear either.
     if (!Number.isFinite(index) || count === 0) return;
-    const next =
-      across && geometry.length > 0
-        ? Math.min(Math.max(index, -count), 2 * count - 1)
-        : clamp(index, count);
+    let next = across && geometry.length > 0 ? index : clamp(index, count);
+    // A loop has no end: a move past the copies, as when presses come
+    // faster than the deck moves, goes to the same slide's nearest copy, or
+    // the slide, ahead of the viewport the way the move goes. The count
+    // holds; the deck only travels less far, and never jumps mid-motion.
+    if (next < -count || next > 2 * count - 1) {
+      const at = along.position;
+      const ahead = next > 0 ? 1 : -1;
+      const same = [-1, 0, 1].map((set) => wrap(next, count) + set * count);
+      const distance = (i: number) => (positionOf(geometry, i) - at) * ahead;
+      const onward = same.filter((i) => distance(i) > 0);
+      next = (onward.length > 0 ? onward : same).reduce((a, b) =>
+        Math.abs(distance(b)) < Math.abs(distance(a)) ? b : a
+      );
+    }
     const to = positionOf(geometry, next);
     // A scroll to where the viewport already rests ends no scroll, so a
     // target set for it would never clear and would block every refresh.
@@ -465,7 +478,24 @@ export function createDeck(
     scrollTo((target ?? state.index) + delta, true);
 
   return {
-    scrollTo: (index) => scrollTo(index),
+    scrollTo(index, way = 'direct') {
+      const along = axis();
+      const geometry = snapPoints(viewport, along);
+      const count = geometry.points.length;
+      if (way === 'direct' || geometry.length === 0) {
+        scrollTo(index);
+        return;
+      }
+      if (!Number.isFinite(index) || count === 0) return;
+      // The slide's snap point or either copy of it, whichever is nearest.
+      const same = [-1, 0, 1].map((set) => clamp(index, count) + set * count);
+      const distance = (i: number) =>
+        Math.abs(positionOf(geometry, i) - along.position);
+      scrollTo(
+        same.reduce((a, b) => (distance(b) < distance(a) ? b : a)),
+        true
+      );
+    },
     next: () => step(1),
     prev: () => step(-1),
     // A target on the copies is the slides' snap point it copies.

@@ -150,6 +150,76 @@ describe('loop', () => {
     expect(offsetOf('1 of 5')).toBe(0);
   });
 
+  test('Next pressed seven times mid-motion counts on round the seam, with no end', async () => {
+    const { next, root, offsetOf } = renderLoop({ defaultIndex: 3 });
+
+    for (let i = 0; i < 7; i++) {
+      next.click();
+      await sleep(80);
+    }
+
+    // 3 + 7 is 10: twice round five slides, back to the first.
+    await expectSettledTo(() => root.dataset.index, '0');
+    expect(offsetOf('1 of 5')).toBe(0);
+  });
+
+  test('Prev pressed twelve times at once counts back round the seam, with no end', async () => {
+    const { prev, root, onIndexChange, offsetOf } = renderLoop();
+
+    for (let i = 0; i < 12; i++) prev.click();
+
+    // 0 - 12 is 3, round five slides twice and more.
+    await expectSettledTo(() => root.dataset.index, '3');
+    expect(onIndexChange.mock.calls.at(-1)).toEqual([3]);
+    expect(offsetOf('4 of 5')).toBe(0);
+  });
+
+  test('the jump off a copy moves the slides by under half a pixel, with a fractional set length', async () => {
+    // 3.5 slides in view: a set of five is 428.57px long.
+    addStyle(CENTRED);
+    const { viewport, next, root } = renderLoop({
+      viewportClassName: 'centred',
+      defaultIndex: 4
+    });
+    await sleep(100);
+    const box = viewport.getBoundingClientRect();
+    const run = [
+      ...viewport.querySelectorAll<HTMLElement>('[data-slidedeck-slide]')
+    ];
+    // At each scroll: where the viewport is, and how far the slide or copy
+    // nearest the centre is from it.
+    const seen: [number, number][] = [];
+    const onScroll = () => {
+      const centre = (box.left + box.right) / 2;
+      let nearest = Infinity;
+      for (const el of run) {
+        const r = el.getBoundingClientRect();
+        const d = (r.left + r.right) / 2 - centre;
+        if (Math.abs(d) < Math.abs(nearest)) nearest = d;
+      }
+      seen.push([viewport.scrollLeft, nearest]);
+    };
+    viewport.addEventListener('scroll', onScroll);
+
+    await userEvent.click(next);
+    await expectSettledTo(() => root.dataset.index, '0');
+    viewport.removeEventListener('scroll', onScroll);
+
+    // The jump: the one scroll of most of a set at once.
+    const jump = seen.findIndex(
+      ([at], i) => i > 0 && Math.abs(at - seen[i - 1][0]) > 200
+    );
+    expect(jump).toBeGreaterThan(0);
+    const [, before] = seen[jump - 1];
+    const [, after] = seen[jump];
+    expect(Math.abs(before)).toBeLessThan(0.5);
+    // Scroll positions are whole pixels here, and the set is not: the jump
+    // lands on the slide's snap point, the whole pixel nearest a set back,
+    // so it can move the slides by up to half a pixel, plus layout's own
+    // rounding to sixty-fourths (ADR-0009).
+    expect(Math.abs(after - before)).toBeLessThanOrEqual(0.5 + 2 / 64);
+  });
+
   test('Dots and Counter count the slides, not the copies', async () => {
     const { prev, dots, counter } = renderLoop();
 
@@ -407,6 +477,52 @@ describe('loop, controlled', () => {
           .left - viewport.getBoundingClientRect().left
       )
     ).toBe(0);
+  });
+});
+
+describe('loop, controlled by a parent that refuses', () => {
+  test('a step across the seam it refuses comes back the short way', async () => {
+    const onIndexChange = vi.fn();
+    render(<TestDeck loop index={4} onIndexChange={onIndexChange} />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+    const rest = viewport.scrollLeft;
+    const seen: number[] = [];
+    const onScroll = () => seen.push(viewport.scrollLeft - rest);
+    viewport.addEventListener('scroll', onScroll);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    await expect.poll(() => onIndexChange.mock.calls).toEqual([[0]]);
+    await expectSettledTo(() => viewport.scrollLeft, rest);
+    viewport.removeEventListener('scroll', onScroll);
+    expect(root.dataset.index).toBe('4');
+    // After the jump onto slide 1, four slides back, it goes back one slide
+    // across the seam: never through slides 2 to 4, a rewind.
+    expect(seen.some((d) => Math.abs(d + 4 * WIDTH) < 1)).toBe(true);
+    expect(seen.filter((d) => d > -3.5 * WIDTH && d < -0.5 * WIDTH)).toEqual(
+      []
+    );
+  });
+});
+
+describe('loop, controlled by a parent that sets a new index', () => {
+  test('across the seam, the deck goes the direct way, within the slides', async () => {
+    const { rerender } = render(<TestDeck loop index={4} />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+    const rest = viewport.scrollLeft;
+    const seen: number[] = [];
+    const onScroll = () => seen.push(viewport.scrollLeft - rest);
+    viewport.addEventListener('scroll', onScroll);
+
+    rerender(<TestDeck loop index={0} />);
+
+    await expectSettledTo(() => root.dataset.index, '0');
+    viewport.removeEventListener('scroll', onScroll);
+    // Back through slides 4 to 2, never on across the seam.
+    expect(seen.every((d) => d <= 0 && d >= -4 * WIDTH)).toBe(true);
+    expect(viewport.scrollLeft - rest).toBe(-4 * WIDTH);
   });
 });
 

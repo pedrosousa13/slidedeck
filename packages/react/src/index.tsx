@@ -278,18 +278,23 @@ export function Root({
   // reverts an edit its parent ignores. Compared with where a scroll in
   // flight is heading, if any, so an `index` changed back mid-flight wins.
   // A new `index` is the parent's move, so it is announced; a return to
-  // it belongs to the move it undoes.
+  // it belongs to the move it undoes. A looping deck follows a new `index`
+  // the direct way, as `scrollTo` goes, and returns the short way, back
+  // across the seam if the refused move crossed it.
   const previousIndexRef = useRef(index);
   useLayoutEffect(() => {
     const engine = engineRef.current;
-    if (index !== previousIndexRef.current) {
+    const moved = index !== previousIndexRef.current;
+    if (moved) {
       autoplayMovedRef.current = false;
       stepFromRef.current = null;
     }
     previousIndexRef.current = index;
     if (index !== undefined && state.count !== null && engine) {
       const heading = engine.target() ?? state.index;
-      if (clampSlide(index, state.count) !== heading) engine.scrollTo(index);
+      if (clampSlide(index, state.count) !== heading) {
+        engine.scrollTo(index, moved ? 'direct' : 'short');
+      }
     }
   }, [index, state.index, state.count]);
 
