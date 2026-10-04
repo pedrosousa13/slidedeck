@@ -39,6 +39,13 @@ interface DeckContextValue {
   orientation: Orientation;
   viewportRef: RefObject<HTMLDivElement | null>;
   engineRef: RefObject<DeckEngine | null>;
+  /** Whether Root has `autoplay`. */
+  autoplay: boolean;
+  /** Whether autoplay is on: the user has not stopped it. A pointer over the
+   * deck or a hidden document pauses it without turning it off. */
+  playing: boolean;
+  /** Turns autoplay on or off, as the user does with the toggle. */
+  togglePlaying(): void;
 }
 
 const clampSlide = (index: number, count: number) =>
@@ -86,6 +93,13 @@ interface RootBaseProps extends ComponentProps<'div'> {
    * right-to-left document the deck starts at the right and Next moves left.
    * Defaults to horizontal. */
   orientation?: Orientation;
+  /** Moves the deck one snap point on every this many milliseconds, counted
+   * from when it comes to rest, and stops at the last. A pointer over the
+   * deck or a hidden document pauses it; focus entering the deck, other than
+   * on `Deck.AutoplayToggle`, stops it until the toggle starts it again, and
+   * so does a preference for reduced motion, from the start. Pair it with
+   * `Deck.AutoplayToggle` (WCAG 2.2.2). Off by default. */
+  autoplay?: number;
 }
 
 /** Controlled like a React input's `value`: the deck scrolls to `index` when
@@ -122,6 +136,11 @@ export function Root({
   onFocalChange,
   clickToFocus = false,
   orientation = 'horizontal',
+  autoplay,
+  children,
+  onFocus,
+  onPointerEnter,
+  onPointerLeave,
   ...props
 }: RootProps) {
   // Core starts a non-finite index at 0; so must the first render.
@@ -145,6 +164,15 @@ export function Root({
   const onFocalChangeRef = useRef(onFocalChange);
   const indexRef = useRef(index);
   const orientationRef = useRef(orientation);
+  // What the live region says: the current slide, after the deck moves.
+  const [announcement, setAnnouncement] = useState('');
+  // Autoplay is on until the user, focus or reduced motion stops it; a
+  // pointer over the deck or a hidden document only pauses it.
+  const [playing, setPlaying] = useState(true);
+  const [hovered, setHovered] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  // Autoplay stopped because the deck could not move on: Start rewinds.
+  const endedRef = useRef(false);
 
   useLayoutEffect(() => {
     onIndexChangeRef.current = onIndexChange;
@@ -174,6 +202,14 @@ export function Root({
             next.index !== clampSlide(controlled, next.count))
         ) {
           onIndexChangeRef.current?.(next.index);
+        }
+        if (settled !== undefined && next.index !== settled) {
+          endedRef.current = false;
+          setAnnouncement(
+            next.slide === -1
+              ? ''
+              : `Slide ${next.slide + 1} of ${slideCount(viewport)}`
+          );
         }
         settled = next.index;
         if (focal !== undefined && next.focal !== focal) {
@@ -214,6 +250,73 @@ export function Root({
     }
   }, [index, state.index, state.count]);
 
+  // Without autoplay, none of its state is tracked: hover and focus would
+  // re-render the deck for nothing (ADR-0003).
+  const autoplaying = autoplay !== undefined;
+
+  useLayoutEffect(() => {
+    if (!autoplaying) return;
+    const query = matchMedia('(prefers-reduced-motion: reduce)');
+    const stopIfReduced = () => {
+      if (query.matches) setPlaying(false);
+    };
+    stopIfReduced();
+    query.addEventListener('change', stopIfReduced);
+    return () => query.removeEventListener('change', stopIfReduced);
+  }, [autoplaying]);
+
+  useEffect(() => {
+    if (!autoplaying) return;
+    const update = () => setHidden(document.visibilityState === 'hidden');
+    update();
+    document.addEventListener('visibilitychange', update);
+    return () => document.removeEventListener('visibilitychange', update);
+  }, [autoplaying]);
+
+  const rotating =
+    autoplaying &&
+    playing &&
+    !hovered &&
+    !hidden &&
+    state.count !== null &&
+    !everySlideFits(state.count);
+
+  // One step per interval, counted afresh each time the deck comes to rest
+  // on a new snap point. A step that cannot move the deck ends autoplay;
+  // where next() wraps, as it will with loop, it never ends.
+  useEffect(() => {
+    if (!rotating) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      // A scroll the engine started is still in flight: let it rest first.
+      if (engine.target() !== null) {
+        timer = setTimeout(tick, autoplay);
+        return;
+      }
+      engine.next();
+      if (engine.target() === null) {
+        endedRef.current = true;
+        setPlaying(false);
+      }
+    };
+    timer = setTimeout(tick, autoplay);
+    return () => clearTimeout(timer);
+  }, [rotating, autoplay, state.index]);
+
+  const togglePlaying = () => {
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    if (endedRef.current) {
+      endedRef.current = false;
+      engineRef.current?.scrollTo(0);
+    }
+    setPlaying(true);
+  };
+
   useImperativeHandle(
     handleRef,
     () => ({
@@ -226,7 +329,7 @@ export function Root({
 
   // Only the first render is unmeasured, so the walk runs once, and on the
   // server.
-  const slides = state.count === null ? slidesIn(props.children) : null;
+  const slides = state.count === null ? slidesIn(children) : null;
 
   return (
     <DeckContext
@@ -236,7 +339,10 @@ export function Root({
         initialIndex,
         orientation,
         viewportRef,
-        engineRef
+        engineRef,
+        autoplay: autoplaying,
+        playing,
+        togglePlaying
       }}
     >
       <div
@@ -247,10 +353,62 @@ export function Root({
         // trails a new `index` until the deck settles there.
         data-index={state.index}
         {...props}
-      />
+        // Focus entering the deck stops autoplay until the toggle starts it
+        // again (APG carousel); focus on the toggle itself does not.
+        onFocus={(event) => {
+          onFocus?.(event);
+          if (
+            autoplaying &&
+            !(event.target as Element).closest(
+              '[data-slidedeck-autoplay-toggle]'
+            )
+          ) {
+            setPlaying(false);
+          }
+        }}
+        onPointerEnter={(event) => {
+          onPointerEnter?.(event);
+          if (autoplaying) setHovered(true);
+        }}
+        onPointerLeave={(event) => {
+          onPointerLeave?.(event);
+          if (autoplaying) setHovered(false);
+        }}
+      >
+        {children}
+        {/* Announces the slide the deck moves to, except while autoplay
+            rotates it (APG carousel). Empty until the deck first moves, so
+            hydration announces nothing. */}
+        <div
+          aria-live={rotating ? 'off' : 'polite'}
+          aria-atomic="true"
+          data-slidedeck-live=""
+          style={visuallyHidden}
+        >
+          {announcement}
+        </div>
+      </div>
     </DeckContext>
   );
 }
+
+const visuallyHidden: CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: 0
+};
+
+/** The viewport's slides: its children but snap targets. */
+const slideCount = (viewport: HTMLElement) =>
+  [...viewport.children].filter(
+    (child) => !child.hasAttribute('data-slidedeck-snap-target')
+  ).length;
 
 /** The slides in the first Deck.Viewport among `children`, looking through
  * elements and fragments but not into components, which Root cannot render
@@ -633,5 +791,41 @@ export function Counter(props: Omit<ComponentProps<'span'>, 'children'>) {
     >
       {known && `${index + 1} / ${count}`}
     </span>
+  );
+}
+
+/**
+ * Stops and starts `Deck.Root`'s `autoplay`, so motion can always be stopped
+ * (WCAG 2.2.2). Its name is the action it takes, "Stop slide rotation" or
+ * "Start slide rotation", rather than `aria-pressed` (APG carousel); it is
+ * marked `data-playing` while autoplay is on, paused by a pointer or not.
+ * Children replace the visible name: give both states, shown by
+ * `data-playing` in CSS. Place it first among the deck's controls, ahead of
+ * the slides, so keyboard users reach it before the moving content. Focus on
+ * it does not stop autoplay, so it can be pressed. Starting autoplay where it
+ * stopped at the last snap point rewinds to the first. A consumer's
+ * `onClick` runs first and can cancel the toggle with `preventDefault()`.
+ * Absent without `autoplay`, and when every slide fits.
+ */
+export function AutoplayToggle({
+  onClick,
+  children,
+  ...props
+}: ComponentProps<'button'>) {
+  const { autoplay, playing, togglePlaying, count } = useDeck('AutoplayToggle');
+  if (!autoplay || everySlideFits(count)) return null;
+  return (
+    <button
+      type="button"
+      {...props}
+      data-slidedeck-autoplay-toggle=""
+      data-playing={playing ? '' : undefined}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) togglePlaying();
+      }}
+    >
+      {children ?? (playing ? 'Stop slide rotation' : 'Start slide rotation')}
+    </button>
   );
 }

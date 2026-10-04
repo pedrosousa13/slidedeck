@@ -87,6 +87,13 @@ Scrolling past the last snap point arrives at the first, and back, with no
 visible jump.
 _Avoid_: infinite, wrap-around
 
+**Autoplay**:
+The deck moving itself one snap point on, on an interval. _Stopped_ by the
+user, focus entering the deck or a preference for reduced motion, until the
+user starts it again; _paused_ only while a pointer is over the deck or the
+document is hidden.
+_Avoid_: autoscroll, slideshow
+
 ### Outputs
 
 **Progress**:
