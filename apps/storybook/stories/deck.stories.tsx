@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as Deck from '@slidedeck/react';
+import { curve } from '@slidedeck/react/curve';
 import { fade } from '@slidedeck/react/fade';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
@@ -335,6 +336,56 @@ export const Fade: Story = {
     <Deck.Root {...args}>
       <Deck.Viewport className="viewport" effect={fade}>
         {slidesOf(4)}
+      </Deck.Viewport>
+      <Deck.Prev />
+      <Deck.Next />
+      <Deck.Dots />
+    </Deck.Root>
+  )
+};
+
+/**
+ * A showcase that fans out. `effect={curve}`, imported from
+ * `@slidedeck/react/curve`, turns each slide about its centre and drops it
+ * onto a circle under the focal slide, fading it with distance, as the
+ * viewport scrolls, snaps and drags natively. Every slide snaps at its
+ * centre. The circle's radius, in slides, is `--deck-curve-radius` (4 by
+ * default): here 3, set in CSS. The viewport clips the arc across the axis,
+ * so it never shows a scrollbar; its bottom padding gives the arc room.
+ * Under reduced motion the slides stay flat and only fade. A deck that does
+ * not import the effect ships none of its code.
+ */
+export const Curve: Story = {
+  decorators: [
+    (Story) => (
+      <>
+        <style>{`
+          .showcase .viewport {
+            --deck-curve-radius: 3;
+            box-sizing: border-box;
+            gap: 16px;
+            padding: 16px calc(50% - 90px) 96px;
+          }
+          .showcase .slide {
+            display: grid;
+            place-content: center;
+            width: 180px;
+            min-height: 220px;
+            border-radius: 12px;
+            background: #eef;
+          }
+          .showcase .slide:nth-child(even) { background: #fee; }
+        `}</style>
+        <div className="showcase">
+          <Story />
+        </div>
+      </>
+    )
+  ],
+  render: (args) => (
+    <Deck.Root {...args}>
+      <Deck.Viewport className="viewport" effect={curve}>
+        {slides}
       </Deck.Viewport>
       <Deck.Prev />
       <Deck.Next />

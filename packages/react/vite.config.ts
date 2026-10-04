@@ -5,7 +5,11 @@ export default defineConfig({
     // Each effect is its own entry, so a deck that imports none ships none
     // of its code.
     lib: {
-      entry: { index: 'src/index.tsx', fade: 'src/fade.ts' },
+      entry: {
+        index: 'src/index.tsx',
+        fade: 'src/fade.ts',
+        curve: 'src/curve.ts'
+      },
       formats: ['es'],
       fileName: (_format, name) => `${name}.js`
     },

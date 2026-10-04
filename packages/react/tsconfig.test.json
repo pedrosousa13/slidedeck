@@ -6,7 +6,8 @@
     "types": ["node", "@vitest/browser-playwright"],
     "paths": {
       "@slidedeck/react": ["./src/index.tsx"],
-      "@slidedeck/react/fade": ["./src/fade.ts"]
+      "@slidedeck/react/fade": ["./src/fade.ts"],
+      "@slidedeck/react/curve": ["./src/curve.ts"]
     },
     "tsBuildInfoFile": "dist/.tsbuildinfo.test"
   },
