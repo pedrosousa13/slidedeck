@@ -100,26 +100,48 @@ function toPage(x: number, y: number) {
   return { x: frame.x + x * scale, y: frame.y + y * scale };
 }
 
-/** A real touch swipe (CDP touch events); positive `dx` moves the finger left. */
+/**
+ * A clock for one gesture's input events: each event carries the time the
+ * gesture gives it, `ms` after the gesture starts, not the time CDP happens
+ * to deliver it. A busy machine delays delivery, but a flick's speed, which
+ * the browser and the deck read from the events' times, stays the gesture's.
+ * The gesture still waits out each step, so no event is stamped later than
+ * it is sent.
+ */
+function gestureClock() {
+  const start = Date.now();
+  return (ms: number) => ({ timestamp: (start + ms) / 1000 });
+}
+
+/**
+ * A real touch swipe (CDP touch events); positive `dx` moves the finger left.
+ * Six moves 25ms apart on the gesture's clock, then the finger lifts: the
+ * browser reads the same fling speed from it on every run, however late the
+ * events arrive, so where the deck comes to rest depends only on `dx`.
+ */
 export async function touchSwipe(el: Element, dx: number) {
   const box = el.getBoundingClientRect();
   const y = box.top + box.height / 2;
   const startX = box.left + box.width * 0.75;
   const at = (t: number) => [{ ...toPage(startX - dx * t, y), id: 1 }];
+  const time = gestureClock();
   await cdp().send('Input.dispatchTouchEvent', {
     type: 'touchStart',
-    touchPoints: at(0)
+    touchPoints: at(0),
+    ...time(0)
   });
   for (let step = 1; step <= 6; step++) {
-    await sleep(16);
+    await sleep(25);
     await cdp().send('Input.dispatchTouchEvent', {
       type: 'touchMove',
-      touchPoints: at(step / 6)
+      touchPoints: at(step / 6),
+      ...time(step * 25)
     });
   }
   await cdp().send('Input.dispatchTouchEvent', {
     type: 'touchEnd',
-    touchPoints: []
+    touchPoints: [],
+    ...time(6 * 25)
   });
 }
 
@@ -128,8 +150,9 @@ export async function touchSwipe(el: Element, dx: number) {
  * inside the edge the pointer moves away from, moves `dx` in `steps` moves
  * `stepMs` apart, holds still `holdMs`, releases. Negative `dx` moves the
  * pointer left, or up with `axis: 'y'`: that drags a left-to-right deck, or a
- * vertical one, forward. With `release: false` the button stays down: call the
- * function it returns to let go.
+ * vertical one, forward. Each event is stamped on the gesture's own clock, so
+ * a flick's speed does not depend on the machine's load. With `release: false`
+ * the button stays down: call the function it returns to let go.
  */
 export async function mouseDrag(
   el: Element,
@@ -159,12 +182,14 @@ export async function mouseDrag(
   const buttons = { left: 1, right: 2, middle: 4 }[button];
   const at = (along: number) =>
     axis === 'x' ? toPage(along, across) : toPage(across, along);
+  const time = gestureClock();
   await cdp().send('Input.dispatchMouseEvent', {
     type: 'mousePressed',
     ...at(start),
     button,
     buttons,
-    clickCount: 1
+    clickCount: 1,
+    ...time(0)
   });
   for (let step = 1; step <= steps; step++) {
     await sleep(stepMs);
@@ -172,20 +197,23 @@ export async function mouseDrag(
       type: 'mouseMoved',
       ...at(start + (dx * step) / steps),
       button,
-      buttons
+      buttons,
+      ...time(step * stepMs)
     });
   }
   if (holdMs) await sleep(holdMs);
-  const letGo = () =>
+  // A release the caller makes later is stamped when it is sent.
+  const letGo = (stamp = {}) =>
     cdp().send('Input.dispatchMouseEvent', {
       type: 'mouseReleased',
       ...at(start + dx),
       button,
       buttons: 0,
-      clickCount: 1
+      clickCount: 1,
+      ...stamp
     });
-  if (release) await letGo();
-  return letGo;
+  if (release) await letGo(time(steps * stepMs + holdMs));
+  return () => letGo();
 }
 
 /** One real mouse event (CDP) at `x`, `y` in this page, with `buttons` held:

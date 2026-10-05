@@ -11,7 +11,7 @@ The first release: a headless carousel for React 19 built on native CSS scroll s
 - **Focal slide**: `data-focal`, `onFocalChange`, and `clickToFocus` to bring a clicked slide to the focal position.
 - **Loop**: `loop` runs on past the last snap point to the first with no visible jump, using `inert`, `aria-hidden` copies of the slides. `Deck.useSlide()` tells a slide's content its index and whether it is a copy, so content such as a video player can render differently in the copies.
 - **Drag**: a mouse drags the deck and a flick settles on the projected snap point; touch, pen and trackpad scroll natively. `drag={false}` turns it off.
-- **Autoplay**: `autoplay={ms}` with `Deck.AutoplayToggle`; it pauses on hover and in a hidden tab, stops on focus or a user move, and starts stopped under reduced motion.
+- **Autoplay**: `autoplay={ms}` with `Deck.AutoplayToggle`; it pauses at once when a pointer comes over the deck or the document is hidden, stops on focus or a user move, and starts stopped under reduced motion.
 - **Vertical and right-to-left**: `orientation="vertical"`, and the writing direction read from the viewport's computed `direction`, so `dir` on any ancestor applies.
 - **Progress and data attributes**: each slide's `--deck-slide-progress`, written every frame, and `data-*` state on every primitive, for CSS to read while the deck scrolls.
 - **Effects**: `fade` from `@slidedeck/react/fade` and `curve` from `@slidedeck/react/curve`, each its own entry point, so a deck ships only the effects it imports.

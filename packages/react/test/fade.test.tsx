@@ -149,7 +149,8 @@ describe('fade', () => {
   test('drags to the next slide and settles there', async () => {
     const { viewport, opacity, root } = renderDeck();
 
-    await mouseDrag(viewport, -WIDTH * 0.7);
+    // Held still before letting go: a drag, not a flick.
+    await mouseDrag(viewport, -WIDTH * 0.7, { holdMs: 120 });
 
     await expectSettledTo(opacity, [0, 1, 0, 0]);
     expect(root.getAttribute('data-index')).toBe('1');

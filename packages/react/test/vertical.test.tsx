@@ -237,7 +237,7 @@ describe('a mouse drag on a vertical deck', () => {
   test('a flick moves on a snap point though it is short', async () => {
     const { viewport, onIndexChange } = renderDeck();
 
-    await mouseDrag(viewport, -50, { steps: 4, stepMs: 10, axis: 'y' });
+    await mouseDrag(viewport, -50, { steps: 4, stepMs: 20, axis: 'y' });
 
     await expectSettledTo(scrollTop(viewport), HEIGHT);
     expect(onIndexChange.mock.calls).toEqual([[1]]);
