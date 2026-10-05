@@ -100,8 +100,16 @@ Prev, Next or AutoplayToggle runs first and can cancel the move with
 | `autoplay`      | `number`                     |                | Moves one snap point on every this many milliseconds. Off when unset.                     |
 | `orientation`   | `'horizontal' \| 'vertical'` | `'horizontal'` | The axis the deck scrolls along.                                                          |
 
+Content inside a slide can call `Deck.useSlide()` to learn which slide it is
+in. It returns `{ index, copy }`: `index` is the slide's index, also inside a
+loop's copy of it, and `copy` is `'before'` or `'after'` in a copy, the side of
+the slides it is on, and `undefined` in a slide. Use it where stateful content
+must not run twice, as in the [playdeck recipe](#recipe-play-a-playdeck-video-in-the-focal-slide).
+Called outside a `Deck.Slide`, it throws.
+
 The package also exports the types `RootProps`, `RootHandle`,
-`ViewportProps`, `Effect` and `Orientation`.
+`ViewportProps`, `UseSlideResult` (what `useSlide` returns), `Effect` and
+`Orientation`.
 
 ## Layout is CSS
 
@@ -217,7 +225,9 @@ each side of the slides, `inert` and `aria-hidden`; once the deck rests on a
 copy, it jumps to the identical slide. Indexes, Dots, Counter, `data-current`
 and `data-focal` count the slides only, never the copies. `scrollTo`, Dots
 and a new controlled `index` go the direct way, within the slides. A deck
-whose slides all fit does not loop. See [Known limits](#known-limits).
+whose slides all fit does not loop. Content that must not run twice, such as
+a video player, can render differently in a copy with `Deck.useSlide()`. See
+[Known limits](#known-limits).
 
 ## Drag
 
@@ -493,7 +503,7 @@ through Prev, Next, Dots and the arrow keys.
 - **A loop copy renders the slide's children again.** Their state is their
   own, effects and refs in them run once per copy, and an `id` inside a slide
   repeats three times. Avoid `id`s in looping slides, or make them unique
-  outside the slide.
+  outside the slide. `Deck.useSlide()` tells content whether it is in a copy.
 - **Presses beyond the reachable copies are dropped.** A step goes at most a
   set of copies past either end. When presses come faster than the deck
   moves, the deck passes fewer slides than were pressed, rather than moving
@@ -516,7 +526,8 @@ through Prev, Next, Dots and the arrow keys.
 A social-style deck of videos: the video in the focal slide plays, muted, and
 the others pause. Each slide holds a [playdeck](https://www.npmjs.com/package/@playdeck/react)
 player; `onFocalChange` tells the deck's parent which slide is focal once a
-scroll settles, and each player's handle plays or pauses it.
+scroll settles, and each player's handle plays or pauses it. It works with
+`loop`, as a feed usually is.
 
 ```sh
 pnpm add @playdeck/react
@@ -533,7 +544,13 @@ const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 
 /** A deck of videos: the one in the focal slide plays, muted; the rest pause.
  * Under reduced motion none plays by itself; a viewer can still press play. */
-export function VideoDeck({ sources }: { sources: readonly string[] }) {
+export function VideoDeck({
+  sources,
+  loop = false
+}: {
+  sources: readonly string[];
+  loop?: boolean;
+}) {
   const players = useRef<(Player.PlayerHandle | null)[]>([]);
   const focal = useRef(0);
 
@@ -564,31 +581,70 @@ export function VideoDeck({ sources }: { sources: readonly string[] }) {
   }, []);
 
   return (
-    <Deck.Root aria-label="Featured slides" onFocalChange={playFocal}>
+    <Deck.Root
+      aria-label="Featured slides"
+      onFocalChange={playFocal}
+      loop={loop}
+    >
       <Deck.Viewport>
         {sources.map((source, i) => (
           <Deck.Slide key={i}>
-            <Player.Root
-              ref={(player) => {
-                players.current[i] = player;
-              }}
+            <SlideVideo
               source={source}
-              defaultMuted
-              loop
-            >
-              <Player.Viewport style={{ aspectRatio: '16 / 9' }}>
-                <Player.Media />
-                <Player.Controls>
-                  <Player.PlayButton />
-                </Player.Controls>
-              </Player.Viewport>
-            </Player.Root>
+              register={(slide, player) => {
+                players.current[slide] = player;
+              }}
+            />
           </Deck.Slide>
         ))}
       </Deck.Viewport>
       <Deck.Prev />
       <Deck.Next />
     </Deck.Root>
+  );
+}
+
+/** A slide's player, registered by the slide's index. A loop's copy renders
+ * the slide again: it shows the video's first frame, still, and registers
+ * nothing, so it never replaces or clears the slide's player. */
+function SlideVideo({
+  source,
+  register
+}: {
+  source: string;
+  register: (slide: number, player: Player.PlayerHandle | null) => void;
+}) {
+  const { index, copy } = Deck.useSlide();
+  if (copy) {
+    return (
+      <video
+        src={source}
+        muted
+        playsInline
+        preload="metadata"
+        style={{
+          display: 'block',
+          width: '100%',
+          aspectRatio: '16 / 9',
+          objectFit: 'contain'
+        }}
+      />
+    );
+  }
+  return (
+    <Player.Root
+      ref={(player) => register(index, player)}
+      source={source}
+      defaultMuted
+      loop
+    >
+      <Player.Viewport style={{ aspectRatio: '16 / 9' }}>
+        <Player.Media />
+        <Player.Controls>
+          <Player.PlayButton />
+        </Player.Controls>
+      </Player.Viewport>
+    </Player.Root>
   );
 }
 ```
@@ -615,12 +671,16 @@ Notes:
 - A playdeck player loads when it comes into view. `whenReady` waits for that,
   and the focal check stops a late load from playing a slide the deck has
   left.
-- Do not combine this with `loop`: a copy renders its slide's player again,
-  and its ref would replace the slide's.
+- With `loop`, the deck renders each slide again in its copies. Each
+  slide's content calls `Deck.useSlide()`: a slide registers its player by
+  its index, and a copy shows the video's first frame, still, and registers
+  nothing. No copy's player can replace or clear a slide's, and the focal
+  slide's video plays once the deck crosses the seam and jumps.
 
-The story `Deck / Playdeck Video` in this repo's storybook runs this
-component, and end-to-end tests check that only the focal slide's video
-plays, and that none plays under reduced motion.
+The stories `Deck / Playdeck Video` and `Deck / Playdeck Video Loop` in this
+repo's storybook run this component, and end-to-end tests check that only the
+focal slide's video plays, across a loop's seam both ways too, and that none
+plays under reduced motion.
 
 ## Comparison with Embla and Keen
 

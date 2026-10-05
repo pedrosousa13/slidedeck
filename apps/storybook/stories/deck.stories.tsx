@@ -654,3 +654,21 @@ export const PlaydeckVideo: Story = {
     </div>
   )
 };
+
+/**
+ * The recipe with `loop`, as a feed usually is: the focal slide's video plays
+ * across the seam both ways. Each slide's content calls `Deck.useSlide()`: a
+ * slide registers its player by its index, and a copy shows the video's first
+ * frame, still, so no copy's player replaces or clears a slide's.
+ */
+export const PlaydeckVideoLoop: Story = {
+  render: () => (
+    <div className="video-deck">
+      <style>{`
+        .video-deck [data-slidedeck-viewport] { gap: 16px; }
+        .video-deck [data-slidedeck-slide] { width: 80%; }
+      `}</style>
+      <VideoDeck sources={[clip, clip, clip, clip]} loop />
+    </div>
+  )
+};

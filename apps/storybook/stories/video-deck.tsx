@@ -6,7 +6,13 @@ const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 
 /** A deck of videos: the one in the focal slide plays, muted; the rest pause.
  * Under reduced motion none plays by itself; a viewer can still press play. */
-export function VideoDeck({ sources }: { sources: readonly string[] }) {
+export function VideoDeck({
+  sources,
+  loop = false
+}: {
+  sources: readonly string[];
+  loop?: boolean;
+}) {
   const players = useRef<(Player.PlayerHandle | null)[]>([]);
   const focal = useRef(0);
 
@@ -37,30 +43,69 @@ export function VideoDeck({ sources }: { sources: readonly string[] }) {
   }, []);
 
   return (
-    <Deck.Root aria-label="Featured slides" onFocalChange={playFocal}>
+    <Deck.Root
+      aria-label="Featured slides"
+      onFocalChange={playFocal}
+      loop={loop}
+    >
       <Deck.Viewport>
         {sources.map((source, i) => (
           <Deck.Slide key={i}>
-            <Player.Root
-              ref={(player) => {
-                players.current[i] = player;
-              }}
+            <SlideVideo
               source={source}
-              defaultMuted
-              loop
-            >
-              <Player.Viewport style={{ aspectRatio: '16 / 9' }}>
-                <Player.Media />
-                <Player.Controls>
-                  <Player.PlayButton />
-                </Player.Controls>
-              </Player.Viewport>
-            </Player.Root>
+              register={(slide, player) => {
+                players.current[slide] = player;
+              }}
+            />
           </Deck.Slide>
         ))}
       </Deck.Viewport>
       <Deck.Prev />
       <Deck.Next />
     </Deck.Root>
+  );
+}
+
+/** A slide's player, registered by the slide's index. A loop's copy renders
+ * the slide again: it shows the video's first frame, still, and registers
+ * nothing, so it never replaces or clears the slide's player. */
+function SlideVideo({
+  source,
+  register
+}: {
+  source: string;
+  register: (slide: number, player: Player.PlayerHandle | null) => void;
+}) {
+  const { index, copy } = Deck.useSlide();
+  if (copy) {
+    return (
+      <video
+        src={source}
+        muted
+        playsInline
+        preload="metadata"
+        style={{
+          display: 'block',
+          width: '100%',
+          aspectRatio: '16 / 9',
+          objectFit: 'contain'
+        }}
+      />
+    );
+  }
+  return (
+    <Player.Root
+      ref={(player) => register(index, player)}
+      source={source}
+      defaultMuted
+      loop
+    >
+      <Player.Viewport style={{ aspectRatio: '16 / 9' }}>
+        <Player.Media />
+        <Player.Controls>
+          <Player.PlayButton />
+        </Player.Controls>
+      </Player.Viewport>
+    </Player.Root>
   );
 }
