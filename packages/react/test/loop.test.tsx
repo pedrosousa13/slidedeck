@@ -531,7 +531,8 @@ describe('loop, presses that outrun the copies', () => {
     // browser's own snap to the snap point nearest where the gesture left
     // it, which is on from there where the gesture ends past halfway
     // between two snap points. Where it ends depends on where the deck is
-    // as the gesture begins, so on the machine's load.
+    // as the gesture begins, so on the machine's load. The deck rests on
+    // that snap point, and never passes it.
     const left = viewport.scrollLeft;
     const nearest = Math.round(left / WIDTH) * WIDTH;
     const positions: number[] = [];
@@ -547,6 +548,8 @@ describe('loop, presses that outrun the copies', () => {
     expect(positions.filter((at) => at > Math.max(left, nearest) + 1)).toEqual(
       []
     );
+    // The copies before the slides start at 0: a set is five slides.
+    expect(root.dataset.index).toBe(String((nearest / WIDTH) % 5));
   });
 });
 

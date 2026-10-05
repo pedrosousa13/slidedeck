@@ -192,9 +192,8 @@ export function createDeck(
   // pointer pressed on it, a drag, or a scroll still going, which only an end
   // event tells apart from a finger held still. Not with proximity snapping,
   // where resting between snap points is the browser's own choice. Where the
-  // browser holds the deck off the snap points as measured, as scroll padding
-  // does, a re-snap from there moves nothing, and the deck settles there at
-  // the next try. Returns whether the settle waits: for quiet, or for the
+  // browser still holds the deck off the snap points as measured, a re-snap
+  // from there moves nothing, and the deck settles there at the next try. Returns whether the settle waits: for quiet, or for the
   // move it started.
   let resnapFrom: number | null = null;
   // Waiting for quiet to confirm a re-snap, then due once it has.
@@ -265,11 +264,6 @@ export function createDeck(
   // axis, 1 or -1, where the input says; 0 where it does not, as for a touch
   // pan. Until the deck next rests on a snap point, or a new move starts.
   let taken: { at: number; way: number } | null = null;
-  // Quiet ends the user's scroll too, as where `scrollend` is missing: a
-  // wheel's or a key's scroll can stop with no end event, as when page
-  // script stops the move's scroll it took over. Not a touch pan or a drag,
-  // which can hold still. Until the scroll ends, or a new move starts.
-  let untilQuiet = false;
   // The move has arrived: the viewport is at its target, its end not seen.
   const arrived = ({ target }: { target: number }) => {
     const along = axis();
@@ -343,7 +337,7 @@ export function createDeck(
     scrolling = true;
     frame ||= requestAnimationFrame(() => paint());
     if (move) move.stalled = false;
-    if (!hasScrollEnd || move || confirm || untilQuiet) awaitQuiet();
+    if (!hasScrollEnd || move || confirm) awaitQuiet();
   };
   // The layout moved the snap points mid-move (see `keepPlace`), so the
   // move's target counts the old snap points; `startMove` and `endMove`
@@ -354,7 +348,6 @@ export function createDeck(
     relaidOut = false;
     taken = null;
     confirm = null;
-    untilQuiet = false;
     awaitQuiet();
   };
   // Ends the move, if any, without a settle. Where `scrollend` is there, a
@@ -366,13 +359,11 @@ export function createDeck(
   };
   // The user's scroll ends the move, if any, going `way` along the axis
   // where the input says. It also ends the wait for a re-snap: the user's
-  // scroll settles at its own end, or at quiet `untilQuiet`.
-  const takeOver = (way = 0, quietEnds = false) => {
-    untilQuiet = quietEnds && move !== null;
+  // scroll settles at its own end.
+  const takeOver = (way = 0) => {
     if (move) taken = { at: axis().position, way };
     confirm = null;
     endMove();
-    if (untilQuiet) awaitQuiet();
   };
 
   // Pointers pressed on the viewport, by id, with their type, until they
@@ -430,7 +421,6 @@ export function createDeck(
       restoreSnap();
     }
     scrolling = false;
-    untilQuiet = false;
     // A new layout may have cut the move short: rest on its target.
     const target = relaidOut && move ? wrap(move.target, state.count) : null;
     endMove();
@@ -468,8 +458,7 @@ export function createDeck(
   // runs, as it reads a point: the way the wheel scrolls the deck.
   const onWheel = (event: WheelEvent) =>
     takeOver(
-      Math.sign(axis().at({ clientX: event.deltaX, clientY: event.deltaY })),
-      true
+      Math.sign(axis().at({ clientX: event.deltaX, clientY: event.deltaY }))
     );
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || !SCROLL_KEYS.has(event.key)) return;
@@ -483,7 +472,7 @@ export function createDeck(
     ) {
       return;
     }
-    takeOver(0, true);
+    takeOver();
   };
   const onPointerCancel = (event: PointerEvent) => {
     if (event.pointerType !== 'mouse') takeOver();
@@ -1143,6 +1132,14 @@ function snapPoints(viewport: HTMLElement, axis: Axis): Geometry {
   const max = axis.max();
   const position = axis.position;
   const view = axis.view();
+  // Where the browser aligns snap areas: the scrollport less its scroll
+  // padding, and each slide's box plus its scroll margin.
+  const [padStart, padEnd] = axis.insets(
+    getComputedStyle(viewport),
+    'scrollPadding',
+    view[1] - view[0]
+  );
+  const snapport: Span = [view[0] + padStart, view[1] - padEnd];
   const { slides, boxes, first } = slidesOf(viewport);
   const own = boxes.slice(first, first + slides.length);
   const positions: (number | null)[] = [];
@@ -1152,7 +1149,17 @@ function snapPoints(viewport: HTMLElement, axis: Axis): Geometry {
       positions.push(null);
       continue;
     }
-    const offset = alignOffset(axis, view, slide, align);
+    const [start, end] = axis.span(slide.getBoundingClientRect());
+    const [marginStart, marginEnd] = axis.insets(
+      getComputedStyle(slide),
+      'scrollMargin',
+      0
+    );
+    const offset = spanOffset(
+      [start - marginStart, end + marginEnd],
+      snapport,
+      align
+    );
     positions.push(Math.round(Math.min(Math.max(position + offset, 0), max)));
   }
   const points = [
@@ -1233,6 +1240,13 @@ interface Axis {
   /** A slide's `scroll-snap-align` along the axis: of its block and inline
    * values, the block for a vertical deck, the inline for a horizontal one. */
   snapAlign(slide: Element): string;
+  /** A box's `scrollPadding` or `scrollMargin` at the axis's start and end,
+   * in pixels; a percentage is of `size`, and `auto` is none. */
+  insets(
+    style: CSSStyleDeclaration,
+    property: 'scrollPadding' | 'scrollMargin',
+    size: number
+  ): Span;
 }
 
 function axisOf(viewport: HTMLElement, vertical: boolean): Axis {
@@ -1278,6 +1292,18 @@ function axisOf(viewport: HTMLElement, vertical: boolean): Axis {
     snapAlign(slide) {
       const values = getComputedStyle(slide).scrollSnapAlign.split(' ');
       return (vertical ? values[0] : values.pop()) ?? 'none';
+    },
+    insets(style, property, size) {
+      const sides = vertical
+        ? (['Top', 'Bottom'] as const)
+        : sign === 1
+          ? (['Left', 'Right'] as const)
+          : (['Right', 'Left'] as const);
+      return sides.map((side) => {
+        const value = style[`${property}${side}`];
+        const amount = parseFloat(value) || 0;
+        return value.endsWith('%') ? (amount / 100) * size : amount;
+      }) as Span;
     }
   };
 }

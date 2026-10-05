@@ -123,54 +123,40 @@ that pauses the scroll, as it may in a hidden tab; neither was measured. The
 deck then settles where the viewport is, and settles again at the scroll's
 own end, if one comes, with one more `onIndexChange`.
 
-**At rest off a snap point (amended for #60).** The browser snaps, but
-measured in Chromium, a deck with mandatory snapping can come to rest off
-every snap point, and the browser never snaps it back. When a long task
-holds the main thread just after the user's wheel ends a move, the browser
-can carry the move's smooth scroll on once the task ends. It then stops
-part way, off any snap point. Page script that scrolls the viewport during
-a move can also leave the deck off every snap point. The maintainer decided
-on 2026-10-05 that the engine re-snaps. So at a settle, under `mandatory`
-snapping, a deck more than a pixel from every snap point moves to a snap
-point, as the browser would have snapped it:
+**At rest off a snap point (amended for #60).** Measured in Chromium: when
+a long task holds the main thread just after the user's wheel ends a move,
+the browser can carry the move's smooth scroll on. It either runs on to the
+move's target, against the wheel, or stops part way, off every snap point,
+and never snaps the deck back. Page script that scrolls the viewport during
+a move can also leave it off every snap point. The maintainer decided on
+2026-10-05 (option B) that the engine re-snaps, and that the run-on case is
+accepted: that rest is on a snap point, so the engine cannot tell it from a
+move that arrived, and the deck reports the target.
 
-- The nearest one. Where the user's scroll took a move over, the nearest
-  the way that scroll went: the scroll the browser carried on goes back
-  toward the move's target. A wheel says its way by its delta. Other input
-  does not, so the way is from where the user took over to where the deck
-  rests.
-- Only once quiet confirms it. Measured in Chromium, a wheel's scroll can
-  end, with `scrollend`, before the browser's snap from there is done. So
-  the settle waits for quiet, no scroll event for 100ms, and looks again.
-  The user's scroll ends the wait.
-- With loop, a copy's snap point counts, and that move's settle jumps off
-  the copy as usual. The settle after the move reports the index.
+So at a settle under `mandatory` snapping, a deck more than a pixel from
+every snap point moves to the nearest one. Where the user's scroll took a
+move over, it moves to the nearest one the way that scroll went: a wheel's
+delta says the way, and for other input it is from where the user took
+over to where the deck rests. Snap points are measured as the browser rests
+the slides, scroll padding and scroll margin included. With loop, a copy's
+snap point counts, and that move's settle jumps off the copy.
+
+- It waits for quiet and looks again first. Measured in Chromium, a wheel's
+  scroll ends, with `scrollend`, before the browser's snap from there is
+  done.
+- It never fights the user. A pressed pointer, a drag and a scroll still
+  going all hold it, and the user's scroll ends the wait. Where `scrollend`
+  is missing, quiet cannot tell a finger held still from a scroll's end, so
+  there is no re-snap.
 - Proximity snapping is exempt: resting between snap points is the
-  browser's own choice there.
-- It never fights the user. A pointer pressed on the viewport holds it
-  until the last one lets go, as it holds every settle. A drag holds it
-  until its release has settled, and a scroll still going holds it too.
-  Where `scrollend` is missing, quiet cannot tell a finger held still from
-  the end of a scroll, so the engine does not re-snap there.
-- The engine measures snap points from the slides' boxes and
-  `scroll-snap-align` only. Where the browser snaps elsewhere, as with
-  scroll padding, the re-snap moves nothing. The deck then settles where the
-  browser holds it and does not try again from there, so the re-snap can
-  never repeat for ever.
+  browser's choice there.
+- Where the browser still holds the deck somewhere the engine does not
+  measure, a re-snap from there moves nothing, and the deck settles there
+  without trying again.
 
-A wheel or a key that takes a move over can also leave a scroll that stops
-with no end event, as when page script stops it. So quiet ends that scroll,
-as it does where `scrollend` is missing, and the deck settles. A touch pan
-and a drag are left to their end events, as a finger or the mouse can hold
-still.
-
-One case stays the browser's. The scroll it carries on after the wheel can
-run on to the move's target, against the wheel. That rest is on a snap
-point, so the engine cannot tell it from a move that arrived, and the deck
-reports the target. Stopping the move's scroll on the wheel, with an
-instant scroll by nothing, was tried and rejected. Where the wheel reached
-the main thread after the long task, the stop also undid the wheel, and
-the deck went on to the target every time.
+Stopping the move's scroll on the wheel, with an instant scroll by nothing,
+was tried and rejected: where the wheel reached the main thread after the
+long task, the stop also undid the wheel.
 
 **Fade: sticky stack.** Slides are stacked with `position: sticky`, opacity
 is set from a scroll listener, and non-focal slides are `inert`. As built,

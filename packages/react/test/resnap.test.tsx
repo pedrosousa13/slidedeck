@@ -1,10 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, onTestFinished, test, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
   addStyle,
   expectRestOnASlide,
   expectSettledTo,
+  gestureScroll,
   mouseAt,
   mouseDrag,
   parkMouse,
@@ -83,9 +85,11 @@ describe('a deck at rest off every snap point', () => {
 
   test("after the user's wheel took the move over, moves to the nearest the way the wheel went", async () => {
     // Measured in Chromium, a long task just after the wheel can let the
-    // move's scroll go on, and stop part way back toward the move's target.
-    // Here the page keeps the wheel from scrolling, so the move's scroll
-    // goes on, and page script stops it past halfway to the next slide.
+    // move's scroll go on, and stop part way back toward the move's target,
+    // with an end event there. Here the page keeps the wheel from
+    // scrolling, so the move's scroll goes on; page script stops it past
+    // halfway to the next slide, and the end event the browser sent there
+    // is sent here, as an instant scroll by nothing sends none.
     const { root, viewport, next, onIndexChange } = renderDeck();
     root.addEventListener('wheel', (event) => event.preventDefault(), {
       passive: false
@@ -101,6 +105,7 @@ describe('a deck at rest off every snap point', () => {
       viewport.addEventListener('scroll', turn);
     });
     const stopped = await stopPast(viewport, 200);
+    viewport.dispatchEvent(new Event('scrollend'));
 
     expect(stopped).toBeGreaterThan(WIDTH / 2);
     await expectRestOnASlide(viewport, root, onIndexChange);
@@ -173,13 +178,10 @@ describe('a deck at rest off every snap point', () => {
     expect(viewport.scrollLeft).toBe(stopped);
   });
 
-  test('where the browser snaps elsewhere than the slides measure, settles there', async () => {
-    // Scroll padding moves the browser's snap points, and slidedeck does not
-    // measure it: the move to the next slide comes to rest 20px short of
-    // where the engine measures its snap point. Moving it on again there
-    // would never end, and the deck would never report the move. The slides
-    // are narrower than the viewport: a slide wider than the padded
-    // snapport may snap anywhere it covers it.
+  test('with scroll padding, rests on its snap point with no re-snap', async () => {
+    // Scroll padding moves where the browser rests each slide: 20px short
+    // here. The slides are narrower than the viewport: a slide wider than
+    // the padded snapport may snap anywhere it covers it.
     addStyle(`
       .padded { scroll-padding-inline-start: 20px; }
       .padded > * { width: 200px; }
@@ -187,11 +189,18 @@ describe('a deck at rest off every snap point', () => {
     const { viewport, next, onIndexChange } = renderDeck({
       viewportClassName: 'padded'
     });
+    const scrolls: ScrollToOptions[] = [];
+    const scrollTo = viewport.scrollTo.bind(viewport);
+    viewport.scrollTo = ((options: ScrollToOptions) => {
+      scrolls.push(options);
+      scrollTo(options);
+    }) as typeof viewport.scrollTo;
 
     next.click();
 
     await expectSettledTo(() => onIndexChange.mock.calls, [[1]]);
     expect(viewport.scrollLeft).toBe(180);
+    expect(scrolls).toEqual([{ left: 180, behavior: 'smooth' }]);
   });
 });
 
@@ -214,6 +223,49 @@ describe('a deck at rest off every snap point, while the user has it', () => {
     released = true;
     await mouseAt('mouseReleased', x, y, 0);
     await expectRestOnASlide(viewport, root, onIndexChange);
+  });
+
+  test('leaves a wheel gesture to the browser while it goes on', async () => {
+    const { root, viewport, next, onIndexChange } = renderDeck();
+    const scrolls: ScrollToOptions[] = [];
+    const scrollTo = viewport.scrollTo.bind(viewport);
+    next.click();
+    await new Promise<void>((resolve) => {
+      const turn = () => {
+        if (viewport.scrollLeft < 100) return;
+        viewport.removeEventListener('scroll', turn);
+        resolve();
+      };
+      viewport.addEventListener('scroll', turn);
+    });
+    viewport.scrollTo = ((options: ScrollToOptions) => {
+      scrolls.push(options);
+      scrollTo(options);
+    }) as typeof viewport.scrollTo;
+
+    // Many wheel events, over most of a second, two slides on.
+    await gestureScroll(viewport, 2 * WIDTH);
+
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(scrolls).toEqual([]);
+  });
+
+  test('leaves a keyboard scroll to the browser while it goes on', async () => {
+    const { root, viewport, onIndexChange } = renderDeck();
+    const scrolls: ScrollToOptions[] = [];
+    const scrollTo = viewport.scrollTo.bind(viewport);
+    viewport.scrollTo = ((options: ScrollToOptions) => {
+      scrolls.push(options);
+      scrollTo(options);
+    }) as typeof viewport.scrollTo;
+    viewport.focus();
+
+    // Each press while the scroll before it is still going.
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}');
+
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(viewport.scrollLeft).toBeGreaterThan(0);
+    expect(scrolls).toEqual([]);
   });
 
   test('stays where a mouse drag holds it', async () => {
