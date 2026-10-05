@@ -56,7 +56,8 @@ const stories = [
   'deck--loop-pages',
   'deck--loop-vertical',
   'deck--loop-right-to-left',
-  'deck--playdeck-video'
+  'deck--playdeck-video',
+  'deck--playdeck-video-loop'
 ];
 
 for (const id of stories) {
@@ -99,20 +100,55 @@ for (const id of stories) {
   });
 }
 
+/** A loop's copies, as opposed to its slides. */
+const COPIES = '[data-slidedeck-copy]';
+
 /**
  * Per slide of the playdeck recipe, whether its video is playing; a slide
- * whose player has not loaded yet has no video, and is not playing.
+ * whose player has not loaded yet has no video, and is not playing. The
+ * slides by default; pass `COPIES` for a loop's copies instead.
  */
-const videosPlaying = (page: Page) =>
+const videosPlaying = (
+  page: Page,
+  slides = '[data-slidedeck-slide]:not([data-slidedeck-copy])'
+) =>
   page
     .getByRole('region', { name: 'Featured slides' })
-    .locator('[data-slidedeck-slide]')
+    .locator(slides)
     .evaluateAll((slides) =>
       slides.map((slide) => {
         const video = slide.querySelector('video');
         return video !== null && !video.paused && video.currentTime > 0;
       })
     );
+
+/**
+ * Per slide, whether the looping playdeck story's recipe holds a player
+ * handle for it; the story puts the recipe's players on `window`.
+ */
+const handlesHeld = (page: Page) =>
+  page.evaluate(() =>
+    Array.from(
+      { length: 4 },
+      (_, i) =>
+        (window as unknown as { playdeckPlayers?: readonly unknown[] })
+          .playdeckPlayers?.[i] != null
+    )
+  );
+
+/** Whether the copy `selector` picks has a frame of its video to show. */
+const copyHasFrame = (page: Page, selector: string) =>
+  page
+    .getByRole('region', { name: 'Featured slides' })
+    .locator(selector)
+    .evaluate((copy) => {
+      const video = copy.querySelector('video');
+      return (
+        video !== null &&
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        video.videoWidth > 0
+      );
+    });
 
 /** Resolves once the focal slide's video can play. */
 const focalVideoLoaded = (page: Page) =>
@@ -146,6 +182,53 @@ test("the playdeck recipe plays the focal slide's video and pauses the rest", as
   await expect
     .poll(() => videosPlaying(page))
     .toEqual([false, true, false, false]);
+});
+
+test("the looping playdeck recipe plays the focal slide's video across the seam both ways", async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--playdeck-video-loop&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  /** Steps the deck, and checks the slide it rests on is focal, its video
+   * the one playing, no copy's playing, and every slide's handle held. */
+  const step = async (
+    name: 'Previous' | 'Next',
+    focal: string,
+    playing: boolean[]
+  ) => {
+    await deck.getByRole('button', { name, exact: true }).click();
+    await expect(deck.getByRole('group', { name: focal })).toHaveAttribute(
+      'data-focal'
+    );
+    await expect.poll(() => videosPlaying(page)).toEqual(playing);
+    expect(await videosPlaying(page, COPIES)).not.toContain(true);
+    // The copies render again at each settle: no copy's ref replaces or
+    // clears a slide's handle.
+    expect(await handlesHeld(page)).toEqual([true, true, true, true]);
+  };
+
+  await expect
+    .poll(() => videosPlaying(page))
+    .toEqual([true, false, false, false]);
+  expect(await videosPlaying(page, COPIES)).not.toContain(true);
+  expect(await handlesHeld(page)).toEqual([true, true, true, true]);
+
+  // Back across the seam: onto the copy of the last slide, then the jump.
+  await step('Previous', '4 of 4', [false, false, false, true]);
+  // The copies either side of the seam show a still frame, not a blank.
+  await expect
+    .poll(() =>
+      copyHasFrame(page, '[data-slidedeck-copy=before][aria-label="4 of 4"]')
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      copyHasFrame(page, '[data-slidedeck-copy=after][aria-label="1 of 4"]')
+    )
+    .toBe(true);
+  // On across the seam, and one more.
+  await step('Next', '1 of 4', [true, false, false, false]);
+  await step('Next', '2 of 4', [false, true, false, false]);
 });
 
 test('under reduced motion the playdeck recipe plays no video by itself', async ({

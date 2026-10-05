@@ -72,6 +72,14 @@ test('Dots and Counter render their own content, so take no children', () => {
   void (<Deck.Counter>1 of 5</Deck.Counter>);
 });
 
+test('useSlide reports the slide and whether it is a copy', () => {
+  expectTypeOf(Deck.useSlide).returns.toEqualTypeOf<Deck.UseSlideResult>();
+  expectTypeOf<Deck.UseSlideResult>().toEqualTypeOf<{
+    index: number;
+    copy: 'before' | 'after' | undefined;
+  }>();
+});
+
 test('an effect is imported from its own entry point, not named', () => {
   void (<Deck.Viewport effect={fade} />);
   void (<Deck.Viewport effect={curve} />);

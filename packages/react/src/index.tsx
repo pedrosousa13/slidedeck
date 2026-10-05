@@ -110,8 +110,9 @@ interface RootBaseProps extends ComponentProps<'div'> {
    * slide once it rests (clone and jump, ADR-0006, as built in ADR-0009).
    * Indexes, Dots and Counter count the slides' snap points only, never the
    * copies'. A copy renders the slide's children again, so their state is
-   * their own and an `id` in a slide repeats. A deck whose slides all fit
-   * does not loop and renders no copies. Defaults to false. */
+   * their own and an `id` in a slide repeats; `useSlide` tells them whether
+   * they are in a copy. A deck whose slides all fit does not loop and renders
+   * no copies. Defaults to false. */
   loop?: boolean;
   /** Moves the deck one snap point on every this many milliseconds, counted
    * from when it comes to rest, and stops at the last, unless the deck
@@ -588,6 +589,24 @@ const SlideContext = createContext<{
   /** A loop's copy of the slide, and which side of the slides it is on. */
   copy?: 'before' | 'after';
 } | null>(null);
+
+/** What `useSlide` reports about the slide it is called in. */
+export interface UseSlideResult {
+  /** The index of the slide, also in a loop's copy of it. */
+  index: number;
+  /** Which side of the slides a loop's copy is on; undefined in a slide. */
+  copy: 'before' | 'after' | undefined;
+}
+
+/** The slide a component is rendered in: its index, and whether it is a
+ * loop's copy, so stateful content, such as a video player, can render
+ * differently in a copy, which is inert and never focal. Throws outside a
+ * `Deck.Slide`. */
+export function useSlide(): UseSlideResult {
+  const slide = use(SlideContext);
+  if (!slide) throw new Error('Deck.useSlide must be inside Deck.Slide');
+  return { index: slide.index, copy: slide.copy };
+}
 
 /**
  * A transition built on progress while the viewport keeps scrolling natively
