@@ -22,15 +22,17 @@ name: Release
 # - The workflow tags the versions, in `tag`, after `publish`. Playdeck pushes
 #   tags from `main` by hand so its credential job never holds
 #   `contents: write`; `tag` keeps that separation, and tags whatever is on
-#   npm but untagged, so a release that failed halfway is tagged on the next
-#   run that succeeds.
+#   npm but untagged. `tag` runs only after `publish` succeeds, so a missed
+#   tag is recovered by re-running the `tag` job, or by the next run that
+#   publishes a release.
 #
 # npm can answer 404 for a version for minutes after publishing it (#63: the
 # 0.1.0 run tagged nothing). So `tag` waits, for the versions `publish` names
 # in its `published-packages` output only: it polls npm with backoff for up to
 # ten minutes, tags each as soon as npm shows it, and fails, naming them, if
-# any is still missing at the end. A version not published in this run is
-# checked once, as before. `scripts/tag-releases.mjs` does it.
+# any is still missing at the end. A 429, a 5xx or a timeout from npm meanwhile
+# counts as "not yet". A version not published in this run is checked once,
+# as before. `scripts/tag-releases.mjs` does it.
 on:
   push:
     branches: [main]

@@ -6,9 +6,10 @@
 // npm can answer 404 for minutes after a publish (#63). A version the
 // `publish` job published in this run, named in `PUBLISHED_PACKAGES` (its
 // `published-packages` output), is polled with backoff for up to ten minutes
-// and tagged as soon as npm shows it; one npm still lacks when the wait runs
-// out fails the job, by name. Any other version is checked once, and skipped
-// if npm lacks it.
+// and tagged as soon as npm shows it; a 429, a 5xx or a timeout meanwhile
+// counts as "not yet". One npm still lacks when the wait runs out fails the
+// job, by name, with npm's last answer. Any other version is checked once,
+// and skipped if npm lacks it.
 //
 // Node's built-ins only, so the job installs nothing. It reads npm anonymously
 // and holds no npm credential.
@@ -61,7 +62,8 @@ export const changelogSection = (changelog, version) => {
 /**
  * Releases every one of `releases` that npm has. Waits through `delays` for
  * those in `published`, and throws, naming them, if npm still lacks any after
- * the last wait.
+ * the last wait. For those, an error from `isOnNpm` (a 429, a 5xx, a timeout)
+ * counts as "not yet"; for any other version it throws at once.
  * @param {{
  *   releases: Release[];
  *   published: Version[];
@@ -95,14 +97,28 @@ export const tagReleases = async ({
     }
     createRelease(tag, changelogSection(release.changelog, release.version));
   };
+  /**
+   * `true` once npm shows `release`, otherwise npm's last answer.
+   * @param {Release} release
+   * @returns {Promise<true | string>}
+   */
+  const poll = async (release) => {
+    try {
+      return (await isOnNpm(release.name, release.version)) || 'not found';
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+  };
 
-  /** @type {Release[]} */
+  /** @type {{ release: Release; last: string }[]} */
   let waiting = [];
   for (const release of releases) {
-    if (await isOnNpm(release.name, release.version)) {
+    if (publishedTags.has(tagOf(release))) {
+      const answer = await poll(release);
+      if (answer === true) tagAndRelease(release);
+      else waiting.push({ release, last: answer });
+    } else if (await isOnNpm(release.name, release.version)) {
       tagAndRelease(release);
-    } else if (publishedTags.has(tagOf(release))) {
-      waiting.push(release);
     } else {
       log(`${tagOf(release)} is not on npm; not tagged.`);
     }
@@ -111,38 +127,51 @@ export const tagReleases = async ({
   for (const delay of delays) {
     if (waiting.length === 0) break;
     log(
-      `Published in this run, not on npm yet: ${waiting.map(tagOf).join(', ')}. Checking again in ${delay / 1000}s.`
+      `Published in this run, not on npm yet: ${waiting.map((w) => `${tagOf(w.release)} (${w.last})`).join(', ')}. Checking again in ${delay / 1000}s.`
     );
     await sleep(delay);
-    /** @type {Release[]} */
+    /** @type {{ release: Release; last: string }[]} */
     const still = [];
-    for (const release of waiting) {
-      if (await isOnNpm(release.name, release.version)) tagAndRelease(release);
-      else still.push(release);
+    for (const { release } of waiting) {
+      const answer = await poll(release);
+      if (answer === true) tagAndRelease(release);
+      else still.push({ release, last: answer });
     }
     waiting = still;
   }
 
   if (waiting.length > 0) {
     throw new Error(
-      `Published in this run, but still not on npm after the wait, so not tagged: ${waiting.map(tagOf).join(', ')}. Re-run the tag job once npm shows them.`
+      `Published in this run, but still not on npm after the wait, so not tagged: ${waiting.map((w) => `${tagOf(w.release)} (npm's last answer: ${w.last})`).join(', ')}. Re-run the tag job once npm shows them.`
     );
   }
 };
 
 /**
- * Whether npm serves `name@version`. Anything but found or not found throws.
+ * Whether npm serves `name@version`. Anything but found or not found throws,
+ * as does no answer within 15 seconds.
  * @param {string} name
  * @param {string} version
  */
 const isOnNpm = async (name, version) => {
-  const response = await fetch(`https://registry.npmjs.org/${name}/${version}`);
-  if (response.status === 404) return false;
-  if (!response.ok) {
+  let response;
+  try {
+    response = await fetch(`https://registry.npmjs.org/${name}/${version}`, {
+      signal: AbortSignal.timeout(15_000)
+    });
+  } catch (error) {
+    // fetch's own message is "fetch failed"; the cause says why.
+    const cause =
+      error instanceof Error && error.cause instanceof Error
+        ? error.cause
+        : error;
     throw new Error(
-      `npm answered ${response.status} for ${name}@${version}, neither found nor not found.`
+      `no answer: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause: error }
     );
   }
+  if (response.status === 404) return false;
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return true;
 };
 

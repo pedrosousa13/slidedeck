@@ -185,3 +185,57 @@ test('backoff doubles up to its cap and adds up to the total exactly', () => {
     600_000
   );
 });
+
+test('during the wait, an npm error counts as "not yet", and the last one is named at the end', async () => {
+  // Core: a 503, a timeout, then found. React: a 429 every time.
+  /** @type {Record<string, (string | boolean)[]>} */
+  const answers = {
+    '@slidedeck/core@0.2.0': ['HTTP 503', 'no answer: timed out', true],
+    '@slidedeck/react@0.2.0': ['HTTP 429', 'HTTP 429', 'HTTP 429', 'HTTP 429']
+  };
+  const f = fakes({});
+  await assert.rejects(
+    tagReleases({
+      releases: [core, react],
+      published: [core, react],
+      delays: [10, 20, 40],
+      ...f,
+      isOnNpm: async (name, version) => {
+        const answer = answers[`${name}@${version}`]?.shift();
+        if (typeof answer === 'string') throw new Error(answer);
+        return answer === true;
+      }
+    }),
+    (error) => {
+      assert.ok(error instanceof Error);
+      assert.match(
+        error.message,
+        /@slidedeck\/react@0\.2\.0 \(npm's last answer: HTTP 429\)/
+      );
+      assert.doesNotMatch(error.message, /@slidedeck\/core/);
+      return true;
+    }
+  );
+  assert.deepEqual(
+    f.created.map((c) => c.tag),
+    ['@slidedeck/core@0.2.0']
+  );
+  assert.deepEqual(f.slept, [10, 20, 40]);
+});
+
+test('an npm error for a version not published in this run fails at once', async () => {
+  const f = fakes({});
+  await assert.rejects(
+    tagReleases({
+      releases: [core],
+      published: [],
+      delays: [10, 20, 40],
+      ...f,
+      isOnNpm: async () => {
+        throw new Error('HTTP 503');
+      }
+    }),
+    /HTTP 503/
+  );
+  assert.deepEqual(f.slept, []);
+});
