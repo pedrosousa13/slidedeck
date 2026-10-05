@@ -48,12 +48,9 @@ Next moves toward the inline end.
 _Avoid_: left/right for start/end
 
 **Theme**:
-The optional stylesheet `@slidedeck/react/theme.css`: an appearance for the
-controls, Prev, Next, Dots, Counter and AutoplayToggle. Every rule is in
-`:where()`, so any selector of the consumer's beats it, and every value is a
-token, a `--deck-*` custom property the consumer sets, such as `--deck-accent`
-or `--deck-dot-size`. Slides stay the consumer's CSS, and a deck works without
-it.
+The optional stylesheet `@slidedeck/react/theme.css` that styles a deck's
+controls: every rule in `:where()`, every value a `--deck-*` token the
+consumer sets.
 _Avoid_: skin, default styles
 
 ### Position
@@ -146,16 +143,7 @@ _Avoid_: debounce, idle
 
 ### Outputs
 
-What slidedeck writes to the DOM for CSS to read.
-
-**The naming rule: slidedeck writes only `--deck-slide-*`; the consumer sets every other `--deck-*`.**
-
-Public custom properties, inputs and outputs, share the one `--deck-` prefix
-and are kept apart by namespace. The consumer sets the theme's tokens and
-`--deck-curve-radius`. The two slidedeck writes, `--deck-slide-progress` and
-`--deck-slide-index`, sit on slides, so they are named after the slide
-(ADR-0010). Slidedeck's own working values, such as an effect's, use
-`--slidedeck-*` and are never public.
+slidedeck writes only `--deck-slide-*`; the consumer sets every other `--deck-*` (ADR-0010).
 
 **Progress**:
 How far a slide is from the focal position, in slides, signed the way the deck

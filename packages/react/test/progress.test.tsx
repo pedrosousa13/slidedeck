@@ -16,7 +16,8 @@ import {
 
 // Progress (CONTEXT.md): each slide's signed distance from the focal
 // position, in slides, written to the DOM as `--deck-slide-progress`, never
-// React state (ADR-0003). In-view: `data-in-view` on each slide the viewport shows.
+// React state (ADR-0003). In-view: `data-in-view` on each slide the viewport
+// shows.
 
 const HEIGHT = 200;
 

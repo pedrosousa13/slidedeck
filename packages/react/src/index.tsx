@@ -728,8 +728,9 @@ const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;
  * For CSS to read, it carries `--deck-slide-index`, its index, from the first
  * render; once mounted, `--deck-slide-progress`, its signed distance from the
  * focal position in slides, and `data-in-view` while any of it is in view,
- * both kept up to date as the deck scrolls without a React render. Where an effect
- * stacks the slides, as fade does, every slide but the focal one is inert. */
+ * both kept up to date as the deck scrolls without a React render. Where an
+ * effect stacks the slides, as fade does, every slide but the focal one is
+ * inert. */
 export function Slide({ style, ...props }: ComponentProps<'div'>) {
   const deck = useDeck('Slide');
   const slide = use(SlideContext);

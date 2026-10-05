@@ -74,11 +74,11 @@ step across the seam it comes back across it, rather than rewinding through
 every slide. The engine's `scrollTo` takes a way, `direct` or `short`, for
 this.
 
-**Copies carry the outputs.** `--deck-slide-progress` and `data-in-view` are
-written to every copy by its own place in the run, so a copy in view reads as
-the slide it stands in for, and after the jump its slide reads the same. Effects
-built on progress therefore draw copies as slides, and the jump shows
-nothing.
+**Copies carry the outputs.** `--deck-slide-progress` (renamed by ADR-0010)
+and `data-in-view` are written to every copy by its own place in the run, so a
+copy in view reads as the slide it stands in for, and after the jump its slide
+reads the same. Effects built on progress therefore draw copies as slides,
+and the jump shows nothing.
 
 **The jump lands on the slide's snap point, to the pixel.** Scroll positions
 are whole pixels where the device pixel ratio is 1, and a set's length need
