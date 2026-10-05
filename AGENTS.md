@@ -66,14 +66,16 @@ runs the release workflow's own `pnpm verify` before anything is published.
 If branch protection ever requires CI on it, close and reopen the PR, or push
 an empty commit to its branch, to start `ci.yml`.
 
-**One-time maintainer setup**, none of it done yet. Until the last step, the
-jobs after `verify` show as skipped on every push, and nothing is published:
+**One-time maintainer setup**, done only as far as step 2. Until the last
+step, the jobs after `verify` show as skipped on every push, and nothing is
+published:
 
 1. In the repository's Settings, Actions, General, allow GitHub Actions to
    create and approve pull requests. Without it, the version job fails to
    open the PR.
 2. Make the repository public. npm generates provenance only from a public
    repository, and both packages require it (`publishConfig.provenance`).
+   Done: public since 2026-10-05.
 3. Claim the `@slidedeck` scope on npm as an organization (#5).
 4. Add an `NPM_TOKEN` repository secret for the first publish: a granular
    token that can publish the `@slidedeck` scope. npm configures trusted
