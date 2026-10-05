@@ -333,11 +333,9 @@ export function createDeck(
   // with `pointercancel`, and a mouse drag (below). Focus entering a slide
   // scrolls it into view, so it is the user's scroll too, and the deck goes
   // on to it (below). Input that scrolls nothing leaves the move going: a
-  // click, even one that focuses a control in another slide, Enter, and a
-  // key in a text field or one the page has prevented. Focus within a slide
-  // or on the viewport, as Tab out of a slide gives, is meant to leave it
-  // going too, but in Chromium it stops the move short of its snap point
-  // (ADR-0006).
+  // click, even one that focuses a control in another slide, Enter, a key
+  // in a text field or one the page has prevented, and focus within a slide
+  // or on the viewport, as Tab out of a slide gives (below).
   const onWheel = () => endMove();
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || !SCROLL_KEYS.has(event.key)) return;
@@ -357,17 +355,30 @@ export function createDeck(
     if (event.pointerType !== 'mouse') endMove();
     onPointerUp(event);
   };
-  // Focus entering a slide from outside it, as Tab does, scrolls the slide
-  // into view, stopping the move's scroll where it is. Focus wins
-  // (ADR-0006): the move is replaced by one to the snap point of the focused
-  // slide's page, so the deck rests with the focus in view. The browser
+  // Focus in the viewport during a move scrolls the focus into view, and in
+  // Chromium that stops the move's scroll where it is (ADR-0006). Focus
+  // entering a slide from outside it, as Tab does, is the user's: focus
+  // wins, and the move is replaced by one to the snap point of the focused
+  // slide's page, so the deck rests with the focus in view. Focus within a
+  // slide or on the viewport is not: the move goes on to its own target.
+  // Either way the move's scroll starts again two frames on: the browser
   // scrolls the focus into view after this event, and Chromium ignores a
   // smooth scroll asked for until a frame after that, to the stopped
-  // scroll's target above all: the new move scrolls two frames on. Its
-  // target is set now, so the end of the stopped scroll is a late one. A
-  // pointer pressed on the viewport, as a mouse pressing a control in a
-  // slide, is a click: it leaves the move going.
+  // scroll's target above all. A looping move's target may be on the
+  // copies, so the scroll may go across. A new move's target is set now, so
+  // the end of the stopped scroll is a late one. A pointer pressed on the
+  // viewport, as a mouse pressing a control in a slide, is a click: it
+  // leaves the move going.
   let focusFrame = 0;
+  const resume = () => {
+    const focused = move;
+    cancelAnimationFrame(focusFrame);
+    focusFrame = requestAnimationFrame(() => {
+      focusFrame = requestAnimationFrame(() => {
+        if (focused && move === focused) scrollTo(focused.target, true);
+      });
+    });
+  };
   const onFocusIn = (event: FocusEvent) => {
     if (!move || pressed.size > 0) return;
     let slide = event.target instanceof Element ? event.target : null;
@@ -375,7 +386,10 @@ export function createDeck(
       slide = slide.parentElement;
     }
     const from = event.relatedTarget;
-    if (!slide || (from instanceof Node && slide.contains(from))) return;
+    if (!slide || (from instanceof Node && slide.contains(from))) {
+      resume();
+      return;
+    }
     const { slides: own, boxes, first } = slidesOf(viewport);
     const index = own.indexOf(slide);
     if (index === -1) return;
@@ -394,13 +408,7 @@ export function createDeck(
           )
         : geometry.slides[owner];
     startMove(target);
-    const focused = move;
-    cancelAnimationFrame(focusFrame);
-    focusFrame = requestAnimationFrame(() => {
-      focusFrame = requestAnimationFrame(() => {
-        if (move === focused) scrollTo(target);
-      });
-    });
+    resume();
   };
 
   const refresh = () => {
