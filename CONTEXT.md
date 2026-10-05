@@ -143,7 +143,7 @@ _Avoid_: debounce, idle
 
 ### Outputs
 
-slidedeck writes only `--deck-slide-*`; the consumer sets every other `--deck-*` (ADR-0010).
+slidedeck writes only `--deck-slide-*`; the consumer sets every other `--deck-*`; the private `--slidedeck-*` variables are never public (ADR-0010).
 
 **Progress**:
 How far a slide is from the focal position, in slides, signed the way the deck
