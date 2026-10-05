@@ -71,7 +71,10 @@ describe('a deck at rest off every snap point', () => {
     expect(onIndexChange.mock.calls).toEqual([[1]]);
   });
 
-  test('moves back to the nearest, where it started', async () => {
+  test('stopped just after it starts, goes on the way the move went', async () => {
+    // Measured in WebKit under load: quiet can end a move whose scroll goes
+    // on, with no scroll event for two quiets. A re-snap back would stop
+    // that scroll, so one from a move cut short goes the move's way.
     const { root, viewport, next, onIndexChange } = renderDeck();
 
     next.click();
@@ -79,8 +82,8 @@ describe('a deck at rest off every snap point', () => {
 
     expect(stopped).toBeLessThan(WIDTH / 2);
     await expectRestOnASlide(viewport, root, onIndexChange);
-    expect(viewport.scrollLeft).toBe(0);
-    expect(onIndexChange).not.toHaveBeenCalled();
+    expect(viewport.scrollLeft).toBe(WIDTH);
+    expect(onIndexChange.mock.calls).toEqual([[1]]);
   });
 
   test("after the user's wheel took the move over, moves to the nearest the way the wheel went", async () => {

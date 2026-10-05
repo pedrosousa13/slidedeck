@@ -137,8 +137,11 @@ So at a settle under `mandatory` snapping, a deck more than a pixel from
 every snap point moves to the nearest one. Where the user's scroll took a
 move over, it moves to the nearest one the way that scroll went: a wheel's
 delta says the way, and for other input it is from where the user took
-over to where the deck rests. Snap points are measured as the browser rests
-the slides, scroll padding and scroll margin included. With loop, a copy's
+over to where the deck rests. Where quiet ended a move short of its target,
+it moves the way the move went. Measured in WebKit under load, quiet can
+end a move whose scroll goes on, and a re-snap back would stop it. Snap points are measured as the browser rests
+the slides and copies, each from its own box, scroll padding and scroll
+margin included. With loop, a copy's
 snap point counts, and that move's settle jumps off the copy.
 
 - It waits for quiet and looks again first. Measured in Chromium, a wheel's

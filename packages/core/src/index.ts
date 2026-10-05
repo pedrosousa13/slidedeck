@@ -185,7 +185,8 @@ export function createDeck(
   // leave the deck there, and the browser never snaps it back. The nearest
   // one, or where the user's scroll took a move over, the nearest the way
   // that scroll went: the browser can carry the move's scroll on after it,
-  // and stop part way back toward the move's target. With loop, the copies'
+  // and stop part way back toward the move's target. Where quiet ended a
+  // move short, the nearest the way the move went: its scroll may go on. With loop, the copies'
   // snap points count, and the move's settle jumps off a copy as ever. Only
   // once quiet confirms the deck is still there: an end event can come late,
   // as the browser's own snap begins. Never while the user has the deck: a
@@ -207,12 +208,15 @@ export function createDeck(
       { length: count + 2 * reach },
       (_, i) => i - reach
     );
-    // A copy's snap point past either end of the scroll range rests at
-    // that end.
-    const max = along.max();
-    const restsAt = (i: number) =>
-      Math.min(Math.max(positionOf(geometry, i), 0), max);
-    if (indexes.some((i) => Math.abs(restsAt(i) - at) <= 1)) {
+    // Each slide's and copy's rest as measured: a copy's can differ from
+    // its slide's by a set's length by a pixel or two of rounding.
+    const restOf = snapRest(viewport, along);
+    if (
+      slidesOf(viewport).boxes.some((box) => {
+        const rest = restOf(box);
+        return rest !== null && Math.abs(rest - at) <= 1;
+      })
+    ) {
       resnapFrom = null;
       taken = null;
       confirm = null;
@@ -423,6 +427,13 @@ export function createDeck(
     scrolling = false;
     // A new layout may have cut the move short: rest on its target.
     const target = relaidOut && move ? wrap(move.target, state.count) : null;
+    // Quiet ended the move short of its target: a re-snap goes on its way,
+    // as the browser may still be scrolling there (`resnap`).
+    if (target === null && move && !arrived(move)) {
+      const along = axis();
+      const to = positionOf(snapPoints(viewport, along), move.target);
+      taken = { at: along.position, way: Math.sign(to - along.position) };
+    }
     endMove();
     if (pressed.size > 0) {
       if (target === null) settleOwed = true;
@@ -1128,30 +1139,28 @@ interface Geometry {
  * Slides that clamp to the same scroll position share one snap point. With
  * loop, only the slides' points, not the copies' (see `Geometry`).
  */
-function snapPoints(viewport: HTMLElement, axis: Axis): Geometry {
+/**
+ * Where the browser rests the viewport to snap `box`, or null if it does not
+ * snap: its snap area, the box plus its scroll margin, aligned in the
+ * snapport, the scrollport less its scroll padding, and clamped to the
+ * scroll range.
+ */
+function snapRest(viewport: HTMLElement, axis: Axis) {
   const max = axis.max();
   const position = axis.position;
   const view = axis.view();
-  // Where the browser aligns snap areas: the scrollport less its scroll
-  // padding, and each slide's box plus its scroll margin.
   const [padStart, padEnd] = axis.insets(
     getComputedStyle(viewport),
     'scrollPadding',
     view[1] - view[0]
   );
   const snapport: Span = [view[0] + padStart, view[1] - padEnd];
-  const { slides, boxes, first } = slidesOf(viewport);
-  const own = boxes.slice(first, first + slides.length);
-  const positions: (number | null)[] = [];
-  for (const slide of own) {
-    const align = axis.snapAlign(slide);
-    if (align === 'none') {
-      positions.push(null);
-      continue;
-    }
-    const [start, end] = axis.span(slide.getBoundingClientRect());
+  return (box: Element): number | null => {
+    const align = axis.snapAlign(box);
+    if (align === 'none') return null;
+    const [start, end] = axis.span(box.getBoundingClientRect());
     const [marginStart, marginEnd] = axis.insets(
-      getComputedStyle(slide),
+      getComputedStyle(box),
       'scrollMargin',
       0
     );
@@ -1160,8 +1169,16 @@ function snapPoints(viewport: HTMLElement, axis: Axis): Geometry {
       snapport,
       align
     );
-    positions.push(Math.round(Math.min(Math.max(position + offset, 0), max)));
-  }
+    return Math.round(Math.min(Math.max(position + offset, 0), max));
+  };
+}
+
+function snapPoints(viewport: HTMLElement, axis: Axis): Geometry {
+  const view = axis.view();
+  const restOf = snapRest(viewport, axis);
+  const { slides, boxes, first } = slidesOf(viewport);
+  const own = boxes.slice(first, first + slides.length);
+  const positions = own.map(restOf);
   const points = [
     ...new Set(positions.filter((p): p is number => p !== null))
   ].sort((a, b) => a - b);
