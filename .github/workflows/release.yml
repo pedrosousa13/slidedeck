@@ -1,0 +1,182 @@
+name: Release
+
+# Changesets' version-PR flow (#39). On every push to `main`, `verify` runs the
+# same `pnpm verify` as `ci.yml`, then asks Changesets what the tree is:
+#
+# - changesets pending: `version` opens or updates the "Version packages" PR.
+#   Nothing is published.
+# - no changesets, and a version not yet on npm (the version PR just merged):
+#   `publish` publishes the tarballs `verify` packed, with provenance.
+# - neither: nothing runs after `verify`.
+#
+# Publishing needs the one-time setup in AGENTS.md ("Releasing"). Until it is
+# done, `publish` fails at its preflight step, before anything reaches npm.
+on:
+  push:
+    branches: [main]
+
+# Read-only, as in `ci.yml`. Each job below widens its own copy only as far as
+# it needs, so the publish credential (`id-token: write`) is never in a job
+# that builds or runs the repo's code.
+permissions:
+  contents: read
+
+# Copied from playdeck's release.yml: not `cancel-in-progress`, unlike
+# `ci.yml`. Half the packages on the registry and half not is worse than a
+# queued second run.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    # A fork gets its own copy of this file. Refuse outright rather than build
+    # and pack under this repo's package names (playdeck does the same).
+    if: github.repository == 'pedrosousa13/slidedeck'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.select-mode.outputs.mode }}
+      pack-dir-artifact-id: ${{ steps.pack.outputs.pack-dir-artifact-id }}
+    steps:
+      # From here to `pnpm verify`, the same steps as `ci.yml`: keep them in
+      # step. The Playwright cache stays, unlike in playdeck's release.yml,
+      # because this runs on every push to `main`, not a few times a year.
+      - uses: actions/checkout@v7
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: playwright-version
+        run: echo "version=$(node -p "require('./package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-firefox-webkit-${{ steps.playwright-version.outputs.version }}
+      - run: pnpm exec playwright install chromium
+        timeout-minutes: 10
+      - run: pnpm exec playwright install --with-deps firefox webkit
+        timeout-minutes: 15
+      - run: pnpm verify
+
+      # "version", "publish" or "none". Reads `.changeset/` and, when no
+      # changeset is pending, asks npm which versions it lacks.
+      - id: select-mode
+        uses: changesets/action/select-mode@v2.1.2
+
+      # Packs the build `pnpm verify` just checked, so what `publish` ships is
+      # what this job verified, and `publish` builds nothing itself.
+      - id: pack
+        if: steps.select-mode.outputs.mode == 'publish'
+        uses: changesets/action/pack@v2.1.2
+        with:
+          publish-plan-artifact-id: ${{ steps.select-mode.outputs.publish-plan-artifact-id }}
+
+  version:
+    needs: verify
+    if: needs.verify.outputs.mode == 'version'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # push the changeset-release/main branch
+      pull-requests: write # open or update the "Version packages" PR
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: corepack enable
+      # No cache in the jobs that can write, as Changesets recommends: a
+      # restored cache is code from another run.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      # Runs `changeset version`. A PR this job opens with the default token
+      # does not trigger `ci.yml`; the push its merge makes runs `verify` above
+      # before anything is published.
+      - uses: changesets/action/version@v2.1.2
+
+  publish:
+    needs: verify
+    if: needs.verify.outputs.mode == 'publish'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # push the release tags and create the GitHub releases
+      # Trusted publishing, and provenance: without it npm refuses a publish
+      # whose manifest sets `publishConfig.provenance`.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: corepack enable
+      # No `registry-url`, deliberately, as in playdeck: it writes an `.npmrc`
+      # holding `${NODE_AUTH_TOKEN}`, which `pnpm publish` can send unresolved
+      # as a bearer token and fail a publish OIDC would have carried.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      # For the Changesets CLI only: this job builds nothing.
+      - run: pnpm install --frozen-lockfile
+
+      # Trusted publishing needs npm >= 11.5.1; Node 22 ships npm 10. `pnpm
+      # publish` spawns the `npm` on PATH, so this is the npm that publishes.
+      # Pinned, as in playdeck: this step is on the credential path.
+      - run: npm install -g npm@11.19.0
+      - run: npm --version
+
+      # Fails before anything reaches npm when no credential can publish, and
+      # says why, rather than leaving it to npm's error on the first package.
+      - name: Check a credential can publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          REPO_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          if [ "$REPO_PRIVATE" = "true" ]; then
+            echo "::error::The repository is private. npm generates provenance only from a public repository, and these packages require it. See AGENTS.md, Releasing."
+            exit 1
+          fi
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "Publishing with the NPM_TOKEN secret, unless a trusted publisher answers first."
+            exit 0
+          fi
+          # Trusted publishing is configured on a package that already exists,
+          # so with no token every package must be on the registry already.
+          missing=""
+          for manifest in packages/*/package.json; do
+            name=$(node -p "require('./$manifest').name")
+            npm view "$name" name > /dev/null 2>&1 || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::No credential can publish:$missing not on npm, and no NPM_TOKEN secret is set. Nothing was published. See AGENTS.md, Releasing."
+            exit 1
+          fi
+          echo "Publishing over trusted publishing (OIDC)."
+
+      # Only when the secret exists: an unresolved placeholder must not reach
+      # `pnpm publish`, for the reason given at `setup-node` above.
+      - name: Use the NPM_TOKEN secret, if set
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo '//registry.npmjs.org/:_authToken=${NPM_TOKEN}' >> ~/.npmrc
+          fi
+
+      # `changeset publish --from-pack-dir`: publishes core before react, as
+      # react depends on it, and stops at the first failure, so react is never
+      # published without core. Provenance comes from each manifest's
+      # `publishConfig.provenance`. Then pushes the tags and creates the
+      # GitHub releases.
+      - uses: changesets/action/publish@v2.1.2
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        with:
+          pack-dir-artifact-id: ${{ needs.verify.outputs.pack-dir-artifact-id }}

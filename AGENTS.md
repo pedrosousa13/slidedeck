@@ -40,6 +40,46 @@ version.
 Formatting is checked, never written by the gate. Run
 `pnpm exec prettier --write <files>` on the files you changed.
 
+## Releasing
+
+`@slidedeck/core` and `@slidedeck/react` release together at one version
+(`fixed` in `.changeset/config.json`).
+
+**A change that a consumer of either package can see needs a changeset**: a
+fix, a feature, a changed prop or type, a changed package file. Run
+`pnpm changeset`, pick the bump, write what changed for the consumer, and
+commit the file with the change. Tests, docs outside the packages, CI and
+scripts need none. Before 1.0, a breaking change is a `minor`.
+
+**A release** is `.github/workflows/release.yml`, on every push to `main`. It
+runs `pnpm verify` first, then:
+
+- with changesets pending, it opens or updates the "Version packages" PR,
+  which bumps the versions and writes the changelogs. Nothing is published.
+- after that PR merges, it publishes the versions npm does not have yet, with
+  provenance, from the tarballs the verify job packed, then tags them and
+  creates the GitHub releases.
+
+The version PR is opened with the workflow's own token, so `ci.yml` does not
+run on it. Its merge runs `pnpm verify` again before anything is published.
+
+**One-time maintainer setup**, none of it done yet. Until it is, the publish
+job fails at its first check and publishes nothing:
+
+1. In the repository's Settings, Actions, General, allow GitHub Actions to
+   create and approve pull requests. Without it, the version job fails to
+   open the PR.
+2. Make the repository public. npm generates provenance only from a public
+   repository, and both packages require it (`publishConfig.provenance`).
+3. Claim the `@slidedeck` scope on npm as an organization (#5).
+4. The first publish needs an `NPM_TOKEN` repository secret: a granular token
+   that can publish the `@slidedeck` scope. npm configures trusted publishing
+   per package, so a package must exist before it can have one.
+5. After the first publish, on npmjs.com add a trusted publisher to each
+   package: GitHub Actions, `pedrosousa13` / `slidedeck` / `release.yml`, no
+   environment. Then delete the `NPM_TOKEN` secret; later releases publish
+   over OIDC.
+
 ## Agent skills
 
 ### Issue tracker
