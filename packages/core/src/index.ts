@@ -250,6 +250,8 @@ export function createDeck(
     if (move) move.stalled = false;
     if (!hasScrollEnd || move) awaitQuiet();
   };
+  // A `dir` change came mid-move (see `onDir`); `endMove` clears it.
+  let dirChanged = false;
   const startMove = (target: number) => {
     move = { target, stalled: false };
     awaitQuiet();
@@ -258,6 +260,7 @@ export function createDeck(
   // scroll the engine did not start ends at its own end event, not quiet.
   const endMove = () => {
     move = null;
+    dirChanged = false;
     if (hasScrollEnd) stopQuiet();
   };
 
@@ -308,12 +311,15 @@ export function createDeck(
       restoreSnap();
     }
     scrolling = false;
+    // A `dir` change may have cut the move short: rest on its target.
+    const target = dirChanged && move ? move.target : null;
     endMove();
     if (pressed.size > 0) {
       settleOwed = true;
       return;
     }
-    settle();
+    if (target === null) settle();
+    else restOn(wrap(target, state.count));
   };
 
   // `scrollend` and `scrollsnapchange` end a move only once it has arrived.
@@ -473,10 +479,8 @@ export function createDeck(
     along.scrollTo(to, reduce ? 'instant' : 'smooth');
   };
 
-  // With one slide per snap point, server HTML already rests here where the
-  // browser honours `scroll-initial-target`, and this scroll is a no-op.
-  // Where slides share snap points, slide `index` may rest at another snap
-  // point, so the first paint may correct: server HTML cannot measure.
+  // Rests the viewport, instantly, on snap point `index`, clamped, and
+  // settles.
   const restOn = (index: number) => {
     const along = axis();
     const { points } = snapPoints(viewport, along);
@@ -484,16 +488,30 @@ export function createDeck(
     if (Math.abs(along.position - to) >= 1) along.scrollTo(to, 'instant');
     settle();
   };
+
+  // With one slide per snap point, server HTML already rests here where the
+  // browser honours `scroll-initial-target`, and this scroll is a no-op.
+  // Where slides share snap points, slide `index` may rest at another snap
+  // point, so the first paint may correct: server HTML cannot measure.
   restOn(options.index);
 
-  // A change of `dir` on the viewport or an ancestor, as a locale switch
-  // gives, lays a horizontal deck out the other way. Chromium keeps the
-  // viewport on its snap target; Firefox and WebKit put it back at its new
-  // start. So a deck at rest goes back to its snap point, as if it had
-  // mounted that way. This runs before the browser renders the new layout.
+  // Writing direction is read from the computed `direction` (ADR-0003), and
+  // a live switch is followed when a `dir` attribute changes on the viewport
+  // or an ancestor, as a locale switch makes; a change of `direction` in CSS
+  // alone is not watched, nor, as `contains` stops at a shadow root, a
+  // change on an ancestor outside the deck's shadow root. It lays a
+  // horizontal deck out the other way. Chromium keeps a deck at rest on its
+  // snap target; Firefox and WebKit put it back at its new start; and a move
+  // in flight can stop short in any of them. So a deck at rest goes back to
+  // its snap point, as if it had mounted that way, before the browser
+  // renders the new layout, and a moving deck rests on its move's target
+  // once the move ends (`scrollEnded`). While a pointer holds the deck, the
+  // settle after it lets go stands, as does a scroll of the user's.
   const onDir = (records: MutationRecord[]) => {
     if (!records.some(({ target }) => target.contains(viewport))) return;
-    if (!scrolling && !move && drag !== 'dragging') restOn(state.index);
+    if (drag === 'dragging' || pressed.size > 0) return;
+    if (move) dirChanged = true;
+    else if (!scrolling) restOn(state.index);
   };
   const dirs = new MutationObserver(onDir);
   dirs.observe(viewport.ownerDocument.documentElement, {

@@ -85,10 +85,16 @@ export async function expectSettledTo<T>(read: () => T, expected: T) {
 export const viewportOf = (root: HTMLElement) =>
   root.querySelector<HTMLElement>('[data-slidedeck-viewport]')!;
 
-/** Each slide's `--deck-slide-progress`, as the engine last wrote it. */
-export const progressOf = (viewport: HTMLElement) =>
+/** Each slide's `--deck-slide-progress`, as the engine last wrote it; with
+ * `copies: false`, a loop's copies left out. */
+export const progressOf = (
+  viewport: HTMLElement,
+  { copies = true }: { copies?: boolean } = {}
+) =>
   [
-    ...viewport.querySelectorAll<HTMLElement>(':scope > [data-slidedeck-slide]')
+    ...viewport.querySelectorAll<HTMLElement>(
+      `:scope > [data-slidedeck-slide]${copies ? '' : ':not([data-slidedeck-copy])'}`
+    )
   ].map((slide) =>
     Number(slide.style.getPropertyValue('--deck-slide-progress'))
   );

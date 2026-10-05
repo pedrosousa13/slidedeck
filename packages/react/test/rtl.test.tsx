@@ -344,6 +344,20 @@ describe('a live change of writing direction', () => {
     expect(onIndexChange.mock.calls).toEqual([[3], [4]]);
   });
 
+  test('mid-move, rests the deck on the move’s target, and reports only that', async () => {
+    const { root, viewport, onIndexChange, setDir, next, fromStart } =
+      renderSwitching({ defaultIndex: 2 });
+
+    // Next starts a move; the switch comes in the same task, before it ends.
+    next.click();
+    setDir('rtl');
+
+    await expectSettledTo(scrollLeft(viewport), -3 * WIDTH);
+    expect(fromStart('4 of 5')).toBe(0);
+    expect(root.dataset.index).toBe('3');
+    expect(onIndexChange.mock.calls).toEqual([[3]]);
+  });
+
   test('the arrow keys and a mouse drag follow the new direction', async () => {
     const { root, viewport, onIndexChange, setDir } = renderSwitching({
       defaultIndex: 2
@@ -374,15 +388,7 @@ describe('a live change of writing direction', () => {
     await expect.poll(() => fromStart('3 of 5')).toBe(0);
     await expectRestOnASlide(viewport, root, onIndexChange);
     expect(root.dataset.index).toBe('2');
-    expect(
-      [
-        ...viewport.querySelectorAll<HTMLElement>(
-          ':scope > [data-slidedeck-slide]:not([data-slidedeck-copy])'
-        )
-      ].map((slide) =>
-        Number(slide.style.getPropertyValue('--deck-slide-progress'))
-      )
-    ).toEqual([-2, -1, 0, 1, 2]);
+    expect(progressOf(viewport, { copies: false })).toEqual([-2, -1, 0, 1, 2]);
 
     await userEvent.click(next);
     await expectSettledTo(() => fromStart('4 of 5'), 0);

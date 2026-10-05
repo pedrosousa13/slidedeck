@@ -15,7 +15,8 @@ with no stylesheet. Appearance ships as an optional `theme.css`.
 That is why a deck's orientation is a prop and its writing direction is not.
 The primitives set the snap type inline, so the deck must choose its axis
 (`orientation`). Writing direction is read from the computed `direction`, so
-`dir` on any ancestor applies.
+`dir` on any ancestor applies. A live switch is followed when a `dir`
+attribute changes, not when only CSS changes `direction`.
 
 Slide width and snap alignment are geometry, yet a deck with no stylesheet
 still needs them. They ship as zero-specificity `:where()` defaults, injected
