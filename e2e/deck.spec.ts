@@ -36,6 +36,33 @@ async function watchScroll(page: Page): Promise<() => Promise<number>> {
     );
 }
 
+/**
+ * Opens story `id`, with Storybook `args` if any, and waits until every deck
+ * in it is rendered and measured: its engine has settled once, which marks
+ * the slides in view and gives React the deck's measured state in the same
+ * layout effect. Every test opens its story with this before its first
+ * assertion. The wait is not an assertion, so the expect timeout does not
+ * bound it, only the test's: under load, a worker's first, cold load of a
+ * story can outlast the expect timeout, and every assertion after the wait
+ * still gets that timeout for what it checks.
+ */
+async function openStory(page: Page, id: string, args?: string) {
+  await page.goto(
+    `/iframe.html?id=${id}&viewMode=story${args ? `&args=${args}` : ''}`
+  );
+  await page.waitForFunction(() => {
+    const viewports = [
+      ...document.querySelectorAll('[data-slidedeck-viewport]')
+    ];
+    return (
+      viewports.length > 0 &&
+      viewports.every((viewport) =>
+        viewport.querySelector('[data-slidedeck-slide][data-in-view]')
+      )
+    );
+  });
+}
+
 const stories = [
   'deck--default',
   'deck--peek',
@@ -71,7 +98,7 @@ const curveStories = ['deck--curve', 'recipes--curve-size'];
 
 for (const id of stories) {
   test(`the ${id} story passes axe`, async ({ page }) => {
-    await page.goto(`/iframe.html?id=${id}&viewMode=story`);
+    await openStory(page, id);
     const deck = page.getByRole('region', { name: 'Featured slides' });
     await expect(deck).toBeVisible();
     await expect(
@@ -176,7 +203,7 @@ const focalVideoLoaded = (page: Page) =>
 test("the playdeck recipe plays the focal slide's video and pauses the rest", async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--playdeck-video&viewMode=story');
+  await openStory(page, 'deck--playdeck-video');
   const deck = page.getByRole('region', { name: 'Featured slides' });
 
   await expect
@@ -196,7 +223,7 @@ test("the playdeck recipe plays the focal slide's video and pauses the rest", as
 test("the looping playdeck recipe plays the focal slide's video across the seam both ways", async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--playdeck-video-loop&viewMode=story');
+  await openStory(page, 'deck--playdeck-video-loop');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   /** Steps the deck, and checks the slide it rests on is focal, its video
    * the one playing, no copy's playing, and every slide's handle held. */
@@ -244,7 +271,7 @@ test('under reduced motion the playdeck recipe plays no video by itself', async 
   page
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/iframe.html?id=deck--playdeck-video&viewMode=story');
+  await openStory(page, 'deck--playdeck-video');
   const deck = page.getByRole('region', { name: 'Featured slides' });
 
   await focalVideoLoaded(page);
@@ -264,7 +291,7 @@ test('under reduced motion the playdeck recipe plays no video by itself', async 
 test('turning on reduced motion pauses the playdeck recipe, and turning it off plays the focal video again', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--playdeck-video&viewMode=story');
+  await openStory(page, 'deck--playdeck-video');
   await expect
     .poll(() => videosPlaying(page))
     .toEqual([true, false, false, false]);
@@ -283,7 +310,7 @@ test('turning on reduced motion pauses the playdeck recipe, and turning it off p
 test('tabbing into an off-screen slide scrolls it into view', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--default&viewMode=story');
+  await openStory(page, 'deck--default');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   await deck.getByRole('button', { name: 'Action 1' }).focus();
 
@@ -299,7 +326,7 @@ test('tabbing into an off-screen slide scrolls it into view', async ({
 test('tabbing into the next slide as Next moves the deck rests it on that slide', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--default&viewMode=story');
+  await openStory(page, 'deck--default');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const viewport = deck.locator('[data-slidedeck-viewport]');
   // How far slide 2 is from the viewport's start edge.
@@ -330,7 +357,7 @@ test('tabbing into the next slide as Next moves the deck rests it on that slide'
 test('Shift+Tab out of a slide onto the viewport as Next moves the deck rests it on the next slide', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--default&viewMode=story');
+  await openStory(page, 'deck--default');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const viewport = deck.locator('[data-slidedeck-viewport]');
   // How far slide 2 is from the viewport's start edge.
@@ -358,7 +385,7 @@ test('Shift+Tab out of a slide onto the viewport as Next moves the deck rests it
 test('a controlled deck follows the index its parent sets', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--controlled&viewMode=story');
+  await openStory(page, 'deck--controlled');
   const deck = page.getByRole('region', { name: 'Featured slides' });
 
   await page
@@ -375,7 +402,7 @@ test('a controlled deck follows the index its parent sets', async ({
 test('clicking a thumbnail moves the main deck and marks the thumbnail', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--thumbnails&viewMode=story');
+  await openStory(page, 'deck--thumbnails');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const strip = page.getByRole('region', { name: 'Thumbnails' });
 
@@ -397,7 +424,7 @@ test('clicking a thumbnail moves the main deck and marks the thumbnail', async (
 test('moving the main deck marks its thumbnail and brings it into view in the strip', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--thumbnails&viewMode=story');
+  await openStory(page, 'deck--thumbnails');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const strip = page.getByRole('region', { name: 'Thumbnails' });
   const thumb = (n: number) =>
@@ -421,7 +448,7 @@ test('moving the main deck marks its thumbnail and brings it into view in the st
 test('following the main deck scrolls the strip, never the page', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--thumbnails&viewMode=story');
+  await openStory(page, 'deck--thumbnails');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const strip = page.getByRole('region', { name: 'Thumbnails' });
   // A window just tall enough for the main deck puts the strip below the fold.
@@ -451,7 +478,7 @@ test('following the main deck scrolls the strip, never the page', async ({
 test('a dot moves the deck to its page and the counter follows', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--default&viewMode=story');
+  await openStory(page, 'deck--default');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const dots = deck.getByRole('group', { name: 'Choose page' });
   await expect(deck.getByText('1 / 6')).toBeVisible();
@@ -470,7 +497,7 @@ test('a dot moves the deck to its page and the counter follows', async ({
 test('a paged deck steps a page at a time, its page size set per breakpoint', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--pages&viewMode=story');
+  await openStory(page, 'deck--pages');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   await expect(deck.getByText('1 / 4')).toBeVisible();
 
@@ -489,7 +516,7 @@ test('a paged deck steps a page at a time, its page size set per breakpoint', as
 test('a mouse drag moves the deck and settles on a slide, without following a link', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--drag&viewMode=story');
+  await openStory(page, 'deck--drag');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const link = deck.getByRole('link', { name: 'Article 1' });
   const box = (await link.boundingBox())!;
@@ -514,7 +541,7 @@ test('a mouse drag moves the deck and settles on a slide, without following a li
 test('a plain click on a link in a slide still follows it', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--drag&viewMode=story');
+  await openStory(page, 'deck--drag');
   const deck = page.getByRole('region', { name: 'Featured slides' });
 
   await deck.getByRole('link', { name: 'Article 1' }).click();
@@ -526,7 +553,7 @@ test('a plain click on a link in a slide still follows it', async ({
 test('with drag off, a mouse drag leaves the deck where it is', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--drag&viewMode=story&args=drag:!false');
+  await openStory(page, 'deck--drag', 'drag:!false');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const link = deck.getByRole('link', { name: 'Article 1' });
   const box = (await link.boundingBox())!;
@@ -547,7 +574,7 @@ test('with drag off, a mouse drag leaves the deck where it is', async ({
 test('the focal slide is at the snap alignment point, and clicking a slide in view brings it there', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--click-to-focus&viewMode=story');
+  await openStory(page, 'deck--click-to-focus');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const slide = (n: number) => deck.getByRole('group', { name: `${n} of 6` });
   // At the first snap point, slide 2 is nearer the centre than slide 1.
@@ -566,7 +593,7 @@ test('a vertical deck steps down with Next and comes to rest on a snap point aft
   page,
   browserName
 }) => {
-  await page.goto('/iframe.html?id=deck--vertical&viewMode=story');
+  await openStory(page, 'deck--vertical');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const viewport = deck.locator('[data-slidedeck-viewport]');
   const top = async (n: number) =>
@@ -601,7 +628,7 @@ test('a vertical deck steps down with Next and comes to rest on a snap point aft
 test('in a right-to-left document, Next moves toward the inline end', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--right-to-left&viewMode=story');
+  await openStory(page, 'deck--right-to-left');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const viewport = (await deck
     .locator('[data-slidedeck-viewport]')
@@ -627,7 +654,7 @@ test('in a right-to-left document, Next moves toward the inline end', async ({
 const directionStories = ['deck--default', 'deck--loop', 'deck--vertical'];
 
 async function openForDir(page: Page, id: string) {
-  await page.goto(`/iframe.html?id=${id}&viewMode=story`);
+  await openStory(page, id);
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const slide = (n: number) => deck.getByRole('group', { name: `${n} of 6` });
   const box = async (n: number) => (await slide(n).boundingBox())!;
@@ -721,7 +748,7 @@ for (const id of directionStories) {
 test('data-in-view marks the slides in view, and progress scales them', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--progress&viewMode=story');
+  await openStory(page, 'deck--progress');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const slide = (n: number) => deck.getByRole('group', { name: `${n} of 6` });
   const expectInViewMatchesViewport = async () => {
@@ -755,7 +782,7 @@ test('data-in-view marks the slides in view, and progress scales them', async ({
 test('a fade deck crossfades in place on Next, settles with one slide shown, and drags on', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--fade&viewMode=story');
+  await openStory(page, 'deck--fade');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const viewport = deck.locator('[data-slidedeck-viewport]');
   const slides = deck.locator('[data-slidedeck-slide]');
@@ -835,7 +862,7 @@ test('a fade deck crossfades in place on Next, settles with one slide shown, and
 test('a curve deck fans its cards on an arc, settles upright on Next, and drags on with no page scrollbar', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--curve&viewMode=story');
+  await openStory(page, 'deck--curve');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const viewport = deck.locator('[data-slidedeck-viewport]');
   const slides = deck.locator('[data-slidedeck-slide]');
@@ -855,29 +882,33 @@ test('a curve deck fans its cards on an arc, settles upright on Next, and drags 
   await expect.poll(angles).toEqual([-19, 0, 19, 42, 90, 90]);
   await expect(slides.nth(1)).toHaveAttribute('data-focal');
 
-  // Sample the page every frame while a mouse drag moves the deck on: its
-  // size never changes and it never overflows, so no scrollbar can appear.
-  const sampled = page.evaluate(
-    () =>
-      new Promise<string[]>((resolve) => {
-        const html = document.documentElement;
-        const seen = new Set<string>();
-        const start = performance.now();
-        const sample = () => {
-          seen.add(
-            [
-              html.scrollWidth - html.clientWidth,
-              html.scrollHeight - html.clientHeight,
-              html.clientWidth,
-              html.clientHeight
-            ].join()
-          );
-          if (performance.now() - start < 1500) requestAnimationFrame(sample);
-          else resolve([...seen]);
-        };
-        requestAnimationFrame(sample);
-      })
-  );
+  // Record, in the page, the page's overflow and size as the deck rests and
+  // in each frame the viewport scrolls in while a mouse drag moves the deck
+  // on, and read the record once the deck has settled: no frame is missed,
+  // however late the drag comes or slow the frames are. This scroll listener
+  // comes after the deck's, so its frame callback reads the page after the
+  // deck writes the slides' progress, as the frame shows it.
+  await viewport.evaluate((el) => {
+    const html = document.documentElement;
+    const frames: string[] = [];
+    let frame = 0;
+    const record = () => {
+      frame = 0;
+      frames.push(
+        [
+          html.scrollWidth - html.clientWidth,
+          html.scrollHeight - html.clientHeight,
+          html.clientWidth,
+          html.clientHeight
+        ].join()
+      );
+    };
+    record();
+    el.addEventListener('scroll', () => {
+      frame ||= requestAnimationFrame(record);
+    });
+    Object.assign(el, { record: () => frames });
+  });
   const box = (await viewport.boundingBox())!;
   const y = box.y + box.height / 2;
   await page.mouse.move(box.x + box.width / 2 + 60, y);
@@ -887,20 +918,25 @@ test('a curve deck fans its cards on an arc, settles upright on Next, and drags 
   // rather than flinging on.
   await page.waitForTimeout(200);
   await page.mouse.up();
-  const frames = await sampled;
-  expect(frames).toHaveLength(1);
-  const [overX, overY] = frames[0].split(',').map(Number);
-  expect(overX).toBeLessThanOrEqual(0);
-  expect(overY).toBeLessThanOrEqual(0);
 
   await expect(deck).toHaveAttribute('data-index', '2');
   await expect.poll(angles).toEqual([-42, -19, 0, 19, 42, 90]);
+  // The drag scrolled the deck through frames, and in every one the page's
+  // size was as at rest and it did not overflow: no scrollbar appeared.
+  const frames = await viewport.evaluate((el) =>
+    (el as unknown as { record: () => string[] }).record()
+  );
+  expect(frames.length).toBeGreaterThan(1);
+  expect([...new Set(frames)]).toHaveLength(1);
+  const [overX, overY] = frames[0].split(',').map(Number);
+  expect(overX).toBeLessThanOrEqual(0);
+  expect(overY).toBeLessThanOrEqual(0);
 });
 
 test('an autoplay deck rotates quietly until its toggle stops it', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--autoplay&viewMode=story');
+  await openStory(page, 'deck--autoplay');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const live = deck.locator('[aria-live]');
   await expect(live).toHaveAttribute('aria-live', 'off');
@@ -959,7 +995,7 @@ for (const { id, slides, last, back, axis } of [
   test(`${id}: a flick back across the seam from the first snap point settles on the last`, async ({
     page
   }) => {
-    await page.goto(`/iframe.html?id=${id}&viewMode=story`);
+    await openStory(page, id);
     const deck = page.getByRole('region', { name: 'Featured slides' });
     await expect(deck).toHaveAttribute('data-index', '0');
 
@@ -975,9 +1011,7 @@ for (const { id, slides, last, back, axis } of [
   test(`${id}: a flick on across the seam from the last snap point settles on the first`, async ({
     page
   }) => {
-    await page.goto(
-      `/iframe.html?id=${id}&viewMode=story&args=defaultIndex:${last}`
-    );
+    await openStory(page, id, `defaultIndex:${last}`);
     const deck = page.getByRole('region', { name: 'Featured slides' });
     await expect(deck).toHaveAttribute('data-index', String(last));
 
@@ -1006,9 +1040,7 @@ for (const { id, slides, last, axis } of [
     test(`${id}: a wheel step ${way} across the seam settles on the snap point there`, async ({
       page
     }) => {
-      await page.goto(
-        `/iframe.html?id=${id}&viewMode=story&args=defaultIndex:${from}`
-      );
+      await openStory(page, id, `defaultIndex:${from}`);
       const deck = page.getByRole('region', { name: 'Featured slides' });
       await expect(deck).toHaveAttribute('data-index', String(from));
       const viewport = deck.locator('[data-slidedeck-viewport]');
@@ -1041,7 +1073,7 @@ for (const { id, slides, last, axis } of [
 test('a loop deck steps across the seam with Prev and Next, and no copy is reachable', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=deck--loop&viewMode=story');
+  await openStory(page, 'deck--loop');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const prev = deck.getByRole('button', { name: 'Previous' });
   const next = deck.getByRole('button', { name: 'Next' });
@@ -1093,7 +1125,7 @@ const offCentre = (page: Page, name: string) =>
 test('the centred-ends recipe rests with the first slide, and the last, centred', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=recipes--centred-ends&viewMode=story');
+  await openStory(page, 'recipes--centred-ends');
   const deck = page.getByRole('region', { name: 'Featured slides' });
 
   await expect(deck.getByRole('group', { name: '1 of 6' })).toHaveAttribute(
@@ -1150,7 +1182,7 @@ for (const { id, focal } of [
   test(`${id}: the middle slide in view is highlighted, at rest and after Next`, async ({
     page
   }) => {
-    await page.goto(`/iframe.html?id=${id}&viewMode=story`);
+    await openStory(page, id);
     const deck = page.getByRole('region', { name: 'Featured slides' });
 
     await expect(
@@ -1175,7 +1207,7 @@ for (const { id, focal } of [
 test('the curve-size recipe leaves the arc room: no slide that is not faded out is clipped, at rest or mid-move', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=recipes--curve-size&viewMode=story');
+  await openStory(page, 'recipes--curve-size');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   await expect(deck.getByRole('group', { name: '1 of 6' })).toHaveAttribute(
     'data-focal'
@@ -1202,59 +1234,60 @@ test('the curve-size recipe leaves the arc room: no slide that is not faded out 
   // At the first slide, it and the two after it are not faded out.
   await expect.poll(clipped).toEqual([0, 0, 0]);
 
-  // Sample every frame while Next moves the deck: in the frames mid-move,
-  // the most any card not faded out reaches past an edge, and how far the
-  // lowest one drops below where a card rests.
-  const sampled = page.evaluate(
-    () =>
-      new Promise<{ frames: number; clipped: number; deepest: number }>(
-        (resolve) => {
-          const viewport = document.querySelector('[data-slidedeck-viewport]')!;
-          const slides = [
-            ...viewport.querySelectorAll<HTMLElement>('[data-slidedeck-slide]')
-          ];
-          let frames = 0;
-          let clipped = 0;
-          let deepest = 0;
-          const start = performance.now();
-          const sample = () => {
-            const moving = slides.some(
-              (slide) =>
-                !Number.isInteger(
-                  Number(slide.style.getPropertyValue('--deck-slide-progress'))
-                )
-            );
-            if (moving) {
-              frames++;
-              const v = viewport.getBoundingClientRect();
-              const rest = slides[0].getBoundingClientRect().bottom;
-              for (const slide of slides) {
-                if (Number(getComputedStyle(slide).opacity) <= 0) continue;
-                const c = slide.firstElementChild!.getBoundingClientRect();
-                clipped = Math.max(clipped, v.top - c.top, c.bottom - v.bottom);
-                deepest = Math.max(deepest, c.bottom - rest);
-              }
-            }
-            if (performance.now() - start < 1500) requestAnimationFrame(sample);
-            else
-              resolve({
-                frames,
-                clipped: Math.round(clipped),
-                deepest: Math.round(deepest)
-              });
-          };
-          requestAnimationFrame(sample);
-        }
-      )
-  );
-  await deck.getByRole('button', { name: 'Next' }).click();
-  const move = await sampled;
-  expect(move.frames).toBeGreaterThan(0);
+  // Mid-move: a mouse drag holds the deck 0.4 of a slide on from the first,
+  // where it does not settle while the button is down, so every run measures
+  // the same pose. Of the cards not faded out, the most any reaches past an
+  // edge, and how far the lowest drops below the first slide's card.
+  const card = (await deck
+    .getByRole('group', { name: '1 of 6' })
+    .locator('.card')
+    .boundingBox())!;
+  const x = card.x + card.width / 2;
+  const y = card.y + 30;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  // 0.4 of a 176px snap step (160px slides, 16px apart).
+  await page.mouse.move(x - 70, y, { steps: 12 });
+  const midMove = () =>
+    deck.locator('[data-slidedeck-viewport]').evaluate((viewport) => {
+      const slides = [
+        ...viewport.querySelectorAll<HTMLElement>('[data-slidedeck-slide]')
+      ];
+      const v = viewport.getBoundingClientRect();
+      const rest = slides[0].getBoundingClientRect().bottom;
+      let clipped = 0;
+      let deepest = 0;
+      for (const slide of slides) {
+        if (Number(getComputedStyle(slide).opacity) <= 0) continue;
+        const c = slide.firstElementChild!.getBoundingClientRect();
+        clipped = Math.max(clipped, v.top - c.top, c.bottom - v.bottom);
+        deepest = Math.max(deepest, c.bottom - rest);
+      }
+      return {
+        progress: Number(
+          slides[0].style.getPropertyValue('--deck-slide-progress')
+        ),
+        clipped: Math.round(clipped),
+        deepest: Math.round(deepest)
+      };
+    });
+  // Held, the first slide's progress is -0.4, give or take the pixel a
+  // drag's scroll rounds to.
+  await expect.poll(async () => (await midMove()).progress).toBeLessThan(-0.35);
+  const move = await midMove();
+  expect(move.progress).toBeGreaterThan(-0.45);
   expect(move.clipped).toBeLessThanOrEqual(0);
-  // Past the 150px a card drops at rest: the frames caught the arc's faint
+  // Past the 150px a card drops at rest: the pose shows the arc's faint
   // end, which only the room for a moving deck covers.
   expect(move.deepest).toBeGreaterThan(160);
+  // Held still, then let go short of half a slide: the deck goes back to
+  // the first rather than flinging on.
+  await page.waitForTimeout(200);
+  await page.mouse.up();
+  await expect(deck).toHaveAttribute('data-index', '0');
+  await expect.poll(clipped).toEqual([0, 0, 0]);
 
+  await deck.getByRole('button', { name: 'Next' }).click();
   await expect(deck).toHaveAttribute('data-index', '1');
   await expect.poll(clipped).toEqual([0, 0, 0, 0]);
 
@@ -1266,7 +1299,7 @@ test('the curve-size recipe leaves the arc room: no slide that is not faded out 
 test('the per-breakpoint recipe crossfades below 768px and loops from it, keeping its slide as the window resizes across', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=recipes--per-breakpoint&viewMode=story');
+  await openStory(page, 'recipes--per-breakpoint');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const viewport = deck.locator('[data-slidedeck-viewport]');
   const copies = deck.locator('[data-slidedeck-copy]');
