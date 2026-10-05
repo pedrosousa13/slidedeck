@@ -115,8 +115,9 @@ function gestureClock() {
 
 /**
  * A real touch swipe (CDP touch events); positive `dx` moves the finger left.
- * Six moves 25ms apart: a swipe of 150px or 200px lets the browser's fling
- * carry the deck to the next snap point, and no further.
+ * Six moves 25ms apart on the gesture's clock, then the finger lifts: the
+ * browser reads the same fling speed from it on every run, however late the
+ * events arrive, so where the deck comes to rest depends only on `dx`.
  */
 export async function touchSwipe(el: Element, dx: number) {
   const box = el.getBoundingClientRect();
