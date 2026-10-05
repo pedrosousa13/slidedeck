@@ -122,9 +122,11 @@ from your own components. It returns:
   stops autoplay, as a built-in control does.
 
 The values are the ones the built-in controls read, so your control and
-theirs agree. The hook re-renders when the deck settles somewhere new or its
-snap points change, never while it scrolls. Called outside a `Deck.Root`, it
-throws.
+theirs agree. The hook never re-renders while the deck scrolls. It re-renders
+whenever `Deck.Root` does: when the deck settles somewhere new, when the
+number of snap points changes and, on a deck with `autoplay`, when autoplay
+starts, stops, or pauses for a pointer or a hidden tab. Called outside a
+`Deck.Root`, it throws.
 
 ```tsx
 import type { ReactNode } from 'react';

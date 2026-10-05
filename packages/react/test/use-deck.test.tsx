@@ -1,4 +1,5 @@
-import { Profiler, type ReactNode } from 'react';
+import { createRef, Profiler, type ReactNode } from 'react';
+import { renderToString } from 'react-dom/server';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
@@ -325,6 +326,65 @@ test("useDeck's consumer re-renders when the deck settles, never while it scroll
   expect(scrolls).toBeGreaterThan(5);
   expect(renders).toBe(1);
   expect(probed().index).toBe(1);
+});
+
+test("useDeck's consumer renders once for a move across several snap points, at its settle", async () => {
+  let renders = 0;
+  const handle = createRef<Deck.RootHandle>();
+  render(
+    <TestDeck
+      handleRef={handle}
+      controls={
+        <Profiler id="probe" onRender={() => renders++}>
+          <Probe />
+        </Profiler>
+      }
+    />
+  );
+  const viewport = viewportOf(
+    screen.getByRole('region', { name: 'Test deck' })
+  );
+  await sleep(100);
+  // Each scroll event's position, with the renders so far.
+  const frames: { at: number; renders: number }[] = [];
+  viewport.addEventListener('scroll', () =>
+    frames.push({ at: viewport.scrollLeft, renders })
+  );
+  renders = 0;
+
+  handle.current!.scrollTo(4);
+
+  await expectSettledTo(() => viewport.scrollLeft, 4 * WIDTH);
+  const passing = frames.filter(({ at }) => at > WIDTH && at < 3 * WIDTH);
+  expect(passing.length).toBeGreaterThan(1);
+  const midFlight = frames.filter(({ at }) => at < 4 * WIDTH);
+  expect(new Set(midFlight.map(({ renders }) => renders))).toEqual(
+    new Set([0])
+  );
+  expect(renders).toBe(1);
+  expect(probed().index).toBe(4);
+});
+
+test('before the viewport is measured, useDeck clamps index as Counter does', () => {
+  const container = document.createElement('div');
+  container.innerHTML = renderToString(
+    <TestDeck
+      defaultIndex={10}
+      controls={
+        <>
+          <Deck.Counter />
+          <Probe />
+        </>
+      }
+    />
+  );
+
+  const probe = container.querySelector<HTMLElement>('[data-probe]')!.dataset;
+  expect(probe.index).toBe('4');
+  expect(probe.count).toBe('null');
+  expect(container.querySelector('[data-slidedeck-counter]')!.textContent).toBe(
+    '5 / 5'
+  );
 });
 
 test('useDeck outside a deck names the missing primitive', () => {

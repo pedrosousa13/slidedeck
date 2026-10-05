@@ -838,15 +838,17 @@ const everySlideFits = (count: number | null) => count !== null && count <= 1;
 /** What `useDeck` reports about the deck it is called in. */
 export interface UseDeckResult {
   /** The current index: the snap point the deck rests at, a page when it
-   * snaps in pages. Until the viewport is measured, the index it starts at. */
+   * snaps in pages. Until the viewport is measured, the index it starts at,
+   * clamped to the slides, as Counter shows it. */
   index: number;
   /** The snap points, so the pages; null until the viewport is measured, as
    * on the server. */
   count: number | null;
   /** Whether `Deck.Root` has `loop`. */
   loop: boolean;
-  /** Whether every slide fits, so there is nowhere to go: Prev, Next, Dots
-   * and Counter are then absent. False until the viewport is measured. */
+  /** Whether every slide fits, so there is nowhere to go: Prev, Next, Dots,
+   * Counter and AutoplayToggle are then absent. False until the viewport is
+   * measured. */
   fits: boolean;
   /** Whether `prev()` can move the deck: when `Deck.Prev` is enabled. */
   canPrev: boolean;
@@ -860,8 +862,16 @@ export interface UseDeckResult {
   prev(): void;
 }
 
+/** The deck's state and moves, for `useDeck` and the primitives that read
+ * the same: Prev and Next. Before measurement the index is clamped to the
+ * slides Root can see, as `usePages` clamps it for Dots and Counter. */
 function useDeckState(primitive: string): UseDeckResult {
-  const { index, count, loop, userMove } = useDeckContext(primitive);
+  const deck = useDeckContext(primitive);
+  const { count, slides, loop, userMove } = deck;
+  const index =
+    count === null && slides
+      ? clampSlide(deck.initialIndex, slides)
+      : deck.index;
   const fits = everySlideFits(count);
   return {
     index,
@@ -879,9 +889,11 @@ function useDeckState(primitive: string): UseDeckResult {
 /** The deck a component is rendered in: its state, as Prev and Next read it,
  * and Dots and Counter once the viewport is measured, and its moves, so a
  * consumer can build those controls from their own components. A move stops
- * autoplay, as a built-in control's does. Like the primitives, it re-renders
- * when the deck settles somewhere new or its snap points change, never while
- * it scrolls (ADR-0003). Throws outside a `Deck.Root`. */
+ * autoplay, as a built-in control's does. Like the primitives, it never
+ * re-renders while the deck scrolls (ADR-0003): it re-renders whenever
+ * `Deck.Root` does, as when the deck settles somewhere new, its snap points
+ * change or, with `autoplay`, autoplay starts, stops or pauses. Throws
+ * outside a `Deck.Root`. */
 export function useDeck(): UseDeckResult {
   return useDeckState('useDeck');
 }
