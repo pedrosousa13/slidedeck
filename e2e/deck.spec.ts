@@ -612,6 +612,103 @@ test('in a right-to-left document, Next moves toward the inline end', async ({
     .toBeGreaterThanOrEqual(viewport.x + viewport.width - 1);
 });
 
+// An app that switches locale changes `dir` on the document without a
+// remount. Firefox and WebKit put the viewport back at its new start: the
+// deck must stay on its slide, and go on the new way.
+const directionStories = ['deck--default', 'deck--loop', 'deck--vertical'];
+
+async function openForDir(page: Page, id: string) {
+  await page.goto(`/iframe.html?id=${id}&viewMode=story`);
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const slide = (n: number) => deck.getByRole('group', { name: `${n} of 6` });
+  const box = async (n: number) => (await slide(n).boundingBox())!;
+  const vertical = id === 'deck--vertical';
+  return {
+    deck,
+    slide,
+    next: deck.getByRole('button', { name: 'Next' }),
+    setDir: (dir: string) =>
+      page.evaluate((dir) => {
+        document.documentElement.dir = dir;
+      }, dir),
+    /** Whether slide `b` lies after slide `a` the way the deck now runs. */
+    after: async (a: number, b: number) => {
+      const [from, to] = [await box(a), await box(b)];
+      if (vertical) return to.y > from.y;
+      const rtl = await page.evaluate(
+        () => document.documentElement.dir === 'rtl'
+      );
+      return rtl ? to.x < from.x : to.x > from.x;
+    }
+  };
+}
+
+for (const id of directionStories) {
+  test(`${id}: a live change of dir on the document keeps the current slide, and Next follows the new direction`, async ({
+    page
+  }) => {
+    const { deck, slide, next, setDir, after } = await openForDir(page, id);
+
+    await next.click();
+    await expect(deck).toHaveAttribute('data-index', '1');
+    await expect(slide(2)).toBeInViewport({ ratio: 1 });
+
+    await setDir('rtl');
+
+    await expect(slide(2)).toBeInViewport({ ratio: 1 });
+    await expect(deck).toHaveAttribute('data-index', '1');
+    await next.click();
+    await expect(deck).toHaveAttribute('data-index', '2');
+    await expect(slide(3)).toBeInViewport({ ratio: 1 });
+    expect(await after(3, 4)).toBe(true);
+
+    await setDir('ltr');
+
+    await expect(slide(3)).toBeInViewport({ ratio: 1 });
+    await expect(deck).toHaveAttribute('data-index', '2');
+    await next.click();
+    await expect(deck).toHaveAttribute('data-index', '3');
+    await expect(slide(4)).toBeInViewport({ ratio: 1 });
+    expect(await after(4, 5)).toBe(true);
+  });
+
+  test(`${id}: a change of dir mid-move rests the deck on the move's target, and announces only that`, async ({
+    page
+  }) => {
+    const { deck, slide, next, setDir } = await openForDir(page, id);
+    await next.click();
+    await expect(deck).toHaveAttribute('data-index', '1');
+    await expect(slide(2)).toBeInViewport({ ratio: 1 });
+    // Every index the deck reports from here on.
+    await deck.evaluate((root) => {
+      const seen: string[] = [];
+      (root as unknown as { seen: string[] }).seen = seen;
+      new MutationObserver(() => seen.push(root.dataset.index!)).observe(root, {
+        attributeFilter: ['data-index']
+      });
+    });
+
+    // Next starts a move; the switch comes in the same task, before it ends.
+    await next.evaluate((button) => {
+      (button as HTMLButtonElement).click();
+      document.documentElement.dir = 'rtl';
+    });
+
+    await expect(deck).toHaveAttribute('data-index', '2');
+    await expect(slide(3)).toBeInViewport({ ratio: 1 });
+    // Long enough for a stray settle, as on the start, to show.
+    await page.waitForTimeout(500);
+    await expect(slide(3)).toBeInViewport({ ratio: 1 });
+    expect(
+      await deck.evaluate(
+        (root) => (root as unknown as { seen: string[] }).seen
+      )
+    ).toEqual(['2']);
+    await setDir('ltr');
+    await expect(slide(3)).toBeInViewport({ ratio: 1 });
+  });
+}
+
 test('data-in-view marks the slides in view, and progress scales them', async ({
   page
 }) => {

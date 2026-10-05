@@ -5,11 +5,13 @@ import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
   addStyle,
+  expectRestOnASlide,
   expectSettledTo,
   expectSnaps,
   mouseAt,
   mouseDrag,
   pagesOf,
+  progressOf,
   viewportOf,
   WIDTH
 } from './fixtures';
@@ -253,5 +255,183 @@ describe('a mouse drag in a right-to-left document', () => {
 
     await expectSettledTo(scrollLeft(viewport), -WIDTH);
     expect(onIndexChange.mock.calls).toEqual([[1]]);
+  });
+});
+
+// An app that switches locale at runtime changes `dir` on an ancestor, or on
+// `<html>`, without remounting the deck: the deck then behaves as if it had
+// mounted in the new direction.
+
+type SwitchingDeckProps = ComponentProps<typeof Deck.Root> & {
+  height?: number;
+};
+
+/** A deck in a left-to-right ancestor whose `dir` the test changes. */
+function SwitchingDeck({ height = 100, ...props }: SwitchingDeckProps) {
+  return (
+    <div data-testid="ancestor" dir="ltr">
+      <Deck.Root aria-label="Test deck" {...props}>
+        <Deck.Prev />
+        <Deck.Viewport style={{ width: WIDTH, height }}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <Deck.Slide key={i}>Slide {i + 1}</Deck.Slide>
+          ))}
+        </Deck.Viewport>
+        <Deck.Next />
+      </Deck.Root>
+    </div>
+  );
+}
+
+const renderSwitching = (props: SwitchingDeckProps = {}) => {
+  const onIndexChange = vi.fn();
+  render(<SwitchingDeck onIndexChange={onIndexChange} {...props} />);
+  const root = screen.getByRole('region', { name: 'Test deck' });
+  const viewport = viewportOf(root);
+  const slide = (label: string) =>
+    screen.getByRole('group', { name: label }).getBoundingClientRect();
+  return {
+    root,
+    viewport,
+    onIndexChange,
+    setDir: (dir: 'ltr' | 'rtl') => {
+      screen.getByTestId('ancestor').dir = dir;
+    },
+    next: screen.getByRole('button', { name: 'Next' }),
+    /** Where a slide's inline start edge sits from the viewport's. */
+    fromStart: (label: string) => {
+      const view = viewport.getBoundingClientRect();
+      const box = slide(label);
+      return Math.round(
+        getComputedStyle(viewport).direction === 'rtl'
+          ? view.right - box.right
+          : box.left - view.left
+      );
+    },
+    fromTop: (label: string) =>
+      Math.round(slide(label).top - viewport.getBoundingClientRect().top)
+  };
+};
+
+describe('a live change of writing direction', () => {
+  test('keeps the current slide at rest, and Next then moves toward the new inline end', async () => {
+    const { root, viewport, onIndexChange, setDir, next, fromStart } =
+      renderSwitching({ defaultIndex: 2 });
+    expect(viewport.scrollLeft).toBe(2 * WIDTH);
+
+    setDir('rtl');
+
+    await expectSettledTo(scrollLeft(viewport), -2 * WIDTH);
+    expect(fromStart('3 of 5')).toBe(0);
+    expect(root.dataset.index).toBe('2');
+    expect(progressOf(viewport)).toEqual([-2, -1, 0, 1, 2]);
+    await expectSnaps(viewport);
+
+    await userEvent.click(next);
+    await expectSettledTo(scrollLeft(viewport), -3 * WIDTH);
+    expect(fromStart('4 of 5')).toBe(0);
+    expect(progressOf(viewport)).toEqual([-3, -2, -1, 0, 1]);
+
+    setDir('ltr');
+
+    await expectSettledTo(scrollLeft(viewport), 3 * WIDTH);
+    expect(fromStart('4 of 5')).toBe(0);
+    expect(root.dataset.index).toBe('3');
+    expect(progressOf(viewport)).toEqual([-3, -2, -1, 0, 1]);
+
+    await userEvent.click(next);
+    await expectSettledTo(scrollLeft(viewport), 4 * WIDTH);
+    expect(onIndexChange.mock.calls).toEqual([[3], [4]]);
+  });
+
+  test('mid-move, rests the deck on the move’s target, and reports only that', async () => {
+    const { root, viewport, onIndexChange, setDir, next, fromStart } =
+      renderSwitching({ defaultIndex: 2 });
+
+    // Next starts a move; the switch comes in the same task, before it ends.
+    next.click();
+    setDir('rtl');
+
+    await expectSettledTo(scrollLeft(viewport), -3 * WIDTH);
+    expect(fromStart('4 of 5')).toBe(0);
+    expect(root.dataset.index).toBe('3');
+    expect(onIndexChange.mock.calls).toEqual([[3]]);
+  });
+
+  test('the arrow keys and a mouse drag follow the new direction', async () => {
+    const { root, viewport, onIndexChange, setDir } = renderSwitching({
+      defaultIndex: 2
+    });
+
+    setDir('rtl');
+    await expectSettledTo(scrollLeft(viewport), -2 * WIDTH);
+
+    viewport.focus();
+    await userEvent.keyboard('{ArrowLeft}');
+    await expectSettledTo(scrollLeft(viewport), -3 * WIDTH);
+
+    // Dragged right, a right-to-left deck moves on toward its end.
+    await mouseDrag(viewport, 200, slowly);
+    await expectSettledTo(scrollLeft(viewport), -4 * WIDTH);
+
+    expect(onIndexChange.mock.calls).toEqual([[3], [4]]);
+    expect(root.dataset.index).toBe('4');
+  });
+
+  test('with loop, keeps resting on the current slide, and Next moves on', async () => {
+    const { root, viewport, onIndexChange, setDir, next, fromStart } =
+      renderSwitching({ defaultIndex: 2, loop: true });
+    expect(fromStart('3 of 5')).toBe(0);
+
+    setDir('rtl');
+
+    await expect.poll(() => fromStart('3 of 5')).toBe(0);
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(root.dataset.index).toBe('2');
+    expect(progressOf(viewport, { copies: false })).toEqual([-2, -1, 0, 1, 2]);
+
+    await userEvent.click(next);
+    await expectSettledTo(() => fromStart('4 of 5'), 0);
+    expect(root.dataset.index).toBe('3');
+
+    setDir('ltr');
+
+    await expect.poll(() => fromStart('4 of 5')).toBe(0);
+    await expectRestOnASlide(viewport, root, onIndexChange);
+
+    await userEvent.click(next);
+    await expectSettledTo(() => fromStart('5 of 5'), 0);
+    await userEvent.click(next);
+    await expectSettledTo(() => fromStart('1 of 5'), 0);
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(onIndexChange.mock.calls).toEqual([[3], [4], [0]]);
+  });
+
+  test('a vertical deck goes on along the block axis', async () => {
+    const { root, viewport, onIndexChange, setDir, next, fromTop } =
+      renderSwitching({
+        defaultIndex: 2,
+        orientation: 'vertical',
+        height: 200
+      });
+    expect(viewport.scrollTop).toBe(400);
+
+    setDir('rtl');
+
+    await expectSettledTo(() => viewport.scrollTop, 400);
+    expect(viewport.scrollLeft).toBe(0);
+    expect(root.dataset.index).toBe('2');
+    expect(progressOf(viewport)).toEqual([-2, -1, 0, 1, 2]);
+
+    await userEvent.click(next);
+    await expectSettledTo(() => viewport.scrollTop, 600);
+    expect(fromTop('4 of 5')).toBe(0);
+
+    setDir('ltr');
+
+    await expectSettledTo(() => viewport.scrollTop, 600);
+    await userEvent.click(next);
+    await expectSettledTo(() => viewport.scrollTop, 800);
+    expect(onIndexChange.mock.calls).toEqual([[3], [4]]);
   });
 });
