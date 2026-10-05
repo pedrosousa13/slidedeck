@@ -1299,7 +1299,7 @@ test('the curve-size recipe leaves the arc room: no slide that is not faded out 
 test('the per-breakpoint recipe crossfades below 768px and loops from it, keeping its slide as the window resizes across', async ({
   page
 }) => {
-  await page.goto('/iframe.html?id=recipes--per-breakpoint&viewMode=story');
+  await openStory(page, 'recipes--per-breakpoint');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const viewport = deck.locator('[data-slidedeck-viewport]');
   const copies = deck.locator('[data-slidedeck-copy]');
