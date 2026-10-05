@@ -8,7 +8,7 @@
  * ancestor to override its default.
  *
  *   --deck-control-color: #1a1a1a
- *     Text of Prev, Next, the autoplay toggle and the counter.
+ *     Text of Prev, Next, the counter and the stopped autoplay toggle.
  *   --deck-control-background: #ffffff
  *     Background of Prev, Next and the autoplay toggle.
  *   --deck-control-hover-background: #f0f0f0
@@ -24,8 +24,8 @@
  *   --deck-control-disabled-opacity: 0.4
  *     Opacity of Prev or Next while disabled, at either end.
  *   --deck-control-active-background: var(--deck-accent, #0b5cd5)
- *     Background of the autoplay toggle while autoplay plays, under a
- *     pointer too; paused, it looks like Prev and Next.
+ *     Background of the autoplay toggle while autoplay plays, paused by a
+ *     pointer or not; stopped, it looks like Prev and Next.
  *   --deck-control-active-color: #ffffff
  *     Its text while autoplay plays.
  *   --deck-dot-color: #767676
@@ -121,7 +121,7 @@
 /* Forced colours paint every background the page colour, dots included:
  * draw them in system colours instead, the current and a hovered one
  * highlighted. The playing toggle is highlighted too, so it still differs
- * from the paused one. */
+ * from the stopped one. */
 @media (forced-colors: active) {
   :where([data-slidedeck-dots] > button) {
     forced-color-adjust: none;

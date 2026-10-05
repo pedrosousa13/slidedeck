@@ -410,7 +410,7 @@ is a custom property; set one on the deck or any ancestor:
 
 | Token                              | Default                       | Styles                                                 |
 | ---------------------------------- | ----------------------------- | ------------------------------------------------------ |
-| `--deck-control-color`             | `#1a1a1a`                     | Text of the buttons and the counter                    |
+| `--deck-control-color`             | `#1a1a1a`                     | Text of Prev, Next, the counter and the stopped toggle |
 | `--deck-control-background`        | `#ffffff`                     | Background of Prev, Next and the toggle                |
 | `--deck-control-hover-background`  | `#f0f0f0`                     | Their background under a pointer                       |
 | `--deck-control-border`            | `1px solid #767676`           | Their border                                           |
@@ -432,8 +432,9 @@ is a custom property; set one on the deck or any ancestor:
 | `--deck-focus-offset`              | `2px`                         | Space between a control and its focus ring             |
 | `--deck-transition-duration`       | `150ms`                       | Hover and state fades; none under reduced motion       |
 
-Paused, the autoplay toggle looks like Prev and Next; playing, it is filled
-with the accent, under a pointer too.
+Stopped, the autoplay toggle looks like Prev and Next; playing, it is filled
+with the accent, paused by a pointer or not. With a light `--deck-accent`, set
+`--deck-control-active-color` too, so its text keeps 4.5:1 contrast.
 
 In forced colours mode, dots are drawn in system colours, the current one and
 a hovered one highlighted, and so is the playing toggle.

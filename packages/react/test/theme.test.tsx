@@ -164,7 +164,7 @@ describe('theme.css', () => {
     expect(style(counter).fontSize).toBe('14px');
   });
 
-  test('a paused autoplay toggle looks like any other control', async () => {
+  test('a stopped autoplay toggle looks like any other control', async () => {
     addStyle(theme);
     // Autoplay starts stopped under reduced motion.
     await setReducedMotion(true);
@@ -186,7 +186,7 @@ describe('theme.css', () => {
     expect(style(toggle).color).toBe(ON_ACCENT);
   });
 
-  test('under a pointer, the playing toggle still differs from the paused one', async () => {
+  test('under a pointer, the playing toggle still differs from the stopped one', async () => {
     addStyle(theme);
     await setReducedMotion(true);
     onTestFinished(() => setReducedMotion(false));
