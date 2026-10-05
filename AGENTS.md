@@ -9,7 +9,9 @@ pnpm verify
 ```
 
 It runs every gate in order and stops at the first failure: `format:check`,
-`lint`, `typecheck`, `test` (vitest in browser mode), `build`,
+`lint`, `typecheck`, `test` (vitest in browser mode), `test:scripts` (the
+scripts' own tests), `build`, `docs:check` (the package README's code blocks
+type-check), `compare:check` (the README's comparison table is fresh),
 `test:packages` (publint and attw on the packed tarballs), `size` and
 `test:e2e` (Playwright with axe against storybook, in Chromium, Firefox and
 WebKit). The list lives in `scripts/verify.mjs`.
@@ -26,6 +28,14 @@ firefox webkit` once, or install with `--with-deps`.
 
 `size` prints each package's gzipped size and never fails: bundle size is an
 aim, not a gate (ADR-0001). Read the numbers; do not add a budget.
+
+`compare:check` fails when the comparison in `packages/react/README.md` no
+longer matches a fresh measurement: after a bump of a compared library in
+`tests/compare`, or any change to `packages/*/src` that moves slidedeck's
+gzipped size. Run `pnpm build && pnpm compare` and commit the new table. The
+size is reported, never budgeted (ADR-0001): a bigger number is not a failure,
+only a stale one is. A release does not stale it: slidedeck's row has no
+version.
 
 Formatting is checked, never written by the gate. Run
 `pnpm exec prettier --write <files>` on the files you changed.

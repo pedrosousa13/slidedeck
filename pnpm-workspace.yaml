@@ -1,6 +1,10 @@
 packages:
   - packages/*
   - apps/*
+  # The library comparison's fixture: pinned installs of the compared
+  # carousels, bundled by scripts/compare-libraries.mjs. Private, never
+  # published.
+  - tests/compare
   # Throwaway prototypes (#3), deleted after the engine go/no-go.
   - prototypes/scroll-snap
 # A 24-hour hold, in minutes, before a newly published version is eligible to

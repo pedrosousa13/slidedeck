@@ -1,0 +1,14 @@
+{
+  "name": "@slidedeck/compare",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Private fixture pinning the carousels scripts/compare-libraries.mjs bundles and measures. Never published.",
+  "type": "module",
+  "devDependencies": {
+    "@slidedeck/react": "workspace:*",
+    "embla-carousel-react": "8.6.0",
+    "keen-slider": "6.8.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}

@@ -14,5 +14,6 @@
     "checkJs": true,
     "tsBuildInfoFile": "../node_modules/.cache/tsbuildinfo/scripts.tsbuildinfo"
   },
-  "include": ["*.mjs"]
+  // The comparison's claims, imported by compare-libraries.mjs.
+  "include": ["*.mjs", "../tests/compare/features.mjs"]
 }

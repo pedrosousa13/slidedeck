@@ -8,6 +8,7 @@
     { "path": "./apps/storybook" },
     { "path": "./prototypes/scroll-snap" },
     { "path": "./e2e" },
-    { "path": "./scripts" }
+    { "path": "./scripts" },
+    { "path": "./tests/compare" }
   ]
 }

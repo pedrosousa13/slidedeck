@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "types": ["vite/client"],
+    "tsBuildInfoFile": "../../node_modules/.cache/tsbuildinfo/compare.tsbuildinfo"
+  },
+  "references": [{ "path": "../../packages/react" }],
+  "include": ["entries"]
+}
