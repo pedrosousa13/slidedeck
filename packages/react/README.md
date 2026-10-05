@@ -355,6 +355,10 @@ on any ancestor applies. In a right-to-left document the deck starts at the
 right, Next moves toward the inline end on the left, and a mouse drag and the
 arrow keys follow.
 
+A deck follows a change of `dir` after it mounts, as a locale switch makes:
+it stays on its slide, and from there goes the new way. A change of
+`direction` in CSS alone is not watched.
+
 ## Pages
 
 To snap in groups, make only the first slide of each group a snap point. Next

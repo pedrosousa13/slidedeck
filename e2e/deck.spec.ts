@@ -612,6 +612,45 @@ test('in a right-to-left document, Next moves toward the inline end', async ({
     .toBeGreaterThanOrEqual(viewport.x + viewport.width - 1);
 });
 
+for (const id of ['deck--default', 'deck--loop']) {
+  test(`${id}: a live change of dir on the document keeps the current slide, and Next follows the new direction`, async ({
+    page
+  }) => {
+    await page.goto(`/iframe.html?id=${id}&viewMode=story`);
+    const deck = page.getByRole('region', { name: 'Featured slides' });
+    const next = deck.getByRole('button', { name: 'Next' });
+    const slide = (n: number) => deck.getByRole('group', { name: `${n} of 6` });
+    const x = async (n: number) => (await slide(n).boundingBox())!.x;
+    const setDir = (dir: string) =>
+      page.evaluate((dir) => {
+        document.documentElement.dir = dir;
+      }, dir);
+
+    await next.click();
+    await expect(deck).toHaveAttribute('data-index', '1');
+    await expect(slide(2)).toBeInViewport({ ratio: 1 });
+
+    await setDir('rtl');
+
+    await expect(slide(2)).toBeInViewport({ ratio: 1 });
+    await expect(deck).toHaveAttribute('data-index', '1');
+    await next.click();
+    await expect(deck).toHaveAttribute('data-index', '2');
+    await expect(slide(3)).toBeInViewport({ ratio: 1 });
+    // The deck now runs to the left.
+    expect(await x(4)).toBeLessThan(await x(3));
+
+    await setDir('ltr');
+
+    await expect(slide(3)).toBeInViewport({ ratio: 1 });
+    await expect(deck).toHaveAttribute('data-index', '2');
+    await next.click();
+    await expect(deck).toHaveAttribute('data-index', '3');
+    await expect(slide(4)).toBeInViewport({ ratio: 1 });
+    expect(await x(5)).toBeGreaterThan(await x(4));
+  });
+}
+
 test('data-in-view marks the slides in view, and progress scales them', async ({
   page
 }) => {

@@ -477,11 +477,29 @@ export function createDeck(
   // browser honours `scroll-initial-target`, and this scroll is a no-op.
   // Where slides share snap points, slide `index` may rest at another snap
   // point, so the first paint may correct: server HTML cannot measure.
-  const along = axis();
-  const { points } = snapPoints(viewport, along);
-  const start = points[clamp(options.index, points.length)] ?? 0;
-  if (Math.abs(along.position - start) >= 1) along.scrollTo(start, 'instant');
-  settle();
+  const restOn = (index: number) => {
+    const along = axis();
+    const { points } = snapPoints(viewport, along);
+    const to = points[clamp(index, points.length)] ?? 0;
+    if (Math.abs(along.position - to) >= 1) along.scrollTo(to, 'instant');
+    settle();
+  };
+  restOn(options.index);
+
+  // A change of `dir` on the viewport or an ancestor, as a locale switch
+  // gives, lays a horizontal deck out the other way. Chromium keeps the
+  // viewport on its snap target; Firefox and WebKit put it back at its new
+  // start. So a deck at rest goes back to its snap point, as if it had
+  // mounted that way. This runs before the browser renders the new layout.
+  const onDir = (records: MutationRecord[]) => {
+    if (!records.some(({ target }) => target.contains(viewport))) return;
+    if (!scrolling && !move && drag !== 'dragging') restOn(state.index);
+  };
+  const dirs = new MutationObserver(onDir);
+  dirs.observe(viewport.ownerDocument.documentElement, {
+    attributeFilter: ['dir'],
+    subtree: true
+  });
 
   // `scrollsnapchange` reports a settled snap target where it exists, no
   // later than `scrollend`; `publish` drops whichever report comes second.
@@ -736,6 +754,7 @@ export function createDeck(
         if (slide instanceof HTMLElement) slide.style.removeProperty(PROGRESS);
       }
       resizes.disconnect();
+      dirs.disconnect();
       window.removeEventListener('resize', refresh);
       viewport.removeEventListener('scroll', onScroll);
       viewport.removeEventListener('scrollsnapchange', onEnd);
