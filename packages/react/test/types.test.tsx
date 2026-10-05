@@ -80,6 +80,21 @@ test('useSlide reports the slide and whether it is a copy', () => {
   }>();
 });
 
+test("useDeck reports the deck's state and its moves", () => {
+  expectTypeOf(Deck.useDeck).returns.toEqualTypeOf<Deck.UseDeckResult>();
+  expectTypeOf<Deck.UseDeckResult>().toEqualTypeOf<{
+    index: number;
+    count: number | null;
+    loop: boolean;
+    fits: boolean;
+    canPrev: boolean;
+    canNext: boolean;
+    scrollTo(index: number): void;
+    next(): void;
+    prev(): void;
+  }>();
+});
+
 test('an effect is imported from its own entry point, not named', () => {
   void (<Deck.Viewport effect={fade} />);
   void (<Deck.Viewport effect={curve} />);

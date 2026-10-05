@@ -102,10 +102,77 @@ Prev, Next or AutoplayToggle runs first and can cancel the move with
 | `orientation`   | `'horizontal' \| 'vertical'` | `'horizontal'` | The axis the deck scrolls along.                                                          |
 
 The package also exports the types `RootProps`, `RootHandle`,
-`ViewportProps`, `UseSlideResult` (what `useSlide` returns), `Effect` and
-`Orientation`.
+`ViewportProps`, `UseDeckResult` (what `useDeck` returns), `UseSlideResult`
+(what `useSlide` returns), `Effect` and `Orientation`.
 
 ## Hooks
+
+`Deck.useDeck()`, called by any component inside `Deck.Root`, gives it the
+deck's state and moves, so you can build Prev, Next, a counter or pagination
+from your own components. It returns:
+
+- `index`: the current index, the snap point the deck rests at, so a page
+  when the deck snaps in pages.
+- `count`: the number of snap points, or `null` until the viewport is
+  measured, as on the server.
+- `loop`: whether `Deck.Root` has `loop`.
+- `fits`: whether every slide fits, where the built-in controls are absent.
+- `canPrev` and `canNext`: whether `Deck.Prev` and `Deck.Next` are enabled.
+- `scrollTo(index)`, `next()` and `prev()`: the moves of `RootHandle`. Each
+  stops autoplay, as a built-in control does.
+
+The values are the ones the built-in controls read, so your control and
+theirs agree. The hook never re-renders while the deck scrolls. It re-renders
+whenever `Deck.Root` does: when the deck settles somewhere new, when the
+number of snap points changes and, on a deck with `autoplay`, when autoplay
+starts, stops, or pauses for a pointer or a hidden tab. Called outside a
+`Deck.Root`, it throws.
+
+```tsx
+import type { ReactNode } from 'react';
+import * as Deck from '@slidedeck/react';
+
+// Your design system's button.
+declare function Button(props: {
+  isDisabled: boolean;
+  onPress: () => void;
+  children: ReactNode;
+}): ReactNode;
+
+const twoDigits = (n: number) => String(n).padStart(2, '0');
+
+function PhotoControls() {
+  const { index, count, fits, canPrev, canNext, prev, next } = Deck.useDeck();
+  if (fits) return null;
+  return (
+    <div className="photo-controls">
+      <Button isDisabled={!canPrev} onPress={prev}>
+        Previous photo
+      </Button>
+      {/* "03 — 10" */}
+      <span>
+        {count !== null && `${twoDigits(index + 1)} — ${twoDigits(count)}`}
+      </span>
+      <Button isDisabled={!canNext} onPress={next}>
+        Next photo
+      </Button>
+    </div>
+  );
+}
+
+export function Photos() {
+  return (
+    <Deck.Root aria-label="Photos">
+      <Deck.Viewport>
+        <Deck.Slide>One</Deck.Slide>
+        <Deck.Slide>Two</Deck.Slide>
+        <Deck.Slide>Three</Deck.Slide>
+      </Deck.Viewport>
+      <PhotoControls />
+    </Deck.Root>
+  );
+}
+```
 
 `Deck.useSlide()`, called by content inside a slide, tells it which slide it
 is in. It returns `{ index, copy }`: `index` is the slide's index, also inside
@@ -470,7 +537,9 @@ with one page per slide. Hydration corrects them where that is wrong: it
 removes the controls when every slide fits, and recounts Dots and Counter when
 several slides share a snap point or the deck snaps in pages. Where `Deck.Root`
 cannot see the slides ahead of time, as when `Deck.Viewport` sits inside your
-own component, Dots and Counter render empty until hydration.
+own component, Dots and Counter render empty until hydration. `useDeck()`
+reports a `count` of `null` on the server, so a counter built on it renders
+its total at hydration.
 
 The package has no `'use client'` directive: in a React Server Components
 framework, render the deck from a client component.
@@ -712,7 +781,7 @@ pinned installs, and CI fails if this table is stale.
 
 | Library                | Version   | Min+gzip | Native scroll                                    | Accessibility out of the box                                                                                                           | API shape                                                                                          |
 | ---------------------- | --------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `@slidedeck/react`     | this repo | 6.87 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
+| `@slidedeck/react`     | this repo | 6.95 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
 | `embla-carousel-react` | 8.6.0     | 7.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels or controls; scrolls a focused slide into view                                                                        | A hook returning a ref and an API object; markup and controls are yours                            |
 | `keen-slider`          | 6.8.6     | 6.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels, controls or keyboard handling                                                                                        | A hook returning a ref and an instance, plus a required stylesheet; markup and controls are yours  |
 

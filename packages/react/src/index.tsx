@@ -63,7 +63,7 @@ const clampSlide = (index: number, count: number) =>
 
 const DeckContext = createContext<DeckContextValue | null>(null);
 
-function useDeck(primitive: string): DeckContextValue {
+function useDeckContext(primitive: string): DeckContextValue {
   const deck = use(DeckContext);
   if (!deck) throw new Error(`Deck.${primitive} must be inside Deck.Root`);
   return deck;
@@ -686,7 +686,7 @@ const viewportStyles: Record<Orientation, CSSProperties> = {
  * snap target after them for each. */
 export function Viewport({ style, children, effect, ...props }: ViewportProps) {
   const { viewportRef, engineRef, orientation, loop, count } =
-    useDeck('Viewport');
+    useDeckContext('Viewport');
   const slides = Children.toArray(children);
   // A deck whose slides all fit has nothing to loop (see createDeck).
   const copies = loop && !everySlideFits(count);
@@ -775,7 +775,7 @@ const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;
  * effect stacks the slides, as fade does, every slide but the focal one is
  * inert. */
 export function Slide({ style, ...props }: ComponentProps<'div'>) {
-  const deck = useDeck('Slide');
+  const deck = useDeckContext('Slide');
   const slide = use(SlideContext);
   if (!slide) throw new Error('Deck.Slide must be inside Deck.Viewport');
   const { index, count, stacked, copy } = slide;
@@ -835,6 +835,69 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
  * fit drops them at hydration, which shifts layout. */
 const everySlideFits = (count: number | null) => count !== null && count <= 1;
 
+/** What `useDeck` reports about the deck it is called in. */
+export interface UseDeckResult {
+  /** The current index: the snap point the deck rests at, a page when it
+   * snaps in pages. Until the viewport is measured, the index it starts at,
+   * clamped to the slides, as Counter shows it. */
+  index: number;
+  /** The snap points, so the pages; null until the viewport is measured, as
+   * on the server. */
+  count: number | null;
+  /** Whether `Deck.Root` has `loop`. */
+  loop: boolean;
+  /** Whether every slide fits, so there is nowhere to go: Prev, Next, Dots,
+   * Counter and AutoplayToggle are then absent. False until the viewport is
+   * measured. */
+  fits: boolean;
+  /** Whether `prev()` can move the deck: when `Deck.Prev` is enabled. */
+  canPrev: boolean;
+  /** Whether `next()` can move the deck: when `Deck.Next` is enabled. */
+  canNext: boolean;
+  /** Scrolls to a snap point, clamped to the snap points there are. */
+  scrollTo(index: number): void;
+  /** Scrolls one snap point on. */
+  next(): void;
+  /** Scrolls one snap point back. */
+  prev(): void;
+}
+
+/** The deck's state and moves, for `useDeck` and the primitives that read
+ * the same: Prev and Next. Before measurement the index is clamped to the
+ * slides Root can see, as `usePages` clamps it for Dots and Counter. */
+function useDeckState(primitive: string): UseDeckResult {
+  const deck = useDeckContext(primitive);
+  const { count, slides, loop, userMove } = deck;
+  const index =
+    count === null && slides
+      ? clampSlide(deck.initialIndex, slides)
+      : deck.index;
+  const fits = everySlideFits(count);
+  return {
+    index,
+    count,
+    loop,
+    fits,
+    canPrev: !fits && (loop || index !== 0),
+    canNext: !fits && (loop || count === null || index < count - 1),
+    scrollTo: (to) => userMove()?.scrollTo(to),
+    next: () => userMove()?.next(),
+    prev: () => userMove()?.prev()
+  };
+}
+
+/** The deck a component is rendered in: its state, as Prev and Next read it,
+ * and Dots and Counter once the viewport is measured, and its moves, so a
+ * consumer can build those controls from their own components. A move stops
+ * autoplay, as a built-in control's does. Like the primitives, it never
+ * re-renders while the deck scrolls (ADR-0003): it re-renders whenever
+ * `Deck.Root` does, as when the deck settles somewhere new, its snap points
+ * change or, with `autoplay`, autoplay starts, stops or pauses. Throws
+ * outside a `Deck.Root`. */
+export function useDeck(): UseDeckResult {
+  return useDeckState('useDeck');
+}
+
 interface StepButtonProps extends ComponentProps<'button'> {
   atEnd: boolean;
   step: () => void;
@@ -873,14 +936,14 @@ function StepButton({
  * loops; absent when every slide fits. Marked `data-slidedeck-prev` for CSS
  * to select. */
 export function Prev(props: ComponentProps<'button'>) {
-  const { index, count, loop, userMove } = useDeck('Prev');
-  if (everySlideFits(count)) return null;
+  const { fits, canPrev, prev } = useDeckState('Prev');
+  if (fits) return null;
   return (
     <StepButton
       {...props}
       data-slidedeck-prev=""
-      atEnd={!loop && index === 0}
-      step={() => userMove()?.prev()}
+      atEnd={!canPrev}
+      step={prev}
       label="Previous"
     />
   );
@@ -890,14 +953,14 @@ export function Prev(props: ComponentProps<'button'>) {
  * loops; absent when every slide fits. Marked `data-slidedeck-next` for CSS
  * to select. */
 export function Next(props: ComponentProps<'button'>) {
-  const { index, count, loop, userMove } = useDeck('Next');
-  if (everySlideFits(count)) return null;
+  const { fits, canNext, next } = useDeckState('Next');
+  if (fits) return null;
   return (
     <StepButton
       {...props}
       data-slidedeck-next=""
-      atEnd={!loop && count !== null && index >= count - 1}
-      step={() => userMove()?.next()}
+      atEnd={!canNext}
+      step={next}
       label="Next"
     />
   );
@@ -908,7 +971,8 @@ export function Next(props: ComponentProps<'button'>) {
  * there; a deck whose snap points differ corrects at hydration (ADR-0003).
  * `count` is null only where Root cannot see Viewport's slides. */
 function usePages(primitive: string) {
-  const { index, count, slides, initialIndex, userMove } = useDeck(primitive);
+  const { index, count, slides, initialIndex, userMove } =
+    useDeckContext(primitive);
   if (count !== null || slides === null) return { index, count, userMove };
   return { index: clampSlide(initialIndex, slides), count: slides, userMove };
 }
@@ -983,7 +1047,7 @@ export function AutoplayToggle({
   ...props
 }: ComponentProps<'button'>) {
   const { hasAutoplay, playing, togglePlaying, count } =
-    useDeck('AutoplayToggle');
+    useDeckContext('AutoplayToggle');
   if (!hasAutoplay || everySlideFits(count)) return null;
   return (
     <button
