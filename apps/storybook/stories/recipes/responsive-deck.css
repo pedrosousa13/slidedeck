@@ -1,0 +1,10 @@
+/* From 768px, the breakpoint the hook reads, three slides in view, 16px
+   apart. Below it, fade shows one slide at a time and ignores slide width. */
+@media (min-width: 768px) {
+  .products [data-slidedeck-viewport] {
+    gap: 16px;
+  }
+  .products [data-slidedeck-slide] {
+    width: calc((100% - 2 * 16px) / 3);
+  }
+}

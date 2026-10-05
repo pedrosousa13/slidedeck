@@ -7,7 +7,9 @@ import centredEnds from './centred-ends.css?inline';
 import curveSize from './curve-size.css?inline';
 import middleByProgress from './middle-by-progress.css?inline';
 import middleCentred from './middle-centred.css?inline';
+import responsiveDeck from './responsive-deck.css?inline';
 import { Products } from './custom-controls';
+import { ResponsiveDeck } from './responsive-deck';
 
 const slidesOf = (count: number) =>
   Array.from({ length: count }, (_, i) => (
@@ -120,6 +122,21 @@ export const CustomControls: Story = {
         .ds-button[aria-current] { background: #335; color: #fff; }
       `}</style>
       <Products />
+    </>
+  )
+};
+
+/**
+ * The README's recipe "change `effect`, `loop` or `autoplay` per
+ * breakpoint": a `useMediaQuery` hook picks the props. Below 768px the deck
+ * crossfades one slide at a time; from 768px it shows three slides and
+ * loops. Resizing the window across 768px keeps the deck on its slide.
+ */
+export const PerBreakpoint: Story = {
+  render: () => (
+    <>
+      <style>{look + responsiveDeck}</style>
+      <ResponsiveDeck>{slidesOf(6)}</ResponsiveDeck>
     </>
   )
 };

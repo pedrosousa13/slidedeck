@@ -62,7 +62,8 @@ const stories = [
   'recipes--middle-centred',
   'recipes--middle-by-progress',
   'recipes--curve-size',
-  'recipes--custom-controls'
+  'recipes--custom-controls',
+  'recipes--per-breakpoint'
 ];
 
 /** Stories with the curve effect, which fades the slides out of focus. */
@@ -1260,4 +1261,77 @@ test('the curve-size recipe leaves the arc room: no slide that is not faded out 
   await deck.getByRole('button', { name: 'Next' }).click();
   await expect(deck).toHaveAttribute('data-index', '2');
   await expect.poll(clipped).toEqual([0, 0, 0, 0, 0]);
+});
+
+test('the per-breakpoint recipe crossfades below 768px and loops from it, keeping its slide as the window resizes across', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=recipes--per-breakpoint&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const viewport = deck.locator('[data-slidedeck-viewport]');
+  const copies = deck.locator('[data-slidedeck-copy]');
+  const slide = (n: number) => deck.getByRole('group', { name: `${n} of 6` });
+  const live = deck.locator('[data-slidedeck-live]');
+  /** How far slide `n`'s left edge sits from the viewport's, to the pixel. */
+  const fromStart = (n: number) =>
+    slide(n).evaluate((el) =>
+      Math.round(
+        Math.abs(
+          el.getBoundingClientRect().left -
+            el.parentElement!.getBoundingClientRect().left
+        )
+      )
+    );
+  /** Resizes the window, then waits long enough for a stray settle to show,
+   * and returns every index the deck reported meanwhile. */
+  const resize = async (width: number) => {
+    await deck.evaluate((root) => {
+      const seen: string[] = [];
+      (root as unknown as { seen: string[] }).seen = seen;
+      new MutationObserver(() => seen.push(root.dataset.index!)).observe(root, {
+        attributeFilter: ['data-index']
+      });
+    });
+    await page.setViewportSize({ width, height: 720 });
+    await page.waitForTimeout(500);
+    return deck.evaluate(
+      (root) => (root as unknown as { seen: string[] }).seen
+    );
+  };
+
+  // Wide: no effect, and a loop: Previous crosses the seam.
+  await expect(viewport).not.toHaveAttribute('data-slidedeck-effect');
+  await expect(copies).toHaveCount(12);
+  await deck.getByRole('button', { name: 'Previous' }).click();
+  await expect(deck).toHaveAttribute('data-index', '5');
+  await deck.getByRole('button', { name: 'Next' }).click();
+  await deck.getByRole('button', { name: 'Next' }).click();
+  await expect(deck).toHaveAttribute('data-index', '1');
+  await expect.poll(() => fromStart(2)).toBe(0);
+  await expect(live).toHaveText('Slide 2 of 6');
+
+  // Narrow: a crossfade, one slide at a time, that does not loop, on the
+  // same slide, with nothing announced.
+  expect(await resize(600)).toEqual([]);
+  await expect(viewport).toHaveAttribute('data-slidedeck-effect', 'fade');
+  await expect(copies).toHaveCount(0);
+  await expect(deck).toHaveAttribute('data-index', '1');
+  await expect(slide(2)).toHaveAttribute('data-focal');
+  await expect(slide(2)).toBeInViewport({ ratio: 1 });
+  await expect(live).toHaveText('Slide 2 of 6');
+  await deck.getByRole('button', { name: 'Next' }).click();
+  await expect(deck).toHaveAttribute('data-index', '2');
+  await expect(slide(3)).toHaveAttribute('data-focal');
+  await expect(slide(3)).toBeInViewport({ ratio: 1 });
+
+  // Wide again: the loop is back, on the same slide.
+  expect(await resize(1280)).toEqual([]);
+  await expect(viewport).not.toHaveAttribute('data-slidedeck-effect');
+  await expect(copies).toHaveCount(12);
+  await expect(deck).toHaveAttribute('data-index', '2');
+  expect(await fromStart(3)).toBe(0);
+  await expect(live).toHaveText('Slide 3 of 6');
+  await deck.getByRole('button', { name: 'Next' }).click();
+  await expect(deck).toHaveAttribute('data-index', '3');
+  await expect.poll(() => fromStart(4)).toBe(0);
 });

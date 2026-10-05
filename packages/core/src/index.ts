@@ -38,7 +38,11 @@ export interface DeckEngine {
   /** The snap point a scroll the engine started is heading to, until it
    * ends or the user's scroll takes over; null when none is in flight. */
   target(): number | null;
-  /** Re-reads the snap points, as after slides are added or removed. */
+  /** Re-reads the snap points, as after slides are added or removed. Where
+   * loop's copies or an effect's snap targets came or went, which moves the
+   * snap points under the viewport, the deck keeps its current index: at
+   * rest it goes back there at once, and a move in flight ends on its
+   * target. */
   refresh(): void;
   /** Turns mouse drag on or off; on from the start. A drag already under way
    * finishes. */
@@ -135,7 +139,12 @@ export function createDeck(
     writeProgress(viewport, along, align);
   };
 
+  // Whether the viewport held loop's copies and an effect's snap targets at
+  // the last settle (see `shapeOf`).
+  let shape = '';
+
   const settle = () => {
+    shape = shapeOf(viewport);
     alignCopies(viewport);
     const along = axis();
     const geometry = snapPoints(viewport, along);
@@ -250,8 +259,9 @@ export function createDeck(
     if (move) move.stalled = false;
     if (!hasScrollEnd || move) awaitQuiet();
   };
-  // A `dir` change came mid-move (see `onDir`); `endMove` clears it.
-  let dirChanged = false;
+  // The layout moved the snap points mid-move (see `keepPlace`); `endMove`
+  // clears it.
+  let relaidOut = false;
   const startMove = (target: number) => {
     move = { target, stalled: false };
     awaitQuiet();
@@ -260,7 +270,7 @@ export function createDeck(
   // scroll the engine did not start ends at its own end event, not quiet.
   const endMove = () => {
     move = null;
-    dirChanged = false;
+    relaidOut = false;
     if (hasScrollEnd) stopQuiet();
   };
 
@@ -311,8 +321,8 @@ export function createDeck(
       restoreSnap();
     }
     scrolling = false;
-    // A `dir` change may have cut the move short: rest on its target.
-    const target = dirChanged && move ? move.target : null;
+    // A new layout may have cut the move short: rest on its target.
+    const target = relaidOut && move ? move.target : null;
     endMove();
     if (pressed.size > 0) {
       settleOwed = true;
@@ -419,6 +429,11 @@ export function createDeck(
   };
 
   const refresh = () => {
+    // Loop's copies or an effect's snap targets came or went, as when `loop`
+    // or an effect changes on a mounted deck: the snap points moved under
+    // the viewport, and where the browser puts it then is no snap point of
+    // the deck's own choosing.
+    if (shapeOf(viewport) !== shape && keepPlace()) return;
     if (!scrolling && !move && drag !== 'dragging') settle();
     else paint();
   };
@@ -495,23 +510,35 @@ export function createDeck(
   // point, so the first paint may correct: server HTML cannot measure.
   restOn(options.index);
 
+  // A new layout that moves the snap points under the viewport keeps the
+  // deck at its current index: a `dir` change (below), or loop's copies or
+  // an effect's snap targets coming or going (`refresh`). Where the browser
+  // puts the viewport then differs by browser, and a move in flight can stop
+  // short in any of them. So a deck at rest goes back to its snap point, as
+  // if it had mounted that way, before the browser renders the new layout,
+  // and a moving deck rests on its move's target once the move ends
+  // (`scrollEnded`). While a pointer holds the deck, the settle after it
+  // lets go stands, as does a scroll of the user's. Returns whether the deck
+  // went back to its snap point.
+  const keepPlace = () => {
+    if (drag === 'dragging' || pressed.size > 0) return false;
+    if (move) relaidOut = true;
+    else if (!scrolling) {
+      restOn(state.index);
+      return true;
+    }
+    return false;
+  };
+
   // Writing direction is read from the computed `direction` (ADR-0003), and
   // a live switch is followed when a `dir` attribute changes on the viewport
   // or an ancestor, as a locale switch makes; a change of `direction` in CSS
   // alone is not watched, nor, as `contains` stops at a shadow root, a
   // change on an ancestor outside the deck's shadow root. It lays a
   // horizontal deck out the other way. Chromium keeps a deck at rest on its
-  // snap target; Firefox and WebKit put it back at its new start; and a move
-  // in flight can stop short in any of them. So a deck at rest goes back to
-  // its snap point, as if it had mounted that way, before the browser
-  // renders the new layout, and a moving deck rests on its move's target
-  // once the move ends (`scrollEnded`). While a pointer holds the deck, the
-  // settle after it lets go stands, as does a scroll of the user's.
+  // snap target; Firefox and WebKit put it back at its new start.
   const onDir = (records: MutationRecord[]) => {
-    if (!records.some(({ target }) => target.contains(viewport))) return;
-    if (drag === 'dragging' || pressed.size > 0) return;
-    if (move) dirChanged = true;
-    else if (!scrolling) restOn(state.index);
+    if (records.some(({ target }) => target.contains(viewport))) keepPlace();
   };
   const dirs = new MutationObserver(onDir);
   dirs.observe(viewport.ownerDocument.documentElement, {
@@ -924,6 +951,17 @@ function slidesOf(viewport: HTMLElement): {
     targets.length === 0 ? run : run.map((slide, i) => targets[i] ?? slide);
   return { slides, run, boxes, first: before.length };
 }
+
+/**
+ * Whether the viewport holds loop's copies, and whether it holds snap
+ * targets: when either comes or goes, as when `loop` or an effect changes,
+ * the snap points move under the viewport (ADR-0007, ADR-0009). Copies or
+ * slides added to those already there leave it as it is.
+ */
+const shapeOf = (viewport: HTMLElement) =>
+  [COPY, SNAP_TARGET]
+    .map((marker) => viewport.querySelector(`:scope > [${marker}]`) !== null)
+    .join();
 
 /**
  * Gives each loop copy its slide's snap alignment, inline: CSS that picks the
