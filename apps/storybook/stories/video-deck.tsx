@@ -1,4 +1,10 @@
-import { useEffect, useEffectEvent, useRef } from 'react';
+import {
+  useEffect,
+  useEffectEvent,
+  useImperativeHandle,
+  useRef,
+  type Ref
+} from 'react';
 import * as Deck from '@slidedeck/react';
 import * as Player from '@playdeck/react';
 
@@ -8,13 +14,17 @@ const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
  * Under reduced motion none plays by itself; a viewer can still press play. */
 export function VideoDeck({
   sources,
-  loop = false
+  loop = false,
+  ref
 }: {
   sources: readonly string[];
   loop?: boolean;
+  /** Each slide's player handle, by slide index, null while unmounted. */
+  ref?: Ref<readonly (Player.PlayerHandle | null)[]>;
 }) {
   const players = useRef<(Player.PlayerHandle | null)[]>([]);
   const focal = useRef(0);
+  useImperativeHandle(ref, () => players.current, []);
 
   const playFocal = (slide: number) => {
     focal.current = slide;
@@ -80,7 +90,9 @@ function SlideVideo({
   if (copy) {
     return (
       <video
-        src={source}
+        // A start time, as a media fragment, makes Safari load and paint the
+        // first frame too, where metadata alone shows nothing.
+        src={`${source}#t=0.001`}
         muted
         playsInline
         preload="metadata"

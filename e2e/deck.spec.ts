@@ -100,6 +100,9 @@ for (const id of stories) {
   });
 }
 
+/** A loop's copies, as opposed to its slides. */
+const COPIES = '[data-slidedeck-copy]';
+
 /**
  * Per slide of the playdeck recipe, whether its video is playing; a slide
  * whose player has not loaded yet has no video, and is not playing. The
@@ -119,7 +122,33 @@ const videosPlaying = (
       })
     );
 
-const COPIES = '[data-slidedeck-copy]';
+/**
+ * Per slide, whether the looping playdeck story's recipe holds a player
+ * handle for it; the story puts the recipe's players on `window`.
+ */
+const handlesHeld = (page: Page) =>
+  page.evaluate(() =>
+    Array.from(
+      { length: 4 },
+      (_, i) =>
+        (window as unknown as { playdeckPlayers?: readonly unknown[] })
+          .playdeckPlayers?.[i] != null
+    )
+  );
+
+/** Whether the copy `selector` picks has a frame of its video to show. */
+const copyHasFrame = (page: Page, selector: string) =>
+  page
+    .getByRole('region', { name: 'Featured slides' })
+    .locator(selector)
+    .evaluate((copy) => {
+      const video = copy.querySelector('video');
+      return (
+        video !== null &&
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        video.videoWidth > 0
+      );
+    });
 
 /** Resolves once the focal slide's video can play. */
 const focalVideoLoaded = (page: Page) =>
@@ -161,7 +190,7 @@ test("the looping playdeck recipe plays the focal slide's video across the seam 
   await page.goto('/iframe.html?id=deck--playdeck-video-loop&viewMode=story');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   /** Steps the deck, and checks the slide it rests on is focal, its video
-   * the one playing, and no copy's playing. */
+   * the one playing, no copy's playing, and every slide's handle held. */
   const step = async (
     name: 'Previous' | 'Next',
     focal: string,
@@ -173,17 +202,31 @@ test("the looping playdeck recipe plays the focal slide's video across the seam 
     );
     await expect.poll(() => videosPlaying(page)).toEqual(playing);
     expect(await videosPlaying(page, COPIES)).not.toContain(true);
+    // The copies render again at each settle: no copy's ref replaces or
+    // clears a slide's handle.
+    expect(await handlesHeld(page)).toEqual([true, true, true, true]);
   };
 
   await expect
     .poll(() => videosPlaying(page))
     .toEqual([true, false, false, false]);
   expect(await videosPlaying(page, COPIES)).not.toContain(true);
+  expect(await handlesHeld(page)).toEqual([true, true, true, true]);
 
   // Back across the seam: onto the copy of the last slide, then the jump.
   await step('Previous', '4 of 4', [false, false, false, true]);
-  // On across the seam, and one more: the copies render again at each
-  // settle, and each slide's player still answers to its own handle.
+  // The copies either side of the seam show a still frame, not a blank.
+  await expect
+    .poll(() =>
+      copyHasFrame(page, '[data-slidedeck-copy=before][aria-label="4 of 4"]')
+    )
+    .toBe(true);
+  await expect
+    .poll(() =>
+      copyHasFrame(page, '[data-slidedeck-copy=after][aria-label="1 of 4"]')
+    )
+    .toBe(true);
+  // On across the seam, and one more.
   await step('Next', '1 of 4', [true, false, false, false]);
   await step('Next', '2 of 4', [false, true, false, false]);
 });

@@ -8,6 +8,7 @@ primitives that work with no stylesheet, and style it with plain CSS.
 - [Install](#install)
 - [Quickstart](#quickstart)
 - [Primitives](#primitives)
+- [Hooks](#hooks)
 - [Layout is CSS](#layout-is-css)
 - [The index: controlled, uncontrolled and the handle](#the-index-controlled-uncontrolled-and-the-handle)
 - [Focal slide](#focal-slide)
@@ -100,16 +101,19 @@ Prev, Next or AutoplayToggle runs first and can cancel the move with
 | `autoplay`      | `number`                     |                | Moves one snap point on every this many milliseconds. Off when unset.                     |
 | `orientation`   | `'horizontal' \| 'vertical'` | `'horizontal'` | The axis the deck scrolls along.                                                          |
 
-Content inside a slide can call `Deck.useSlide()` to learn which slide it is
-in. It returns `{ index, copy }`: `index` is the slide's index, also inside a
-loop's copy of it, and `copy` is `'before'` or `'after'` in a copy, the side of
-the slides it is on, and `undefined` in a slide. Use it where stateful content
-must not run twice, as in the [playdeck recipe](#recipe-play-a-playdeck-video-in-the-focal-slide).
-Called outside a `Deck.Slide`, it throws.
-
 The package also exports the types `RootProps`, `RootHandle`,
 `ViewportProps`, `UseSlideResult` (what `useSlide` returns), `Effect` and
 `Orientation`.
+
+## Hooks
+
+`Deck.useSlide()`, called by content inside a slide, tells it which slide it
+is in. It returns `{ index, copy }`: `index` is the slide's index, also inside
+a loop's copy of it, and `copy` is `'before'` or `'after'` in a copy, the side
+of the slides it is on, and `undefined` in a slide. Use it where stateful
+content must not run twice, as in the
+[playdeck recipe](#recipe-play-a-playdeck-video-in-the-focal-slide). Called
+outside a `Deck.Slide`, it throws.
 
 ## Layout is CSS
 
@@ -536,7 +540,13 @@ pnpm add @playdeck/react
 <!-- example: apps/storybook/stories/video-deck.tsx -->
 
 ```tsx
-import { useEffect, useEffectEvent, useRef } from 'react';
+import {
+  useEffect,
+  useEffectEvent,
+  useImperativeHandle,
+  useRef,
+  type Ref
+} from 'react';
 import * as Deck from '@slidedeck/react';
 import * as Player from '@playdeck/react';
 
@@ -546,13 +556,17 @@ const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
  * Under reduced motion none plays by itself; a viewer can still press play. */
 export function VideoDeck({
   sources,
-  loop = false
+  loop = false,
+  ref
 }: {
   sources: readonly string[];
   loop?: boolean;
+  /** Each slide's player handle, by slide index, null while unmounted. */
+  ref?: Ref<readonly (Player.PlayerHandle | null)[]>;
 }) {
   const players = useRef<(Player.PlayerHandle | null)[]>([]);
   const focal = useRef(0);
+  useImperativeHandle(ref, () => players.current, []);
 
   const playFocal = (slide: number) => {
     focal.current = slide;
@@ -618,7 +632,9 @@ function SlideVideo({
   if (copy) {
     return (
       <video
-        src={source}
+        // A start time, as a media fragment, makes Safari load and paint the
+        // first frame too, where metadata alone shows nothing.
+        src={`${source}#t=0.001`}
         muted
         playsInline
         preload="metadata"
@@ -676,6 +692,7 @@ Notes:
   its index, and a copy shows the video's first frame, still, and registers
   nothing. No copy's player can replace or clear a slide's, and the focal
   slide's video plays once the deck crosses the seam and jumps.
+- `VideoDeck`'s `ref` gives its parent the player handles, by slide index.
 
 The stories `Deck / Playdeck Video` and `Deck / Playdeck Video Loop` in this
 repo's storybook run this component, and end-to-end tests check that only the
