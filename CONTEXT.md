@@ -47,6 +47,12 @@ Left-to-right or right-to-left, read from the document's computed `direction`.
 Next moves toward the inline end.
 _Avoid_: left/right for start/end
 
+**Theme**:
+The optional stylesheet `@slidedeck/react/theme.css` that styles a deck's
+controls: every rule in `:where()`, every value a `--deck-*` token the
+consumer sets.
+_Avoid_: skin, default styles
+
 ### Position
 
 **Snap point**:
@@ -137,14 +143,16 @@ _Avoid_: debounce, idle
 
 ### Outputs
 
+slidedeck writes only `--deck-slide-*`; the consumer sets every other `--deck-*`; the private `--slidedeck-*` variables are never public (ADR-0010).
+
 **Progress**:
 How far a slide is from the focal position, in slides, signed the way the deck
 runs: 0 at the focal position, negative before it, positive after it, so 2.25
 is two and a quarter slides on. When a slide sits exactly at the focal
 position, every slide's progress is a whole number, unless an effect moves the
 slide's box at the alignment point: scale about that point
-(`transform-origin`). Published as `--deck-progress` for effects to read.
-Never React state.
+(`transform-origin`). Published as `--deck-slide-progress` for effects to
+read. Never React state.
 _Avoid_: offset, distance in pixels
 
 **In view**:

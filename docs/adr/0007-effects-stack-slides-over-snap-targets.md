@@ -16,7 +16,8 @@ there is one per copy too, in the order the copies and slides run
 Fade sets slide geometry inline, a deliberate exception to ADR-0003. Every
 slide fills the viewport and snaps at its start, so a consumer's slide width,
 alignment and pages do not apply: a fade shows one slide at a time. Opacity
-stays CSS on `--deck-progress`, in zero-specificity rules.
+stays CSS on `--deck-slide-progress` (renamed by ADR-0010), in
+zero-specificity rules.
 
 Every fade slide but the focal one is `inert`, as ADR-0006 decided. This is an
 explicit exception to the PRD's "no off-screen slide hidden or inert" and to

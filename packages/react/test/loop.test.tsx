@@ -762,7 +762,7 @@ describe("loop and the deck's other features", () => {
         if (at <= -1 || at >= 1) continue;
         frame.push([
           at,
-          Number(slide.style.getPropertyValue('--deck-progress'))
+          Number(slide.style.getPropertyValue('--deck-slide-progress'))
         ]);
         if (Math.abs(at) < 0.01 && slide.hasAttribute('data-slidedeck-copy')) {
           copyAtStart = true;
@@ -815,7 +815,9 @@ describe("loop and the deck's other features", () => {
     )!;
     expect(before.hasAttribute('data-in-view')).toBe(true);
     expect(
-      Number((before as HTMLElement).style.getPropertyValue('--deck-progress'))
+      Number(
+        (before as HTMLElement).style.getPropertyValue('--deck-slide-progress')
+      )
     ).toBeCloseTo(-1, 1);
 
     await userEvent.click(screen.getByRole('button', { name: 'Previous' }));

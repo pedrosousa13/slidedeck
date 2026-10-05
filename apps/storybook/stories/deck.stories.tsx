@@ -400,10 +400,10 @@ export const LoopRightToLeft: Story = {
 };
 
 /**
- * Effects in CSS alone. Each slide carries `--deck-progress`, its signed
- * distance from the focal position in slides (0 at the focal position,
- * negative before it, positive after), updated every frame as the deck
- * scrolls without a React render. Here it scales the slides down as they
+ * Effects in CSS alone. Each slide carries `--deck-slide-progress`, its
+ * signed distance from the focal position in slides (0 at the focal
+ * position, negative before it, positive after), updated every frame as the
+ * deck scrolls without a React render. Here it scales the slides down as they
  * leave the centre: scale about the snap alignment point, here the centre,
  * so the effect does not move the point progress is measured from.
  *
@@ -411,10 +411,10 @@ export const LoopRightToLeft: Story = {
  * each time the slide comes into view, delayed 100ms for each slide it sits
  * past the focal position (none before it, at most 300ms). So the slides in
  * view together enter in order from the start; a slide brought in by Next
- * waits a little, and one brought in by Prev does not. `--deck-index`, the
- * slide's fixed place in the deck, sets which way its card enters: even
- * slides rise, odd slides drop. `data-in-view` hides nothing, and server HTML
- * has none, so the entry starts at hydration. Both effects are off under
+ * waits a little, and one brought in by Prev does not. `--deck-slide-index`,
+ * the slide's fixed place in the deck, sets which way its card enters: even
+ * slides rise, odd slides drop. `data-in-view` hides nothing, and server
+ * HTML has none, so the entry starts at hydration. Both effects are off under
  * reduced motion.
  */
 export const Progress: Story = {
@@ -429,17 +429,25 @@ export const Progress: Story = {
             background: #eef;
             /* abs() spelled with max() for older browsers. */
             scale: calc(
-              1 - min(max(var(--deck-progress), -1 * var(--deck-progress)), 1) * 0.2
+              1 -
+                min(
+                  max(var(--deck-slide-progress), -1 * var(--deck-slide-progress)),
+                  1
+                ) *
+                0.2
             );
           }
           .effects .slide[data-in-view] .card {
             animation: enter 400ms ease-out both;
-            animation-delay: calc(clamp(0, var(--deck-progress), 3) * 100ms);
+            animation-delay: calc(
+              clamp(0, var(--deck-slide-progress), 3) * 100ms
+            );
           }
           @keyframes enter {
             from {
               opacity: 0;
-              translate: 0 calc((1 - 2 * mod(var(--deck-index), 2)) * 1rem);
+              translate: 0
+                calc((1 - 2 * mod(var(--deck-slide-index), 2)) * 1rem);
             }
           }
           @media (prefers-reduced-motion: reduce) {
