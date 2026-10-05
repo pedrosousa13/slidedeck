@@ -60,11 +60,14 @@ runs `pnpm verify` first, then:
   provenance, from the tarballs the verify job packed, then tags them and
   creates the GitHub releases.
 
-The version PR is opened with the workflow's own token, so `ci.yml` does not
-run on it. Its merge runs `pnpm verify` again before anything is published.
+The version PR is opened with the workflow's `GITHUB_TOKEN`, and a PR that
+token opens triggers no workflow, so `ci.yml` does not run on it. Its merge
+runs the release workflow's own `pnpm verify` before anything is published.
+If branch protection ever requires CI on it, close and reopen the PR, or push
+an empty commit to its branch, to start `ci.yml`.
 
-**One-time maintainer setup**, none of it done yet. Until it is, the publish
-job fails at its first check and publishes nothing:
+**One-time maintainer setup**, none of it done yet. Until the last step, the
+jobs after `verify` show as skipped on every push, and nothing is published:
 
 1. In the repository's Settings, Actions, General, allow GitHub Actions to
    create and approve pull requests. Without it, the version job fails to
@@ -72,13 +75,18 @@ job fails at its first check and publishes nothing:
 2. Make the repository public. npm generates provenance only from a public
    repository, and both packages require it (`publishConfig.provenance`).
 3. Claim the `@slidedeck` scope on npm as an organization (#5).
-4. The first publish needs an `NPM_TOKEN` repository secret: a granular token
-   that can publish the `@slidedeck` scope. npm configures trusted publishing
-   per package, so a package must exist before it can have one.
-5. After the first publish, on npmjs.com add a trusted publisher to each
-   package: GitHub Actions, `pedrosousa13` / `slidedeck` / `release.yml`, no
-   environment. Then delete the `NPM_TOKEN` secret; later releases publish
-   over OIDC.
+4. Add an `NPM_TOKEN` repository secret for the first publish: a granular
+   token that can publish the `@slidedeck` scope. npm configures trusted
+   publishing per package, so a package must exist before it can have one.
+5. Set the `RELEASE_ENABLED` repository variable to `true`.
+
+With releases on, the publish job's first step fails loudly, before anything
+reaches npm, if the repository is private or no credential can publish.
+
+After the first publish, on npmjs.com add a trusted publisher to each
+package: GitHub Actions, `pedrosousa13` / `slidedeck` / `release.yml`, no
+environment. Then delete the `NPM_TOKEN` secret; later releases publish over
+OIDC.
 
 ## Agent skills
 
