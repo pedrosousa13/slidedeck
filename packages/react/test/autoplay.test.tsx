@@ -52,27 +52,61 @@ const expectStill = async (root: HTMLElement, index: string) => {
   expect(root.dataset.index).toBe(index);
 };
 
+/**
+ * Records each index the deck comes to rest at from now on, in order, and
+ * calls `onRest` as it does. Autoplay rests at each for only an interval and
+ * a step: on a busy machine a poll of the index can miss one, and a test
+ * that acts after a poll can act after the next step has begun.
+ */
+const watchRests = (root: HTMLElement, onRest?: (index: string) => void) => {
+  const rests: string[] = [];
+  const observer = new MutationObserver(() => {
+    rests.push(root.dataset.index!);
+    onRest?.(root.dataset.index!);
+  });
+  observer.observe(root, { attributeFilter: ['data-index'] });
+  onTestFinished(() => observer.disconnect());
+  return rests;
+};
+
+/**
+ * Renders the deck with the pointer over it, playing: stopped at once, so no
+ * step can come before the pointer does, however long the hover takes, then
+ * started from the keyboard.
+ */
+const renderHovered = async (props: Parameters<typeof TestDeck>[0] = {}) => {
+  const deck = renderDeck(props);
+  toggleOf().click();
+  await userEvent.hover(deck.viewport);
+  await pressToggle();
+  return deck;
+};
+
 describe('autoplay', () => {
   test('advances one snap point each interval', async () => {
     const { root } = renderDeck();
+    const rests = watchRests(root);
 
     await sleep(INTERVAL / 2);
     expect(root.dataset.index).toBe('0');
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('2');
+    await expect
+      .poll(() => rests.slice(0, 2), { timeout: 4000 })
+      .toEqual(['1', '2']);
   });
 
   test('counts the interval from where the deck comes to rest', async () => {
     const handle = createRef<Deck.RootHandle>();
     const { root } = renderDeck({ autoplay: 800, handleRef: handle });
+    const restedAt: number[] = [];
+    const rests = watchRests(root, () => restedAt.push(performance.now()));
 
     await sleep(400);
     handle.current!.next();
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
-    // The tick due 800ms after mount waits for 800ms of rest.
-    await sleep(500);
-    expect(root.dataset.index).toBe('1');
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('2');
+    await expect
+      .poll(() => rests.slice(0, 2), { timeout: 4000 })
+      .toEqual(['1', '2']);
+    // The tick due 800ms after mount waits for 800ms of rest, then a step.
+    expect(restedAt[1] - restedAt[0]).toBeGreaterThanOrEqual(800);
   });
 
   test('stops at the last snap point, and Start rewinds and resumes', async () => {
@@ -86,18 +120,21 @@ describe('autoplay', () => {
     expect(liveRegionOf(root).getAttribute('aria-live')).toBe('polite');
     await expectStill(root, '2');
 
+    const rests = watchRests(root);
     await pressToggle();
     expect(toggleOf().textContent).toBe('Stop slide rotation');
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('0');
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect
+      .poll(() => rests.slice(0, 2), { timeout: 4000 })
+      .toEqual(['0', '1']);
   });
 
   test('with loop, goes on from the last snap point to the first, quietly', async () => {
     const { root } = renderDeck({ slides: 3, defaultIndex: 1, loop: true });
+    const rests = watchRests(root);
 
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('2');
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('0');
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect
+      .poll(() => rests.slice(0, 3), { timeout: 6000 })
+      .toEqual(['2', '0', '1']);
     expect(toggleOf().textContent).toBe('Stop slide rotation');
     expect(liveRegionOf(root).textContent).toBe('');
   });
@@ -145,22 +182,28 @@ describe('autoplay', () => {
     }
     render(<Controlled />);
     const root = screen.getByRole('region', { name: 'Test deck' });
+    const restsAt: number[] = [];
+    const rests = watchRests(root, () =>
+      restsAt.push(viewportOf(root).scrollLeft)
+    );
 
-    await expect.poll(indexOf(root), { timeout: 3000 }).toBe('2');
-    expect(viewportOf(root).scrollLeft).toBe(2 * WIDTH);
+    await expect
+      .poll(() => rests.slice(0, 2), { timeout: 4000 })
+      .toEqual(['1', '2']);
+    expect(restsAt.slice(0, 2)).toEqual([WIDTH, 2 * WIDTH]);
   });
 });
 
 describe('pausing', () => {
   test('a pointer over the deck pauses it, and leaving resumes it', async () => {
-    const { root, viewport } = renderDeck();
+    const { root, viewport } = await renderHovered();
+    const rests = watchRests(root);
 
-    await userEvent.hover(viewport);
     await expectStill(root, '0');
     expect(toggleOf().textContent).toBe('Stop slide rotation');
 
     await userEvent.unhover(viewport);
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect.poll(() => rests[0], { timeout: 2000 }).toBe('1');
   });
 
   test('focus within the deck stops it until the toggle starts it', async () => {
@@ -174,16 +217,18 @@ describe('pausing', () => {
     (document.activeElement as HTMLElement).blur();
     await expectStill(root, '0');
 
+    const rests = watchRests(root);
     await pressToggle();
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect.poll(() => rests[0], { timeout: 2000 }).toBe('1');
   });
 
   test('focus on the toggle itself does not stop it', async () => {
     const { root } = renderDeck();
+    const rests = watchRests(root);
 
     toggleOf().focus();
 
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect.poll(() => rests[0], { timeout: 2000 }).toBe('1');
     expect(toggleOf().textContent).toBe('Stop slide rotation');
   });
 
@@ -199,9 +244,67 @@ describe('pausing', () => {
     document.dispatchEvent(new Event('visibilitychange'));
     await expectStill(root, '0');
 
+    const rests = watchRests(root);
     state = 'visible';
     document.dispatchEvent(new Event('visibilitychange'));
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect.poll(() => rests[0], { timeout: 2000 }).toBe('1');
+  });
+
+  let visibility: DocumentVisibilityState = 'visible';
+
+  // A pause comes before the render that clears the step's timer: a step
+  // falling due between the two must not run. The cause comes in the task
+  // that runs the step, just before it, so nothing renders in between.
+  test.each([
+    [
+      'a pointer entering',
+      (viewport: Element) =>
+        viewport.dispatchEvent(
+          new PointerEvent('pointerover', { bubbles: true })
+        ),
+      (viewport: Element) =>
+        viewport.dispatchEvent(
+          new PointerEvent('pointerout', { bubbles: true })
+        )
+    ],
+    [
+      'the document hiding',
+      () => {
+        visibility = 'hidden';
+        document.dispatchEvent(new Event('visibilitychange'));
+      },
+      () => {
+        visibility = 'visible';
+        document.dispatchEvent(new Event('visibilitychange'));
+      }
+    ]
+  ])('%s as a step falls due pauses it', async (_, pause, resume) => {
+    visibility = 'visible';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(
+      () => visibility
+    );
+    const { setTimeout } = window;
+    let armed = true;
+    vi.spyOn(window, 'setTimeout').mockImplementation(((
+      callback: () => void,
+      ms?: number
+    ) => {
+      if (!armed || ms !== INTERVAL) return setTimeout(callback, ms);
+      armed = false;
+      return setTimeout(() => {
+        pause(viewportOf(screen.getByRole('region')));
+        callback();
+      }, ms);
+    }) as typeof window.setTimeout);
+    onTestFinished(() => void vi.restoreAllMocks());
+    const { root, viewport } = renderDeck();
+
+    await expectStill(root, '0');
+    expect(armed).toBe(false);
+
+    const rests = watchRests(root);
+    resume(viewport);
+    await expect.poll(() => rests[0], { timeout: 2000 }).toBe('1');
   });
 
   test('reduced motion starts it stopped, and the toggle still starts it', async () => {
@@ -212,8 +315,9 @@ describe('pausing', () => {
     expect(toggleOf().textContent).toBe('Start slide rotation');
     await expectStill(root, '0');
 
+    const rests = watchRests(root);
     await pressToggle();
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect.poll(() => rests[0], { timeout: 2000 }).toBe('1');
   });
 });
 
@@ -284,12 +388,15 @@ describe('a move autoplay did not start', () => {
   test('a handle call back to where autoplay stepped from keeps it rotating', async () => {
     const handle = createRef<Deck.RootHandle>();
     const { root } = renderDeck({ handleRef: handle });
-    await expect.poll(indexOf(root), { timeout: 3000 }).toBe('2');
 
-    handle.current!.scrollTo(1);
+    // Back as autoplay rests at 2, before its next step can begin.
+    const rests = watchRests(root, (index) => {
+      if (index === '2' && rests.length === 2) handle.current!.scrollTo(1);
+    });
 
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('2');
+    await expect
+      .poll(() => rests.slice(0, 4), { timeout: 6000 })
+      .toEqual(['1', '2', '1', '2']);
     expect(toggleOf().textContent).toBe('Stop slide rotation');
   });
 
@@ -312,12 +419,16 @@ describe('a move autoplay did not start', () => {
     }
     render(<Controlled />);
     const root = screen.getByRole('region', { name: 'Test deck' });
-    await expect.poll(indexOf(root), { timeout: 3000 }).toBe('2');
+    const back = screen.getByRole('button', { name: 'Back to 2' });
 
-    screen.getByRole('button', { name: 'Back to 2' }).click();
+    // Back as autoplay rests at 2, before its next step can begin.
+    const rests = watchRests(root, (index) => {
+      if (index === '2' && rests.length === 2) back.click();
+    });
 
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('2');
+    await expect
+      .poll(() => rests.slice(0, 4), { timeout: 6000 })
+      .toEqual(['1', '2', '1', '2']);
     expect(toggleOf().textContent).toBe('Stop slide rotation');
   });
 });
@@ -330,7 +441,8 @@ describe('a control the user activates', () => {
     ['Next', '2'],
     ['Go to page 3', '2']
   ])('%s stops it, though the pointer then leaves', async (name, index) => {
-    const { root, viewport } = renderDeck({
+    const { root } = await renderHovered({
+      defaultIndex: 1,
       controls: (
         <>
           <Deck.AutoplayToggle />
@@ -338,8 +450,6 @@ describe('a control the user activates', () => {
         </>
       )
     });
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
-    await userEvent.hover(viewport);
     const control = screen.getByRole('button', { name });
 
     control.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
@@ -401,8 +511,9 @@ describe('the live region', () => {
     const { root } = renderDeck();
     const live = liveRegionOf(root);
     expect(live.getAttribute('aria-live')).toBe('off');
+    const rests = watchRests(root);
 
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect.poll(() => rests[0], { timeout: 2000 }).toBe('1');
     expect(live.getAttribute('aria-live')).toBe('off');
 
     await pressToggle();
@@ -412,15 +523,17 @@ describe('the live region', () => {
   test('does not announce a step autoplay started, though stopped mid-step', async () => {
     const { root, viewport } = renderDeck();
     const live = liveRegionOf(root);
-    toggleOf().focus();
+    const rests = watchRests(root);
+
+    // Stopped as the step's scroll begins, however busy the machine.
     await new Promise((resolve) =>
-      viewport.addEventListener('scroll', resolve, { once: true })
+      viewport.addEventListener('scroll', () => resolve(toggleOf().click()), {
+        once: true
+      })
     );
 
-    await userEvent.keyboard('{Enter}');
-
     expect(live.getAttribute('aria-live')).toBe('polite');
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    await expect.poll(() => rests[0], { timeout: 2000 }).toBe('1');
     await sleep(INTERVAL);
     expect(live.textContent).toBe('');
   });
@@ -443,9 +556,14 @@ describe('the live region', () => {
 
     await press('Next');
     await expect.poll(() => live.textContent).toBe('Slide 2 of 5');
+    // Focus stops it as it rests at 2, before its next step can begin.
+    const previous = screen.getByRole('button', { name: 'Previous' });
+    watchRests(root, (index) => {
+      if (index === '2') previous.focus();
+    });
     await pressToggle();
-    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('2');
-    await press('Previous');
+    await expect.poll(() => document.activeElement).toBe(previous);
+    await userEvent.keyboard('{Enter}');
 
     await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
     await expect

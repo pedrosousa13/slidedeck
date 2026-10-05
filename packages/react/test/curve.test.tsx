@@ -192,7 +192,8 @@ describe('curve', () => {
   test('drags to the next slide and settles there', async () => {
     const { viewport, progress, root } = renderDeck();
 
-    await mouseDrag(viewport, -SIZE * 0.7);
+    // Held still before letting go: a drag, not a flick.
+    await mouseDrag(viewport, -SIZE * 0.7, { holdMs: 120 });
 
     await expectSettledTo(progress, [-1, 0, 1, 2, 3, 4]);
     expect(root.getAttribute('data-index')).toBe('1');

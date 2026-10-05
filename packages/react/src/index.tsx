@@ -199,6 +199,9 @@ export function Root({
   const [playing, setPlaying] = useState(true);
   const [hovered, setHovered] = useState(false);
   const [hidden, setHidden] = useState(false);
+  // Whether a pointer is over the deck, as soon as it enters or leaves: the
+  // render that pauses autoplay comes later.
+  const hoveredRef = useRef(false);
   // Autoplay stopped because the deck could not move on: Start rewinds.
   const endedRef = useRef(false);
   // Autoplay started the deck's latest move: its settles are not announced.
@@ -349,7 +352,13 @@ export function Root({
       const engine = engineRef.current;
       if (!engine) return;
       // A scroll the engine started is still in flight: let it rest first.
-      if (engine.target() !== null) {
+      // Paused since the last render, as a step can fall due after the
+      // pointer enters or the document hides but before that render: wait.
+      if (
+        engine.target() !== null ||
+        hoveredRef.current ||
+        document.visibilityState === 'hidden'
+      ) {
         timer = setTimeout(tick, autoplay);
         return;
       }
@@ -471,10 +480,12 @@ export function Root({
         }}
         onPointerEnter={(event) => {
           onPointerEnter?.(event);
+          hoveredRef.current = true;
           if (autoplaying) setHovered(true);
         }}
         onPointerLeave={(event) => {
           onPointerLeave?.(event);
+          hoveredRef.current = false;
           if (autoplaying) setHovered(false);
         }}
         onPointerDown={(event) => {
