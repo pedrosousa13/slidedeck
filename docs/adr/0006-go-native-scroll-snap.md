@@ -67,9 +67,9 @@ event cannot say which move it ends. The events, and what each does:
   nothing the engine asked for resumes. Input that scrolls nothing leaves
   the move going: a click, even one that focuses a control in another
   slide, Enter, and a key in a text field or one the page has prevented.
-  Focus within a slide or on the viewport, as Tab out of a slide gives, is
-  meant to leave it going too, but in Chromium it stops the move short of
-  its snap point (#51). A drag's release is a new move.
+  Focus within a slide or on the viewport, as Tab out of a slide gives,
+  scrolls, but the move resumes to its target (below). A drag's release is
+  a new move.
 - _Focus entering a slide_ from outside it, as Tab does (amended for #43):
   the browser scrolls the slide into view and stops the move's scroll. Like
   the user's scroll, this ends the move, and focus wins: a new move replaces
@@ -85,6 +85,14 @@ event cannot say which move it ends. The events, and what each does:
   pointer is pressed on the viewport, as a mouse pressing a control, is a
   click and leaves the move going. With no move in flight, focus changes
   nothing: the browser's focus scroll ends as any user scroll does.
+- _Focus within a slide or on the viewport_ (amended for #51): it is not
+  the user taking over, so the move goes on to its own target, and nothing
+  is reported but what the move reports. Measured in Chromium, the
+  browser's focus scroll stops the move's scroll short of its target, and
+  `focus({ preventScroll: true })` does not. So the move's scroll starts
+  again to the same target two frames on, as for focus entering a slide.
+  A new move, the user's scroll or focus entering a slide in those two
+  frames replaces the move, and the scroll is not started again.
 - _A pointer held on the viewport_: an end does not settle until the last
   pointer lets go, so the deck never jumps off a copy under a finger or the
   mouse. A scroll after the end, as a touch pan, settles at its own end. A

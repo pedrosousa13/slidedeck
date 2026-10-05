@@ -318,6 +318,34 @@ test('tabbing into the next slide as Next moves the deck rests it on that slide'
   });
 });
 
+test('Shift+Tab out of a slide onto the viewport as Next moves the deck rests it on the next slide', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=deck--default&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const viewport = deck.locator('[data-slidedeck-viewport]');
+  // How far slide 2 is from the viewport's start edge.
+  const offset = async () =>
+    Math.round(
+      (await deck.getByRole('group', { name: '2 of 6' }).boundingBox())!.x -
+        (await viewport.boundingBox())!.x
+    );
+  await deck.getByRole('button', { name: 'Action 1' }).focus();
+
+  // Next pressed without moving focus, then Shift+Tab while the deck moves.
+  await deck
+    .getByRole('button', { name: 'Next' })
+    .evaluate((next: HTMLElement) => next.click());
+  await page.waitForTimeout(60);
+  await page.keyboard.press('Shift+Tab');
+
+  await expect(viewport).toBeFocused();
+  await expect.poll(offset).toBe(0);
+  await page.waitForTimeout(400);
+  expect(await offset()).toBe(0);
+  await expect(deck).toHaveAttribute('data-index', '1');
+});
+
 test('a controlled deck follows the index its parent sets', async ({
   page
 }) => {
