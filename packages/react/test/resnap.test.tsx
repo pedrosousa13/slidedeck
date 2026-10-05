@@ -142,6 +142,27 @@ describe('a deck at rest off every snap point', () => {
     expect(scrolls).toEqual([]);
   });
 
+  test('a wheel the other way while a re-snap waits sets the way it goes', async () => {
+    // The move ends short, and quiet ends it: its re-snap would go the
+    // move's way, on to the next slide. A wheel back during the wait for
+    // quiet turns it. The engine's settle is due 200ms after the scroll
+    // stops, and its wait 100ms after that, so a wheel 250ms after the
+    // stop comes during the wait. Synthetic, as a wheel the page prevents,
+    // so it scrolls nothing; the end event sent after it is its end.
+    const { root, viewport, next, onIndexChange } = renderDeck();
+
+    next.click();
+    const stopped = await stopPast(viewport, 200);
+    await sleep(250);
+    viewport.dispatchEvent(new WheelEvent('wheel', { deltaX: -200 }));
+    viewport.dispatchEvent(new Event('scrollend'));
+
+    expect(stopped).toBeGreaterThan(WIDTH / 2);
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(viewport.scrollLeft).toBe(0);
+    expect(onIndexChange).not.toHaveBeenCalled();
+  });
+
   test('looping, on the copies, moves on to the nearest and jumps to its slide', async () => {
     const { root, viewport, next, onIndexChange } = renderDeck({
       loop: true,

@@ -169,15 +169,37 @@ export function createDeck(
 
   // Resting on a copy, jump one set of slides onto the identical slide: only
   // on a snap point, as the browser would snap a jump that lands off one,
-  // which shows (ADR-0006).
-  const jumpOffCopies = (along: Axis, { points, length }: Geometry) => {
-    if (length === 0) return;
+  // which shows (ADR-0006). The copy's rest is measured, as the browser
+  // rests it: WebKit can rest a copy a pixel or two off its slide's rest
+  // plus a set's length.
+  const jumpOffCopies = (along: Axis, geometry: Geometry) => {
+    if (geometry.length === 0) return;
     const at = along.position;
-    const shift =
-      at < points[0] - 1 ? length : at > points[0] + length - 1 ? -length : 0;
-    if (shift === 0) return;
-    const point = points.find((p) => Math.abs(at + shift - p) <= 1);
-    if (point !== undefined) along.scrollTo(point, 'instant');
+    const { slides, boxes, first } = slidesOf(viewport);
+    const restOf = snapRest(viewport, along, false);
+    const near = (box: Element) => {
+      const rest = restOf(box);
+      return rest !== null && Math.abs(rest - at) <= 1;
+    };
+    const own = (i: number) => i >= first && i < first + slides.length;
+    if (boxes.some((box, i) => own(i) && near(box))) return;
+    const copy = boxes.findIndex((box, i) => !own(i) && near(box));
+    if (copy === -1) return;
+    const point = geometry.slides[wrap(copy - first, slides.length)];
+    if (point !== -1) along.scrollTo(geometry.points[point], 'instant');
+  };
+
+  // Where snap point `index` rests, as measured: with loop, a copy's from
+  // the copy's own box (see `jumpOffCopies`).
+  const restAt = (along: Axis, geometry: Geometry, index: number) => {
+    const count = geometry.points.length;
+    const set = Math.floor(index / count);
+    if (set === 0 || geometry.length === 0) return positionOf(geometry, index);
+    const slide = geometry.slides.indexOf(index - set * count);
+    const { slides, boxes, first } = slidesOf(viewport);
+    const box = boxes[first + slide + set * slides.length];
+    const rest = slide === -1 || !box ? null : snapRest(viewport, along)(box);
+    return rest ?? positionOf(geometry, index);
   };
 
   // At rest off every snap point under mandatory snapping, move to a snap
@@ -186,16 +208,17 @@ export function createDeck(
   // one, or where the user's scroll took a move over, the nearest the way
   // that scroll went: the browser can carry the move's scroll on after it,
   // and stop part way back toward the move's target. Where quiet ended a
-  // move short, the nearest the way the move went: its scroll may go on. With loop, the copies'
-  // snap points count, and the move's settle jumps off a copy as ever. Only
+  // move short, the nearest the way the move went: its scroll may go on.
+  // With loop, the copies' snap points count, and the move's settle jumps
+  // off a copy as ever. Only
   // once quiet confirms the deck is still there: an end event can come late,
   // as the browser's own snap begins. Never while the user has the deck: a
   // pointer pressed on it, a drag, or a scroll still going, which only an end
   // event tells apart from a finger held still. Not with proximity snapping,
   // where resting between snap points is the browser's own choice. Where the
   // browser still holds the deck off the snap points as measured, a re-snap
-  // from there moves nothing, and the deck settles there at the next try. Returns whether the settle waits: for quiet, or for the
-  // move it started.
+  // from there moves nothing, and the deck settles there at the next try.
+  // Returns whether the settle waits: for quiet, or for the move it started.
   let resnapFrom: number | null = null;
   // Waiting for quiet to confirm a re-snap, then due once it has.
   let confirm: 'waiting' | 'due' | null = null;
@@ -244,8 +267,9 @@ export function createDeck(
     }
     confirm = null;
     const way = taken ? taken.way || Math.sign(at - taken.at) : 0;
-    const distance = (i: number) => Math.abs(positionOf(geometry, i) - at);
-    const ahead = (i: number) => (positionOf(geometry, i) - at) * way > 1;
+    const rest = (i: number) => restAt(along, geometry, i);
+    const distance = (i: number) => Math.abs(rest(i) - at);
+    const ahead = (i: number) => (rest(i) - at) * way > 1;
     const reached = indexes.filter((i) => reachable(geometry, along, i));
     const onward = reached.filter(ahead);
     const nearest = (onward.length > 0 ? onward : reached).reduce((a, b) =>
@@ -264,15 +288,17 @@ export function createDeck(
   // a quiet has found it short of its target, until its next scroll event.
   // `startMove` and `endMove` below own it, with the quiet that ends it.
   let move: { target: number; stalled: boolean } | null = null;
-  // Where the user's scroll took a move over, and the way it went along the
+  // The way a re-snap goes (see `resnap`): from where the user's scroll took
+  // a move or the wait for a re-snap over, and the way it went along the
   // axis, 1 or -1, where the input says; 0 where it does not, as for a touch
-  // pan. Until the deck next rests on a snap point, or a new move starts.
+  // pan. Or the way a move quiet ended short went. Until the deck next rests
+  // on a snap point, or a new move starts.
   let taken: { at: number; way: number } | null = null;
   // The move has arrived: the viewport is at its target, its end not seen.
   const arrived = ({ target }: { target: number }) => {
     const along = axis();
     const geometry = snapPoints(viewport, along);
-    return Math.abs(along.position - positionOf(geometry, target)) < 1;
+    return Math.abs(along.position - restAt(along, geometry, target)) < 1;
   };
 
   // Mouse drag (ADR-0006): see the pointer handlers below.
@@ -362,10 +388,11 @@ export function createDeck(
     if (hasScrollEnd) stopQuiet();
   };
   // The user's scroll ends the move, if any, going `way` along the axis
-  // where the input says. It also ends the wait for a re-snap: the user's
-  // scroll settles at its own end.
+  // where the input says. It also ends the wait for a re-snap, and its way
+  // is the one a re-snap then goes: the user's scroll settles at its own
+  // end.
   const takeOver = (way = 0) => {
-    if (move) taken = { at: axis().position, way };
+    if (move || confirm) taken = { at: axis().position, way };
     confirm = null;
     endMove();
   };
@@ -606,7 +633,7 @@ export function createDeck(
         next = furthest;
       }
     }
-    const to = positionOf(geometry, next);
+    const to = restAt(along, geometry, next);
     // A scroll to where the viewport already rests is no move: there is
     // nowhere to go.
     if (!move && Math.abs(along.position - to) < 1) return;
@@ -640,11 +667,11 @@ export function createDeck(
   // if it had mounted that way, before the browser renders the new layout,
   // and a moving deck rests on its move's target once the move ends
   // (`scrollEnded`). A deck a pointer holds goes back, or on to the
-  // target, once it lets go (`letGo`). A scroll of the user's stands, a touch pan or a mouse drag
-  // included: it settles at its own end. Where the new layout has fewer
-  // snap points, the deck rests on the last, and reports it. Returns
-  // whether the deck has kept its place, or will once the pointer lets go,
-  // so nothing settles before then.
+  // target, once it lets go (`letGo`). A scroll of the user's stands, a
+  // touch pan or a mouse drag included: it settles at its own end. Where
+  // the new layout has fewer snap points, the deck rests on the last, and
+  // reports it. Returns whether the deck has kept its place, or will once
+  // the pointer lets go, so nothing settles before then.
   const keepPlace = () => {
     if (drag === 'dragging') return false;
     if (move) {
@@ -1132,20 +1159,12 @@ interface Geometry {
 }
 
 /**
- * The scroll positions the viewport can rest at, ascending, as the browser
- * derives them from each slide's `scroll-snap-align`, and for each slide the
- * index of the point it rests at (-1 if it does not snap). A slide's snap
- * alignment and position are its measured box's (see `slidesOf`).
- * Slides that clamp to the same scroll position share one snap point. With
- * loop, only the slides' points, not the copies' (see `Geometry`).
- */
-/**
  * Where the browser rests the viewport to snap `box`, or null if it does not
  * snap: its snap area, the box plus its scroll margin, aligned in the
  * snapport, the scrollport less its scroll padding, and clamped to the
- * scroll range.
+ * scroll range unless `clamped` is false.
  */
-function snapRest(viewport: HTMLElement, axis: Axis) {
+function snapRest(viewport: HTMLElement, axis: Axis, clamped = true) {
   const max = axis.max();
   const position = axis.position;
   const view = axis.view();
@@ -1169,10 +1188,19 @@ function snapRest(viewport: HTMLElement, axis: Axis) {
       snapport,
       align
     );
-    return Math.round(Math.min(Math.max(position + offset, 0), max));
+    const rest = Math.round(position + offset);
+    return clamped ? Math.min(Math.max(rest, 0), max) : rest;
   };
 }
 
+/**
+ * The scroll positions the viewport can rest at, ascending, as the browser
+ * derives them from each slide's `scroll-snap-align`, and for each slide the
+ * index of the point it rests at (-1 if it does not snap). A slide's snap
+ * alignment and position are its measured box's (see `slidesOf`).
+ * Slides that clamp to the same scroll position share one snap point. With
+ * loop, only the slides' points, not the copies' (see `Geometry`).
+ */
 function snapPoints(viewport: HTMLElement, axis: Axis): Geometry {
   const view = axis.view();
   const restOf = snapRest(viewport, axis);

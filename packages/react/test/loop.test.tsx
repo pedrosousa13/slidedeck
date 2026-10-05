@@ -250,6 +250,33 @@ describe('loop', () => {
     });
   }
 
+  test('a copy resting off its slide plus a set, as WebKit rests one, is arrived at and jumped off', async () => {
+    // Measured in WebKit: a copy can rest a pixel or two off its slide's
+    // rest plus a set's length. A scroll margin on the copies alone moves
+    // their rests 2px here, in every browser.
+    addStyle('.margined > [data-slidedeck-copy] { scroll-margin-left: 2px; }');
+    const { root, viewport, next, onIndexChange } = renderLoop({
+      defaultIndex: 4,
+      viewportClassName: 'margined'
+    });
+    const scrolls: ScrollToOptions[] = [];
+    const scrollTo = viewport.scrollTo.bind(viewport);
+    viewport.scrollTo = ((options: ScrollToOptions) => {
+      scrolls.push(options);
+      scrollTo(options);
+    }) as typeof viewport.scrollTo;
+
+    next.click();
+
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(onIndexChange.mock.calls).toEqual([[0]]);
+    // To the copy's rest, then the jump off it to its slide's.
+    expect(scrolls).toEqual([
+      { left: 2998, behavior: 'smooth' },
+      { left: 1500, behavior: 'instant' }
+    ]);
+  });
+
   test('Dots and Counter count the slides, not the copies', async () => {
     const { prev, dots, counter } = renderLoop();
 
