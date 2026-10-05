@@ -1,0 +1,19 @@
+/* An arc of radius 528px under slides 160px wide and 16px apart:
+   528 / (160 + 16) = 3 slides. */
+.showcase [data-slidedeck-viewport] {
+  --deck-curve-radius: 3;
+  gap: 16px;
+  /* The first and last slides centred too. */
+  padding-inline: calc(50% - 80px);
+  /* Room for the arc while the deck moves. Above, the lift: at most
+     160 / (8 × 3), so 7px. Below, a slide about to fade out:
+     3 × 160 + (160 − 200) / 2 = 460px. */
+  padding-block: 7px 460px;
+}
+.showcase [data-slidedeck-slide] {
+  width: 160px;
+  scroll-snap-align: center;
+}
+.showcase .card {
+  height: 200px;
+}

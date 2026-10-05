@@ -1,0 +1,16 @@
+/* Three slides in view, at the start: the focal slide is the first in view,
+   at progress 0, and the middle one is at progress 1. */
+.products [data-slidedeck-viewport] {
+  gap: 16px;
+}
+.products [data-slidedeck-slide] {
+  width: calc((100% - 2 * 16px) / 3);
+  /* Slides from the middle, at most 1. abs() spelled with max() for older
+     browsers. */
+  --from-middle: min(
+    max(var(--deck-slide-progress, 0) - 1, 1 - var(--deck-slide-progress, 0)),
+    1
+  );
+  outline: 3px solid rgb(51 51 85 / calc(1 - var(--from-middle)));
+  outline-offset: -3px;
+}

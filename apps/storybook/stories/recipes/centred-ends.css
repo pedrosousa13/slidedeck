@@ -1,0 +1,13 @@
+/* Slides 280px wide, 16px apart, each centred, the first and last too. */
+.products {
+  --slide-width: 280px;
+}
+.products [data-slidedeck-viewport] {
+  gap: 16px;
+  /* Half the viewport less half a slide, at each end. */
+  padding-inline: calc(50% - var(--slide-width) / 2);
+}
+.products [data-slidedeck-slide] {
+  width: var(--slide-width);
+  scroll-snap-align: center;
+}

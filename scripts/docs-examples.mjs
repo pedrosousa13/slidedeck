@@ -3,7 +3,9 @@
 // type-checked against the built packages, as a consumer's code is: a block
 // that no longer compiles fails. A block after an `<!-- example: <path> -->`
 // line must instead match that file in the repo byte for byte; the file is
-// type-checked where it lives, as the playdeck recipe's story is. Run
+// type-checked where it lives, as the playdeck recipe's story is. A `css`
+// block after such a line is held to its file too, as a recipe's story
+// imports it; other `css` blocks are not checked. Run
 // `pnpm build` first: the blocks import the packages' built declarations.
 
 import { execFileSync } from 'node:child_process';
@@ -32,8 +34,9 @@ const LANGUAGES = new Set(['ts', 'tsx']);
  */
 
 /**
- * The `ts` and `tsx` blocks in `markdown`, each with the line its code starts
- * on and the file a preceding example marker names, if any.
+ * The `ts` and `tsx` blocks in `markdown`, and the `css` blocks an example
+ * marker names a file for, each with the line its code starts on and the file
+ * a preceding example marker names, if any.
  * @param {string} markdown
  * @returns {Example[]}
  */
@@ -57,7 +60,7 @@ export const extractExamples = (markdown) => {
     if (close === -1) {
       throw new Error(`The code block on line ${i + 1} is never closed.`);
     }
-    if (LANGUAGES.has(language)) {
+    if (LANGUAGES.has(language) || (file !== undefined && language === 'css')) {
       const code = lines.slice(i + 1, close).join('\n') + '\n';
       examples.push({ line: i + 2, language, code, file });
     }
