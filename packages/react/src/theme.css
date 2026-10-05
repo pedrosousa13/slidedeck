@@ -8,7 +8,7 @@
  * ancestor to override its default.
  *
  *   --deck-control-color: #1a1a1a
- *     Text of Prev, Next, the autoplay toggle and the counter.
+ *     Text of Prev, Next, the counter and the stopped autoplay toggle.
  *   --deck-control-background: #ffffff
  *     Background of Prev, Next and the autoplay toggle.
  *   --deck-control-hover-background: #f0f0f0
@@ -23,8 +23,15 @@
  *     Their font size, and the counter's.
  *   --deck-control-disabled-opacity: 0.4
  *     Opacity of Prev or Next while disabled, at either end.
+ *   --deck-control-active-background: var(--deck-accent, #0b5cd5)
+ *     Background of the autoplay toggle while autoplay plays, paused by a
+ *     pointer or not; stopped, it looks like Prev and Next.
+ *   --deck-control-active-color: #ffffff
+ *     Its text while autoplay plays.
  *   --deck-dot-color: #767676
  *     A dot that is not the current page.
+ *   --deck-dot-hover-color: #1a1a1a
+ *     A dot that is not the current page, under a pointer.
  *   --deck-dot-size: 0.625rem
  *     The diameter of the dot drawn.
  *   --deck-dot-current-width: 1.25rem
@@ -38,7 +45,7 @@
  *   --deck-dot-gap: 0.25rem
  *     Space between dot targets.
  *   --deck-accent: #0b5cd5
- *     The current page's dot, and the focus ring.
+ *     The current page's dot, the focus ring and the playing toggle.
  *   --deck-focus-width: 2px
  *     Width of the focus ring a keyboard user sees.
  *   --deck-focus-offset: 2px
@@ -67,6 +74,14 @@
   [data-slidedeck-autoplay-toggle]
 ):where(:hover:not(:disabled)) {
   background-color: var(--deck-control-hover-background, #f0f0f0);
+}
+
+:where([data-slidedeck-autoplay-toggle][data-playing]) {
+  background-color: var(
+    --deck-control-active-background,
+    var(--deck-accent, #0b5cd5)
+  );
+  color: var(--deck-control-active-color, #ffffff);
 }
 
 :where([data-slidedeck-prev], [data-slidedeck-next]):where(:disabled) {
@@ -99,8 +114,14 @@
   background-color: var(--deck-accent, #0b5cd5);
 }
 
+:where([data-slidedeck-dots] > button:not([aria-current='true']):hover) {
+  background-color: var(--deck-dot-hover-color, #1a1a1a);
+}
+
 /* Forced colours paint every background the page colour, dots included:
- * draw them in system colours instead, the current one highlighted. */
+ * draw them in system colours instead, the current and a hovered one
+ * highlighted. The playing toggle is highlighted too, so it still differs
+ * from the stopped one. */
 @media (forced-colors: active) {
   :where([data-slidedeck-dots] > button) {
     forced-color-adjust: none;
@@ -108,8 +129,19 @@
     outline-color: CanvasText;
   }
 
-  :where([data-slidedeck-dots] > button[aria-current='true']) {
+  :where(
+    [data-slidedeck-dots] > button[aria-current='true'],
+    [data-slidedeck-dots] > button:hover
+  ) {
     background-color: Highlight;
+  }
+
+  :where([data-slidedeck-autoplay-toggle][data-playing]) {
+    forced-color-adjust: none;
+    border-color: ButtonText;
+    background-color: Highlight;
+    color: HighlightText;
+    outline-color: CanvasText;
   }
 }
 
@@ -126,6 +158,7 @@
 ) {
   transition:
     background-color var(--deck-transition-duration, 150ms),
+    color var(--deck-transition-duration, 150ms),
     opacity var(--deck-transition-duration, 150ms);
 }
 

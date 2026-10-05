@@ -17,6 +17,24 @@ const DOT = 'rgb(118, 118, 118)';
 const TEXT = 'rgb(26, 26, 26)';
 const SURFACE = 'rgb(255, 255, 255)';
 const HOVER = 'rgb(240, 240, 240)';
+const ON_ACCENT = 'rgb(255, 255, 255)';
+const DOT_HOVER = 'rgb(26, 26, 26)';
+
+// WCAG 2.2's contrast ratio between two computed `rgb()` colours.
+const contrast = (a: string, b: string) => {
+  const luminance = (color: string) => {
+    const [r, g, b] = color
+      .match(/\d+/g)!
+      .slice(0, 3)
+      .map((c) => {
+        const s = Number(c) / 255;
+        return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+  };
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (light! + 0.05) / (dark! + 0.05);
+};
 
 beforeEach(parkMouse);
 
@@ -146,12 +164,114 @@ describe('theme.css', () => {
     expect(style(counter).fontSize).toBe('14px');
   });
 
-  test('styles the autoplay toggle as a control', () => {
+  test('a stopped autoplay toggle looks like any other control', async () => {
+    addStyle(theme);
+    // Autoplay starts stopped under reduced motion.
+    await setReducedMotion(true);
+    onTestFinished(() => setReducedMotion(false));
+    const { toggle } = renderDeck();
+
+    expect(toggle.hasAttribute('data-playing')).toBe(false);
+    expect(style(toggle).backgroundColor).toBe(SURFACE);
+    expect(style(toggle).color).toBe(TEXT);
+    expect(style(toggle).borderTopLeftRadius).toBe('6px');
+  });
+
+  test('a playing autoplay toggle is filled with the accent', () => {
     addStyle(theme);
     const { toggle } = renderDeck();
 
-    expect(style(toggle).backgroundColor).toBe(SURFACE);
-    expect(style(toggle).borderTopLeftRadius).toBe('6px');
+    expect(toggle.hasAttribute('data-playing')).toBe(true);
+    expect(style(toggle).backgroundColor).toBe(ACCENT);
+    expect(style(toggle).color).toBe(ON_ACCENT);
+  });
+
+  test('under a pointer, the playing toggle still differs from the stopped one', async () => {
+    addStyle(theme);
+    await setReducedMotion(true);
+    onTestFinished(() => setReducedMotion(false));
+    const { toggle } = renderDeck();
+
+    await userEvent.hover(toggle);
+    await expect.poll(() => style(toggle).backgroundColor).toBe(HOVER);
+
+    await userEvent.click(toggle);
+    expect(toggle.hasAttribute('data-playing')).toBe(true);
+    await expect.poll(() => style(toggle).backgroundColor).toBe(ACCENT);
+    expect(style(toggle).color).toBe(ON_ACCENT);
+  });
+
+  test("tokens set the playing toggle's fill and text", () => {
+    addStyle(theme);
+    addStyle(`.branded {
+      --deck-control-active-background: rgb(1, 2, 3);
+      --deck-control-active-color: rgb(4, 5, 6);
+    }`);
+    const { toggle } = renderDeck({ className: 'branded' });
+
+    expect(style(toggle).backgroundColor).toBe('rgb(1, 2, 3)');
+    expect(style(toggle).color).toBe('rgb(4, 5, 6)');
+  });
+
+  test('the playing toggle follows the accent', () => {
+    addStyle(theme);
+    addStyle('.branded { --deck-accent: rgb(1, 2, 3); }');
+    const { toggle } = renderDeck({ className: 'branded' });
+
+    expect(style(toggle).backgroundColor).toBe('rgb(1, 2, 3)');
+  });
+
+  test('hovering a dot that is not current changes it; the current one stays', async () => {
+    addStyle(theme);
+    await setReducedMotion(true);
+    onTestFinished(() => setReducedMotion(false));
+    const { dots } = renderDeck();
+
+    await userEvent.hover(dots[1]!);
+    await expect.poll(() => style(dots[1]!).backgroundColor).toBe(DOT_HOVER);
+    expect(style(dots[2]!).backgroundColor).toBe(DOT);
+
+    await userEvent.hover(dots[0]!);
+    await expect.poll(() => style(dots[1]!).backgroundColor).toBe(DOT);
+    expect(style(dots[0]!).backgroundColor).toBe(ACCENT);
+  });
+
+  test("a token sets a hovered dot's colour", async () => {
+    addStyle(theme);
+    addStyle('.branded { --deck-dot-hover-color: rgb(1, 2, 3); }');
+    await setReducedMotion(true);
+    onTestFinished(() => setReducedMotion(false));
+    const { dots } = renderDeck({ className: 'branded' });
+
+    await userEvent.hover(dots[1]!);
+
+    await expect
+      .poll(() => style(dots[1]!).backgroundColor)
+      .toBe('rgb(1, 2, 3)');
+  });
+
+  test('the default colours meet WCAG contrast', () => {
+    // Text 4.5:1 (1.4.3); a control's fill and a dot against the page 3:1
+    // (1.4.11).
+    expect(contrast(ON_ACCENT, ACCENT)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(ACCENT, SURFACE)).toBeGreaterThanOrEqual(3);
+    expect(contrast(DOT_HOVER, SURFACE)).toBeGreaterThanOrEqual(3);
+  });
+
+  test('under forced colours, the playing toggle stands out and a hovered dot shows', async () => {
+    addStyle(theme);
+    await setForcedColors(true);
+    onTestFinished(() => setForcedColors(false));
+    const { next, toggle, dots } = renderDeck();
+
+    expect(toggle.hasAttribute('data-playing')).toBe(true);
+    expect(style(toggle).backgroundColor).not.toBe(style(next).backgroundColor);
+    expect(style(toggle).color).not.toBe(style(toggle).backgroundColor);
+
+    await userEvent.hover(dots[1]!);
+    await expect
+      .poll(() => style(dots[1]!).backgroundColor)
+      .not.toBe(style(dots[2]!).backgroundColor);
   });
 
   test('a control focused from the keyboard shows a focus ring', async () => {
@@ -177,13 +297,15 @@ describe('theme.css', () => {
 
   test('transitions are off under reduced motion', async () => {
     addStyle(theme);
-    const { next } = renderDeck();
+    const { next, toggle, dots } = renderDeck();
     expect(style(next).transitionDuration).not.toBe('0s');
 
     await setReducedMotion(true);
     onTestFinished(() => setReducedMotion(false));
 
     expect(style(next).transitionDuration).toBe('0s');
+    expect(style(toggle).transitionDuration).toBe('0s');
+    expect(style(dots[1]!).transitionDuration).toBe('0s');
   });
 
   test('consumer CSS beats the theme without raising specificity', () => {
@@ -201,7 +323,10 @@ describe('theme.css', () => {
         ([, name, value]) => [name!, value!]
       )
     );
-    const uses = [...theme.matchAll(/var\((--[\w-]+)(?:,\s*([^)]*))?\)/g)];
+    // A default may itself be a var(), one level deep.
+    const uses = [
+      ...theme.matchAll(/var\(\s*(--[\w-]+)(?:,\s*((?:[^()]|\([^()]*\))*))?\)/g)
+    ];
 
     expect(uses.length).toBeGreaterThan(0);
     for (const [, name, fallback] of uses) {
