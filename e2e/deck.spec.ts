@@ -959,37 +959,98 @@ test('an autoplay deck rotates quietly until its toggle stops it', async ({
   await expect(live).toHaveText('Slide 3 of 6');
 });
 
+/** A flick's speed. The deck reads a release faster than 0.4px/ms as a
+ * flick, and in every loop story a release slower than about 1.3px/ms as a
+ * flick of one snap point, not a fling across several. */
+const FLICK_PX_PER_MS = 0.8;
+/** How often a flick moves the pointer, at most. */
+const FLICK_MOVE_MS = 16;
+/** How far past its distance a flick's last move may go in Firefox and
+ * WebKit: 40px, at 0.8px/ms. */
+const FLICK_OVERSHOOT_MS = 50;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
- * A mouse flick on the deck's viewport: `distance` px along the axis, in six
- * moves 16ms apart, let go at once. Positive moves the pointer right, or down.
- * The moves are paced by the test, not the browser, so the release is as fast
- * in every engine: one snap point's flick, not a fling across several.
+ * A mouse flick on the deck's viewport: `distance` px along the axis at
+ * 0.8px/ms, with a move every 16ms, let go at once. Positive moves the
+ * pointer right, or down. The deck reads the release speed from the times
+ * of the moves in its last 80ms:
+ *
+ * - In Chromium each event goes through CDP stamped on the gesture's own
+ *   clock, as the unit tests' gestures are (#49). However late a busy machine
+ *   delivers them, the deck reads the same flick on every run.
+ * - Firefox and WebKit take no time for an input event: the browser stamps it
+ *   when it handles it. So each move puts the pointer where the flick is when
+ *   the move is sent, and a move that comes late comes that much further on:
+ *   the speed the deck reads is the flick's, give or take how unevenly the
+ *   browser handles the moves. The last move goes as far as the flick has by
+ *   then, rather than stop short at `distance` and slow the release, but no
+ *   more than 40px past it. A browser too busy to handle a move
+ *   within 80ms of the one before, or the release within 60ms of the last
+ *   move, still reads a slow drag.
  */
 async function flick(page: Page, distance: number, axis: 'x' | 'y' = 'x') {
   const viewport = page.locator('[data-slidedeck-viewport]').first();
   const box = (await viewport.boundingBox())!;
-  const along = (d: number) =>
-    axis === 'x'
+  const duration = Math.abs(distance) / FLICK_PX_PER_MS;
+  /** Where the pointer is `ms` into the flick. */
+  const at = (ms: number) => {
+    const d = distance * (ms / duration - 1 / 2);
+    return axis === 'x'
       ? { x: box.x + box.width / 2 + d, y: box.y + box.height / 2 }
       : { x: box.x + box.width / 2, y: box.y + box.height / 2 + d };
-  const start = along(-distance / 2);
-  await page.mouse.move(start.x, start.y);
+  };
+  if (page.context().browser()!.browserType().name() === 'chromium') {
+    const cdp = await page.context().newCDPSession(page);
+    const start = Date.now();
+    const send = (
+      type: 'mouseMoved' | 'mousePressed' | 'mouseReleased',
+      ms: number,
+      buttons: number
+    ) =>
+      cdp.send('Input.dispatchMouseEvent', {
+        type,
+        ...at(ms),
+        button: type === 'mouseMoved' && !buttons ? 'none' : 'left',
+        buttons,
+        clickCount: type === 'mouseMoved' ? 0 : 1,
+        timestamp: (start + ms) / 1000
+      });
+    await send('mouseMoved', 0, 0);
+    await send('mousePressed', 0, 1);
+    // The gesture waits out each move, so no event is stamped later than it
+    // is sent.
+    for (let ms = 0; ms < duration;) {
+      ms = Math.min(ms + FLICK_MOVE_MS, duration);
+      await sleep(FLICK_MOVE_MS);
+      await send('mouseMoved', ms, 1);
+    }
+    await send('mouseReleased', duration, 0);
+    await cdp.detach();
+    return;
+  }
+  await page.mouse.move(at(0).x, at(0).y);
   await page.mouse.down();
-  for (let step = 1; step <= 6; step++) {
-    await page.waitForTimeout(16);
-    const at = along(-distance / 2 + (distance * step) / 6);
-    await page.mouse.move(at.x, at.y);
+  const start = Date.now();
+  for (let ms = 0; ms < duration;) {
+    await sleep(Math.max(0, start + ms + FLICK_MOVE_MS - Date.now()));
+    ms = Date.now() - start;
+    const to = at(Math.min(ms, duration + FLICK_OVERSHOOT_MS));
+    await page.mouse.move(to.x, to.y);
   }
   await page.mouse.up();
 }
 
 // Loop (#11): a flick across the seam, each way, in every loop story. Back
 // from the first snap point is the pointer moving toward the deck's end:
-// right, down, or in right-to-left, left.
+// right, down, or in right-to-left, left. Each flick, with the 40px it may
+// overshoot by, is shorter than half the way to the snap point across the
+// seam, so a drag of it let go at rest snaps back: only the flick gets there.
 for (const { id, slides, last, back, axis } of [
-  { id: 'deck--loop', slides: 6, last: 5, back: 200, axis: 'x' },
-  { id: 'deck--loop-pages', slides: 10, last: 3, back: 200, axis: 'x' },
-  { id: 'deck--loop-vertical', slides: 6, last: 5, back: 100, axis: 'y' },
+  { id: 'deck--loop', slides: 6, last: 5, back: 180, axis: 'x' },
+  { id: 'deck--loop-pages', slides: 10, last: 3, back: 144, axis: 'x' },
+  { id: 'deck--loop-vertical', slides: 6, last: 5, back: 72, axis: 'y' },
   { id: 'deck--loop-right-to-left', slides: 6, last: 5, back: -200, axis: 'x' }
 ] as const) {
   test(`${id}: a flick back across the seam from the first snap point settles on the last`, async ({
