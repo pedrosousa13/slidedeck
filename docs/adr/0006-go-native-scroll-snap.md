@@ -66,9 +66,10 @@ event cannot say which move it ends. The events, and what each does:
   `scrollend` is there. The user's scroll settles at its own end, and
   nothing the engine asked for resumes. Input that scrolls nothing leaves
   the move going: a click, even one that focuses a control in another
-  slide, Enter, a key in a text field or one the page has prevented, Tab
-  out of a slide, and focus within a slide or on the viewport. A drag's
-  release is a new move.
+  slide, Enter, and a key in a text field or one the page has prevented.
+  Focus within a slide or on the viewport, as Tab out of a slide gives, is
+  meant to leave it going too, but in Chromium it stops the move short of
+  its snap point (#51). A drag's release is a new move.
 - _Focus entering a slide_ from outside it, as Tab does (amended for #43):
   the browser scrolls the slide into view and stops the move's scroll. Like
   the user's scroll, this ends the move, and focus wins: a new move replaces

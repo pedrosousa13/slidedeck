@@ -333,9 +333,11 @@ export function createDeck(
   // with `pointercancel`, and a mouse drag (below). Focus entering a slide
   // scrolls it into view, so it is the user's scroll too, and the deck goes
   // on to it (below). Input that scrolls nothing leaves the move going: a
-  // click, even one that focuses a control in another slide, Enter, a key
-  // in a text field or one the page has prevented, Tab out of a slide, and
-  // focus within a slide or on the viewport (ADR-0006).
+  // click, even one that focuses a control in another slide, Enter, and a
+  // key in a text field or one the page has prevented. Focus within a slide
+  // or on the viewport, as Tab out of a slide gives, is meant to leave it
+  // going too, but in Chromium it stops the move short of its snap point
+  // (ADR-0006).
   const onWheel = () => endMove();
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || !SCROLL_KEYS.has(event.key)) return;
