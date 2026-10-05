@@ -764,35 +764,51 @@ test('a fade deck crossfades in place on Next, settles with one slide shown, and
     );
   await expect.poll(opacities).toEqual([1, 0, 0, 0]);
 
-  // Sample every frame while Next scrolls: the two slides are seen part
-  // shown together, and every slide stays where the viewport is.
-  const sampled = page.evaluate(
-    () =>
-      new Promise<{ mixed: boolean; moved: boolean }>((resolve) => {
-        const viewport = document.querySelector('[data-slidedeck-viewport]')!;
-        const all = [...viewport.querySelectorAll('[data-slidedeck-slide]')];
-        let mixed = false;
-        let moved = false;
-        const start = performance.now();
-        const sample = () => {
-          const box = viewport.getBoundingClientRect();
-          for (const slide of all) {
-            const opacity = Number(getComputedStyle(slide).opacity);
-            if (opacity > 0.05 && opacity < 0.95) mixed = true;
-            const rect = slide.getBoundingClientRect();
-            if (Math.abs(rect.left - box.left) > 1) moved = true;
-          }
-          if (performance.now() - start < 1500) requestAnimationFrame(sample);
-          else resolve({ mixed, moved });
-        };
-        requestAnimationFrame(sample);
-      })
-  );
+  // Record, in the page, what each frame the viewport scrolls in shows, and
+  // read the record once the deck has settled: no frame is missed, however
+  // late the click comes or slow the frames are. This scroll listener comes
+  // after the deck's, so its frame callback reads the opacities after the
+  // deck writes the slides' progress, as the frame shows them. A callback
+  // requested earlier, as a loop of them is, reads the frame before's; and
+  // under load, WebKit can scroll from one slide to the next with one frame
+  // between them.
+  await viewport.evaluate((el) => {
+    const all = [...el.querySelectorAll('[data-slidedeck-slide]')];
+    const frames: number[][] = [];
+    let moved = false;
+    let frame = 0;
+    const record = () => {
+      frame = 0;
+      frames.push(all.map((slide) => Number(getComputedStyle(slide).opacity)));
+      const box = el.getBoundingClientRect();
+      for (const slide of all) {
+        const rect = slide.getBoundingClientRect();
+        if (Math.abs(rect.left - box.left) > 1) moved = true;
+      }
+    };
+    el.addEventListener('scroll', () => {
+      frame ||= requestAnimationFrame(record);
+    });
+    Object.assign(el, { record: () => ({ frames, moved }) });
+  });
   await deck.getByRole('button', { name: 'Next' }).click();
-  expect(await sampled).toEqual({ mixed: true, moved: false });
 
   await expect(deck).toHaveAttribute('data-index', '1');
   await expect.poll(opacities).toEqual([0, 1, 0, 0]);
+  // A frame showed the two slides part each, and every slide stayed where
+  // the viewport is. Any opacity between 0 and 1 counts: under load, that
+  // one frame can fall near either end of the move.
+  const { frames, moved } = await viewport.evaluate((el) =>
+    (
+      el as unknown as {
+        record: () => { frames: number[][]; moved: boolean };
+      }
+    ).record()
+  );
+  const partShown = (frame: number[]) =>
+    frame.filter((opacity) => opacity > 0 && opacity < 1).length;
+  expect(frames.map(partShown)).toContain(2);
+  expect(moved).toBe(false);
   await expect(slides.nth(1)).toHaveAttribute('data-focal');
   // The viewport scrolled natively; the slide shown is still at its start.
   expect(await viewport.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
