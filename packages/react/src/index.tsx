@@ -447,6 +447,9 @@ export function Root({
         // again (APG carousel); focus on the toggle itself does not.
         onFocus={(event) => {
           onFocus?.(event);
+          // Focus entering a slide mid-move takes the move over (#43), so
+          // its settle is announced.
+          if (viewportRef.current?.contains(event.target)) takeOver();
           if (
             autoplaying &&
             !(event.target as Element).closest(

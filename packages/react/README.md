@@ -8,7 +8,6 @@ primitives that work with no stylesheet, and style it with plain CSS.
 - [Install](#install)
 - [Quickstart](#quickstart)
 - [Primitives](#primitives)
-- [Hooks](#hooks)
 - [Layout is CSS](#layout-is-css)
 - [The index: controlled, uncontrolled and the handle](#the-index-controlled-uncontrolled-and-the-handle)
 - [Focal slide](#focal-slide)
@@ -102,18 +101,7 @@ Prev, Next or AutoplayToggle runs first and can cancel the move with
 | `orientation`   | `'horizontal' \| 'vertical'` | `'horizontal'` | The axis the deck scrolls along.                                                          |
 
 The package also exports the types `RootProps`, `RootHandle`,
-`ViewportProps`, `UseSlideResult` (what `useSlide` returns), `Effect` and
-`Orientation`.
-
-## Hooks
-
-`Deck.useSlide()`, called by content inside a slide, tells it which slide it
-is in. It returns `{ index, copy }`: `index` is the slide's index, also inside
-a loop's copy of it, and `copy` is `'before'` or `'after'` in a copy, the side
-of the slides it is on, and `undefined` in a slide. Use it where stateful
-content must not run twice, as in the
-[playdeck recipe](#recipe-play-a-playdeck-video-in-the-focal-slide). Called
-outside a `Deck.Slide`, it throws.
+`ViewportProps`, `Effect` and `Orientation`.
 
 ## Layout is CSS
 
@@ -229,9 +217,7 @@ each side of the slides, `inert` and `aria-hidden`; once the deck rests on a
 copy, it jumps to the identical slide. Indexes, Dots, Counter, `data-current`
 and `data-focal` count the slides only, never the copies. `scrollTo`, Dots
 and a new controlled `index` go the direct way, within the slides. A deck
-whose slides all fit does not loop. Content that must not run twice, such as
-a video player, can render differently in a copy with `Deck.useSlide()`. See
-[Known limits](#known-limits).
+whose slides all fit does not loop. See [Known limits](#known-limits).
 
 ## Drag
 
@@ -319,8 +305,8 @@ read it while the deck scrolls:
 
 | Where                 | Attribute or property        | Meaning                                                                                                                      |
 | --------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Each slide            | `--deck-slide-progress`      | Signed distance from the focal position, in slides: 0 there, -1 one slide before, 2.25 two and a quarter after. Every frame. |
-| Each slide            | `--deck-slide-index`         | The slide's index. Static, so server HTML has it.                                                                            |
+| Each slide            | `--deck-progress`            | Signed distance from the focal position, in slides: 0 there, -1 one slide before, 2.25 two and a quarter after. Every frame. |
+| Each slide            | `--deck-index`               | The slide's index. Static, so server HTML has it.                                                                            |
 | Each slide            | `data-in-view`               | Any part of the slide is in the viewport. Hides nothing.                                                                     |
 | Each slide            | `data-focal`                 | The focal slide.                                                                                                             |
 | Each slide            | `data-current`               | The current slide.                                                                                                           |
@@ -349,12 +335,7 @@ is measured from:
 .products [data-slidedeck-slide] {
   /* abs() spelled with max() for older browsers. */
   scale: calc(
-    1 -
-      min(
-        max(var(--deck-slide-progress, 0), -1 * var(--deck-slide-progress, 0)),
-        1
-      ) *
-      0.2
+    1 - min(max(var(--deck-progress, 0), -1 * var(--deck-progress, 0)), 1) * 0.2
   );
   transform-origin: center;
 }
@@ -411,8 +392,8 @@ that fills it, styled as the slide is seen. The radius, in slides, is
 has `contain: layout`, so a `position: fixed` element inside it is placed
 against the slide. Under reduced motion the content stays flat and only fades.
 
-Both effects' styles are zero-specificity rules on `--deck-slide-progress`, so
-your CSS overrides any of them.
+Both effects' styles are zero-specificity rules on `--deck-progress`, so your
+CSS overrides any of them.
 
 ## Theme
 
@@ -427,36 +408,29 @@ import '@slidedeck/react/theme.css';
 Every rule is wrapped in `:where()`, so any selector of yours wins. Every value
 is a custom property; set one on the deck or any ancestor:
 
-| Token                              | Default                       | Styles                                                 |
-| ---------------------------------- | ----------------------------- | ------------------------------------------------------ |
-| `--deck-control-color`             | `#1a1a1a`                     | Text of Prev, Next, the counter and the stopped toggle |
-| `--deck-control-background`        | `#ffffff`                     | Background of Prev, Next and the toggle                |
-| `--deck-control-hover-background`  | `#f0f0f0`                     | Their background under a pointer                       |
-| `--deck-control-border`            | `1px solid #767676`           | Their border                                           |
-| `--deck-control-radius`            | `0.375rem`                    | Their corner radius                                    |
-| `--deck-control-padding`           | `0.375rem 0.75rem`            | Their padding                                          |
-| `--deck-control-font-size`         | `0.875rem`                    | Their font size, and the counter's                     |
-| `--deck-control-disabled-opacity`  | `0.4`                         | Prev or Next while disabled                            |
-| `--deck-control-active-background` | `var(--deck-accent, #0b5cd5)` | The autoplay toggle while autoplay plays               |
-| `--deck-control-active-color`      | `#ffffff`                     | Its text while autoplay plays                          |
-| `--deck-dot-color`                 | `#767676`                     | A dot that is not the current page                     |
-| `--deck-dot-hover-color`           | `#1a1a1a`                     | Such a dot under a pointer                             |
-| `--deck-dot-size`                  | `0.625rem`                    | The dot drawn                                          |
-| `--deck-dot-current-width`         | `1.25rem`                     | The current dot's width, so it differs by shape        |
-| `--deck-dot-radius`                | `9999px`                      | A dot's corner radius                                  |
-| `--deck-dot-target-size`           | `1.5rem`                      | The square a dot answers clicks in                     |
-| `--deck-dot-gap`                   | `0.25rem`                     | Space between dots                                     |
-| `--deck-accent`                    | `#0b5cd5`                     | The current dot, the focus ring and the playing toggle |
-| `--deck-focus-width`               | `2px`                         | Width of the keyboard focus ring                       |
-| `--deck-focus-offset`              | `2px`                         | Space between a control and its focus ring             |
-| `--deck-transition-duration`       | `150ms`                       | Hover and state fades; none under reduced motion       |
+| Token                             | Default             | Styles                                           |
+| --------------------------------- | ------------------- | ------------------------------------------------ |
+| `--deck-control-color`            | `#1a1a1a`           | Text of the buttons and the counter              |
+| `--deck-control-background`       | `#ffffff`           | Background of Prev, Next and the toggle          |
+| `--deck-control-hover-background` | `#f0f0f0`           | Their background under a pointer                 |
+| `--deck-control-border`           | `1px solid #767676` | Their border                                     |
+| `--deck-control-radius`           | `0.375rem`          | Their corner radius                              |
+| `--deck-control-padding`          | `0.375rem 0.75rem`  | Their padding                                    |
+| `--deck-control-font-size`        | `0.875rem`          | Their font size, and the counter's               |
+| `--deck-control-disabled-opacity` | `0.4`               | Prev or Next while disabled                      |
+| `--deck-dot-color`                | `#767676`           | A dot that is not the current page               |
+| `--deck-dot-size`                 | `0.625rem`          | The dot drawn                                    |
+| `--deck-dot-current-width`        | `1.25rem`           | The current dot's width, so it differs by shape  |
+| `--deck-dot-radius`               | `9999px`            | A dot's corner radius                            |
+| `--deck-dot-target-size`          | `1.5rem`            | The square a dot answers clicks in               |
+| `--deck-dot-gap`                  | `0.25rem`           | Space between dots                               |
+| `--deck-accent`                   | `#0b5cd5`           | The current dot and the focus ring               |
+| `--deck-focus-width`              | `2px`               | Width of the keyboard focus ring                 |
+| `--deck-focus-offset`             | `2px`               | Space between a control and its focus ring       |
+| `--deck-transition-duration`      | `150ms`             | Hover and state fades; none under reduced motion |
 
-Stopped, the autoplay toggle looks like Prev and Next; playing, it is filled
-with the accent, paused by a pointer or not. With a light `--deck-accent`, set
-`--deck-control-active-color` too, so its text keeps 4.5:1 contrast.
-
-In forced colours mode, dots are drawn in system colours, the current one and
-a hovered one highlighted, and so is the playing toggle.
+In forced colours mode, dots are drawn in system colours, the current one
+highlighted.
 
 ## Server rendering
 
@@ -489,7 +463,8 @@ What a deck does with no extra work:
 - A polite live region announces "Slide n of m" after a move the user makes;
   it is off while autoplay rotates the deck.
 - No slide is hidden or `inert` for being off-screen. Tabbing into an
-  off-screen slide scrolls it into view natively, and snap settles it.
+  off-screen slide scrolls it into view natively, and snap settles it; during
+  a move, the deck goes to that slide instead.
 - The viewport is focusable, so the arrow keys, Page Up, Page Down, Home and
   End scroll it.
 - Loop copies are `inert` and `aria-hidden`: never focused, never announced.
@@ -507,7 +482,7 @@ through Prev, Next, Dots and the arrow keys.
 - **A loop copy renders the slide's children again.** Their state is their
   own, effects and refs in them run once per copy, and an `id` inside a slide
   repeats three times. Avoid `id`s in looping slides, or make them unique
-  outside the slide. `Deck.useSlide()` tells content whether it is in a copy.
+  outside the slide.
 - **Presses beyond the reachable copies are dropped.** A step goes at most a
   set of copies past either end. When presses come faster than the deck
   moves, the deck passes fewer slides than were pressed, rather than moving
@@ -530,8 +505,7 @@ through Prev, Next, Dots and the arrow keys.
 A social-style deck of videos: the video in the focal slide plays, muted, and
 the others pause. Each slide holds a [playdeck](https://www.npmjs.com/package/@playdeck/react)
 player; `onFocalChange` tells the deck's parent which slide is focal once a
-scroll settles, and each player's handle plays or pauses it. It works with
-`loop`, as a feed usually is.
+scroll settles, and each player's handle plays or pauses it.
 
 ```sh
 pnpm add @playdeck/react
@@ -540,13 +514,7 @@ pnpm add @playdeck/react
 <!-- example: apps/storybook/stories/video-deck.tsx -->
 
 ```tsx
-import {
-  useEffect,
-  useEffectEvent,
-  useImperativeHandle,
-  useRef,
-  type Ref
-} from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import * as Deck from '@slidedeck/react';
 import * as Player from '@playdeck/react';
 
@@ -554,19 +522,9 @@ const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
 
 /** A deck of videos: the one in the focal slide plays, muted; the rest pause.
  * Under reduced motion none plays by itself; a viewer can still press play. */
-export function VideoDeck({
-  sources,
-  loop = false,
-  ref
-}: {
-  sources: readonly string[];
-  loop?: boolean;
-  /** Each slide's player handle, by slide index, null while unmounted. */
-  ref?: Ref<readonly (Player.PlayerHandle | null)[]>;
-}) {
+export function VideoDeck({ sources }: { sources: readonly string[] }) {
   const players = useRef<(Player.PlayerHandle | null)[]>([]);
   const focal = useRef(0);
-  useImperativeHandle(ref, () => players.current, []);
 
   const playFocal = (slide: number) => {
     focal.current = slide;
@@ -595,72 +553,31 @@ export function VideoDeck({
   }, []);
 
   return (
-    <Deck.Root
-      aria-label="Featured slides"
-      onFocalChange={playFocal}
-      loop={loop}
-    >
+    <Deck.Root aria-label="Featured slides" onFocalChange={playFocal}>
       <Deck.Viewport>
         {sources.map((source, i) => (
           <Deck.Slide key={i}>
-            <SlideVideo
-              source={source}
-              register={(slide, player) => {
-                players.current[slide] = player;
+            <Player.Root
+              ref={(player) => {
+                players.current[i] = player;
               }}
-            />
+              source={source}
+              defaultMuted
+              loop
+            >
+              <Player.Viewport style={{ aspectRatio: '16 / 9' }}>
+                <Player.Media />
+                <Player.Controls>
+                  <Player.PlayButton />
+                </Player.Controls>
+              </Player.Viewport>
+            </Player.Root>
           </Deck.Slide>
         ))}
       </Deck.Viewport>
       <Deck.Prev />
       <Deck.Next />
     </Deck.Root>
-  );
-}
-
-/** A slide's player, registered by the slide's index. A loop's copy renders
- * the slide again: it shows the video's first frame, still, and registers
- * nothing, so it never replaces or clears the slide's player. */
-function SlideVideo({
-  source,
-  register
-}: {
-  source: string;
-  register: (slide: number, player: Player.PlayerHandle | null) => void;
-}) {
-  const { index, copy } = Deck.useSlide();
-  if (copy) {
-    return (
-      <video
-        // A start time, as a media fragment, makes Safari load and paint the
-        // first frame too, where metadata alone shows nothing.
-        src={`${source}#t=0.001`}
-        muted
-        playsInline
-        preload="metadata"
-        style={{
-          display: 'block',
-          width: '100%',
-          aspectRatio: '16 / 9',
-          objectFit: 'contain'
-        }}
-      />
-    );
-  }
-  return (
-    <Player.Root
-      ref={(player) => register(index, player)}
-      source={source}
-      defaultMuted
-      loop
-    >
-      <Player.Viewport style={{ aspectRatio: '16 / 9' }}>
-        <Player.Media />
-        <Player.Controls>
-          <Player.PlayButton />
-        </Player.Controls>
-      </Player.Viewport>
-    </Player.Root>
   );
 }
 ```
@@ -687,17 +604,12 @@ Notes:
 - A playdeck player loads when it comes into view. `whenReady` waits for that,
   and the focal check stops a late load from playing a slide the deck has
   left.
-- With `loop`, the deck renders each slide again in its copies. Each
-  slide's content calls `Deck.useSlide()`: a slide registers its player by
-  its index, and a copy shows the video's first frame, still, and registers
-  nothing. No copy's player can replace or clear a slide's, and the focal
-  slide's video plays once the deck crosses the seam and jumps.
-- `VideoDeck`'s `ref` gives its parent the player handles, by slide index.
+- Do not combine this with `loop`: a copy renders its slide's player again,
+  and its ref would replace the slide's.
 
-The stories `Deck / Playdeck Video` and `Deck / Playdeck Video Loop` in this
-repo's storybook run this component, and end-to-end tests check that only the
-focal slide's video plays, across a loop's seam both ways too, and that none
-plays under reduced motion.
+The story `Deck / Playdeck Video` in this repo's storybook runs this
+component, and end-to-end tests check that only the focal slide's video
+plays, and that none plays under reduced motion.
 
 ## Comparison with Embla and Keen
 
@@ -711,7 +623,7 @@ pinned installs, and CI fails if this table is stale.
 
 | Library                | Version   | Min+gzip | Native scroll                                    | Accessibility out of the box                                                                                                           | API shape                                                                                          |
 | ---------------------- | --------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `@slidedeck/react`     | this repo | 6.63 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
+| `@slidedeck/react`     | this repo | 6.77 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
 | `embla-carousel-react` | 8.6.0     | 7.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels or controls; scrolls a focused slide into view                                                                        | A hook returning a ref and an API object; markup and controls are yours                            |
 | `keen-slider`          | 6.8.6     | 6.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels, controls or keyboard handling                                                                                        | A hook returning a ref and an instance, plus a required stylesheet; markup and controls are yours  |
 

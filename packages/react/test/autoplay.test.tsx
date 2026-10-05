@@ -244,6 +244,22 @@ describe('a move the user makes', () => {
     expect(toggleOf().textContent).toBe('Start slide rotation');
     await expectStill(root, '1');
   });
+
+  test('focus entering a slide mid-step stops it, and its settle is announced', async () => {
+    const { root, viewport } = renderDeck();
+    const live = liveRegionOf(root);
+    await new Promise((resolve) =>
+      viewport.addEventListener('scroll', resolve, { once: true })
+    );
+
+    // Focus wins (#43): the deck goes to the focused slide instead.
+    screen.getByRole('button', { name: 'Button 4' }).focus();
+
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('3');
+    await expect.poll(() => live.textContent).toBe('Slide 4 of 5');
+    expect(toggleOf().textContent).toBe('Start slide rotation');
+    await expectStill(root, '3');
+  });
 });
 
 describe('a move autoplay did not start', () => {
