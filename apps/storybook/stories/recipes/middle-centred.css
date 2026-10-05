@@ -1,0 +1,12 @@
+/* Three slides in view, centred: the focal slide is the middle one. */
+.products [data-slidedeck-viewport] {
+  gap: 16px;
+}
+.products [data-slidedeck-slide] {
+  width: calc((100% - 2 * 16px) / 3);
+  scroll-snap-align: center;
+}
+.products [data-slidedeck-slide][data-focal] {
+  outline: 3px solid #335;
+  outline-offset: -3px;
+}

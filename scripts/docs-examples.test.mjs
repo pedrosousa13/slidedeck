@@ -49,6 +49,23 @@ test('an example marker names the file a block must match', () => {
   ]);
 });
 
+test('a marker holds a css block to its file too', () => {
+  const markdown = [
+    '<!-- example: apps/storybook/stories/recipe.css -->',
+    '```css',
+    'a {}',
+    '```'
+  ].join('\n');
+  assert.deepEqual(extractExamples(markdown), [
+    {
+      line: 3,
+      language: 'css',
+      code: 'a {}\n',
+      file: 'apps/storybook/stories/recipe.css'
+    }
+  ]);
+});
+
 test('a marker applies to the next block only', () => {
   const markdown = [
     '<!-- example: a.tsx -->',

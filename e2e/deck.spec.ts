@@ -57,8 +57,16 @@ const stories = [
   'deck--loop-vertical',
   'deck--loop-right-to-left',
   'deck--playdeck-video',
-  'deck--playdeck-video-loop'
+  'deck--playdeck-video-loop',
+  'recipes--centred-ends',
+  'recipes--middle-centred',
+  'recipes--middle-by-progress',
+  'recipes--curve-size',
+  'recipes--custom-controls'
 ];
+
+/** Stories with the curve effect, which fades the slides out of focus. */
+const curveStories = ['deck--curve', 'recipes--curve-size'];
 
 for (const id of stories) {
   test(`the ${id} story passes axe`, async ({ page }) => {
@@ -77,7 +85,7 @@ for (const id of stories) {
     // iframe chrome, which is not ours to fix.
     const axe = () =>
       new AxeBuilder({ page }).include('[aria-roledescription="carousel"]');
-    if (id !== 'deck--curve') {
+    if (!curveStories.includes(id)) {
       expect((await axe().analyze()).violations).toEqual([]);
       return;
     }
@@ -1047,4 +1055,150 @@ test('a loop deck steps across the seam with Prev and Next, and no copy is reach
       )
     ).toBe(false);
   }
+});
+
+// The README's recipes (#58), each run by a story under Recipes.
+
+/** How far the slide named `name` is from the viewport's centre along the
+ * axis, in px. */
+const offCentre = (page: Page, name: string) =>
+  page
+    .getByRole('region', { name: 'Featured slides' })
+    .getByRole('group', { name })
+    .evaluate((slide) => {
+      const s = slide.getBoundingClientRect();
+      const v = slide
+        .closest('[data-slidedeck-viewport]')!
+        .getBoundingClientRect();
+      return Math.abs(s.left + s.width / 2 - (v.left + v.width / 2));
+    });
+
+test('the centred-ends recipe rests with the first slide, and the last, centred', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=recipes--centred-ends&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+
+  await expect(deck.getByRole('group', { name: '1 of 6' })).toHaveAttribute(
+    'data-focal'
+  );
+  expect(await offCentre(page, '1 of 6')).toBeLessThanOrEqual(1);
+
+  await deck.getByRole('button', { name: 'Go to page 6' }).click();
+
+  await expect(deck).toHaveAttribute('data-index', '5');
+  await expect(deck.getByRole('group', { name: '6 of 6' })).toHaveAttribute(
+    'data-focal'
+  );
+  await expect.poll(() => offCentre(page, '6 of 6')).toBeLessThanOrEqual(1);
+});
+
+/**
+ * Of the slides in view, the one nearest the viewport's centre, and the ones
+ * with an opaque outline, or within a scroll position's rounding of it: the
+ * recipe highlights the first alone.
+ */
+const middleAndHighlighted = (page: Page) =>
+  page
+    .getByRole('region', { name: 'Featured slides' })
+    .locator('[data-slidedeck-slide][data-in-view]')
+    .evaluateAll((slides) => {
+      const v = slides[0]
+        .closest('[data-slidedeck-viewport]')!
+        .getBoundingClientRect();
+      const off = (slide: Element) => {
+        const s = slide.getBoundingClientRect();
+        return Math.abs(s.left + s.width / 2 - (v.left + v.width / 2));
+      };
+      const middle = slides.reduce((a, b) => (off(b) < off(a) ? b : a));
+      return {
+        middle: middle.getAttribute('aria-label'),
+        highlighted: slides
+          .filter((slide) => {
+            const { outlineStyle, outlineColor } = getComputedStyle(slide);
+            // rgb(r, g, b) or rgba(r, g, b, alpha).
+            const alpha = Number(outlineColor.match(/[\d.]+/g)?.[3] ?? 1);
+            return outlineStyle !== 'none' && alpha > 0.99;
+          })
+          .map((slide) => slide.getAttribute('aria-label'))
+      };
+    });
+
+for (const { id, focal } of [
+  // Centred, the focal slide is the middle one.
+  { id: 'recipes--middle-centred', focal: ['2 of 6', '3 of 6'] },
+  // At the start, it is the first in view.
+  { id: 'recipes--middle-by-progress', focal: ['1 of 6', '2 of 6'] }
+]) {
+  test(`${id}: the middle slide in view is highlighted, at rest and after Next`, async ({
+    page
+  }) => {
+    await page.goto(`/iframe.html?id=${id}&viewMode=story`);
+    const deck = page.getByRole('region', { name: 'Featured slides' });
+
+    await expect(
+      deck.getByRole('group', { name: focal[0], exact: true })
+    ).toHaveAttribute('data-focal');
+    await expect
+      .poll(() => middleAndHighlighted(page))
+      .toEqual({ middle: '2 of 6', highlighted: ['2 of 6'] });
+
+    await deck.getByRole('button', { name: 'Next' }).click();
+
+    await expect(deck).toHaveAttribute('data-index', '1');
+    await expect(
+      deck.getByRole('group', { name: focal[1], exact: true })
+    ).toHaveAttribute('data-focal');
+    await expect
+      .poll(() => middleAndHighlighted(page))
+      .toEqual({ middle: '3 of 6', highlighted: ['3 of 6'] });
+  });
+}
+
+test('the curve-size recipe leaves the arc room: no slide that shows is clipped', async ({
+  page
+}) => {
+  await page.goto('/iframe.html?id=recipes--curve-size&viewMode=story');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  await expect(deck.getByRole('group', { name: '1 of 6' })).toHaveAttribute(
+    'data-focal'
+  );
+  /** Per slide that shows, how far its card reaches past the viewport's top
+   * or bottom edge, to the nearest px; and the lowest card's bottom edge
+   * against the viewport's. */
+  const overflow = () =>
+    deck.locator('[data-slidedeck-slide]').evaluateAll((slides) => {
+      const v = slides[0]
+        .closest('[data-slidedeck-viewport]')!
+        .getBoundingClientRect();
+      const shown = slides.filter(
+        (slide) => Number(getComputedStyle(slide).opacity) > 0
+      );
+      const cards = shown.map((slide) =>
+        slide.firstElementChild!.getBoundingClientRect()
+      );
+      return {
+        clipped: cards.map((c) =>
+          Math.max(
+            0,
+            Math.round(v.top - c.top),
+            Math.round(c.bottom - v.bottom)
+          )
+        ),
+        lowest: Math.max(...cards.map((c) => Math.round(c.bottom - v.bottom)))
+      };
+    });
+
+  // At the first slide, it and the two after it show, on the arc.
+  await expect.poll(overflow).toMatchObject({ clipped: [0, 0, 0] });
+  // The arc comes near the edge: the room is not far more than it needs.
+  expect((await overflow()).lowest).toBeGreaterThan(-10);
+
+  await deck.getByRole('button', { name: 'Next' }).click();
+  await expect(deck).toHaveAttribute('data-index', '1');
+  await expect.poll(overflow).toMatchObject({ clipped: [0, 0, 0, 0] });
+
+  await deck.getByRole('button', { name: 'Next' }).click();
+  await expect(deck).toHaveAttribute('data-index', '2');
+  await expect.poll(overflow).toMatchObject({ clipped: [0, 0, 0, 0, 0] });
 });

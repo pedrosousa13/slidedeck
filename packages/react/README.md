@@ -23,7 +23,7 @@ primitives that work with no stylesheet, and style it with plain CSS.
 - [Server rendering](#server-rendering)
 - [Accessibility](#accessibility)
 - [Known limits](#known-limits)
-- [Recipe: play a playdeck video in the focal slide](#recipe-play-a-playdeck-video-in-the-focal-slide)
+- [Recipes](#recipes)
 - [Comparison with Embla and Keen](#comparison-with-embla-and-keen)
 
 ## Install
@@ -126,7 +126,8 @@ theirs agree. The hook never re-renders while the deck scrolls. It re-renders
 whenever `Deck.Root` does: when the deck settles somewhere new, when the
 number of snap points changes and, on a deck with `autoplay`, when autoplay
 starts, stops, or pauses for a pointer or a hidden tab. Called outside a
-`Deck.Root`, it throws.
+`Deck.Root`, it throws. For a full set, with a button per page, see
+[custom controls and a counter](#recipe-custom-controls-and-a-counter).
 
 ```tsx
 import type { ReactNode } from 'react';
@@ -203,6 +204,10 @@ Media queries and container queries work as they do for anything else, and
 the deck re-reads its snap points when the viewport resizes. The structural
 styles a deck needs, such as the scroll container and its snap type, are set
 inline on the primitives; your `style` prop is spread after them.
+
+Centred slides rest with the first slide at the start edge, as the viewport
+cannot scroll before it. To centre the first and last slides too, see
+[centre the first and last slide](#recipe-centre-the-first-and-last-slide).
 
 ## The index: controlled, uncontrolled and the handle
 
@@ -282,6 +287,11 @@ about. With one slide in view it is the current slide; with several in view,
 centred, it is the middle one. It carries `data-focal`, and `onFocalChange`
 reports it. The current slide, the first slide resting at the current snap
 point, carries `data-current`.
+
+The focal slide is defined by the alignment point, not by which slides are in
+view: with several in view at the start, it is the first of them. To highlight
+the middle one, see
+[highlight the middle slide in view](#recipe-highlight-the-middle-slide-in-view).
 
 With `clickToFocus`, clicking a slide brings it to the focal position, as near
 as the scroll range allows. A click that ends a mouse drag does not, nor does
@@ -482,6 +492,8 @@ that fills it, styled as the slide is seen. The radius, in slides, is
 `--deck-curve-radius` (default 4), set in CSS on the viewport. Each curve slide
 has `contain: layout`, so a `position: fixed` element inside it is placed
 against the slide. Under reduced motion the content stays flat and only fades.
+To turn a radius in pixels into slides and leave the arc room in the
+viewport, see [size a curve](#recipe-size-a-curve).
 
 Both effects' styles are zero-specificity rules on `--deck-slide-progress`, so
 your CSS overrides any of them.
@@ -599,6 +611,238 @@ through Prev, Next, Dots and the arrow keys.
   size points the same index at different slides.
 - **Touch flicks across a loop's seam are not covered by automated tests**;
   they are checked by hand on a phone and a trackpad.
+
+## Recipes
+
+Common setups that are CSS or a little of your own code, not options. Each
+runs in a story under Recipes in this repo's storybook, and each block below
+marked as a story's file must match it byte for byte. In the CSS, `.products`
+and `.showcase` are classes on `Deck.Root`.
+
+- [Centre the first and last slide](#recipe-centre-the-first-and-last-slide)
+- [Highlight the middle slide in view](#recipe-highlight-the-middle-slide-in-view)
+- [Size a curve](#recipe-size-a-curve)
+- [Custom controls and a counter](#recipe-custom-controls-and-a-counter)
+- [Play a playdeck video in the focal slide](#recipe-play-a-playdeck-video-in-the-focal-slide)
+
+## Recipe: centre the first and last slide
+
+With `scroll-snap-align: center`, the first slide cannot reach the centre of
+the viewport, which cannot scroll before the slide's start: the deck rests
+with the first slide at the start edge, and the slide nearest the centre is
+focal. The last slide is the same at the end. Without `loop`, pad the viewport
+at each end by half its width less half a slide, so the scroll range runs far
+enough:
+
+<!-- example: apps/storybook/stories/recipes/centred-ends.css -->
+
+```css
+/* Slides 280px wide, 16px apart, each centred, the first and last too. */
+.products {
+  --slide-width: 280px;
+}
+.products [data-slidedeck-viewport] {
+  gap: 16px;
+  /* Half the viewport less half a slide, at each end. */
+  padding-inline: calc(50% - var(--slide-width) / 2);
+}
+.products [data-slidedeck-slide] {
+  width: var(--slide-width);
+  scroll-snap-align: center;
+}
+```
+
+Give the slides a width that is not a percentage, such as `px`, `rem` or `vw`:
+the padding's percentage is of the deck's width, and a slide's is of the
+viewport's content box, which the padding narrows. With `loop`, the copies
+either side already let the first and last slides reach the centre.
+
+The story is `Recipes / Centred Ends`. An end-to-end test checks that the deck
+rests with the first slide centred, and the last after a move to it.
+
+## Recipe: highlight the middle slide in view
+
+The focal slide is the slide at the snap alignment point (see
+[Focal slide](#focal-slide)), not the middle of the slides in view. With the
+default `scroll-snap-align: start`, it is the first slide in view. There are
+two ways to highlight the middle one, here of three in view. Both outline it
+rather than dim the others, which would lower their text's contrast.
+
+**Centre the slides.** The alignment point is then the centre, so the focal
+slide is the middle one: style `[data-focal]`. `onFocalChange` and
+`clickToFocus` then follow the middle slide too.
+
+<!-- example: apps/storybook/stories/recipes/middle-centred.css -->
+
+```css
+/* Three slides in view, centred: the focal slide is the middle one. */
+.products [data-slidedeck-viewport] {
+  gap: 16px;
+}
+.products [data-slidedeck-slide] {
+  width: calc((100% - 2 * 16px) / 3);
+  scroll-snap-align: center;
+}
+.products [data-slidedeck-slide][data-focal] {
+  outline: 3px solid #335;
+  outline-offset: -3px;
+}
+```
+
+At the ends, the middle slide is the second and the second to last; add the
+padding of [centre the first and last slide](#recipe-centre-the-first-and-last-slide)
+to let the first and last slides reach the middle.
+
+**Keep the slides at the start and style by progress.** The focal slide stays
+the first in view, at progress 0, so the middle of three is at progress 1, and
+of `n` in view at `(n - 1) / 2`. Progress changes every frame, so the
+highlight moves with the scroll, where `[data-focal]` changes when the deck
+settles.
+
+<!-- example: apps/storybook/stories/recipes/middle-by-progress.css -->
+
+```css
+/* Three slides in view, at the start: the focal slide is the first in view,
+   at progress 0, and the middle one is at progress 1. */
+.products [data-slidedeck-viewport] {
+  gap: 16px;
+}
+.products [data-slidedeck-slide] {
+  width: calc((100% - 2 * 16px) / 3);
+  /* Slides from the middle, at most 1. abs() spelled with max() for older
+     browsers. */
+  --from-middle: min(
+    max(var(--deck-slide-progress, 0) - 1, 1 - var(--deck-slide-progress, 0)),
+    1
+  );
+  outline: 3px solid rgb(51 51 85 / calc(1 - var(--from-middle)));
+  outline-offset: -3px;
+}
+```
+
+The stories are `Recipes / Middle Centred` and `Recipes / Middle By Progress`.
+End-to-end tests check that the slide nearest the viewport's centre is the one
+highlighted, at rest and after Next.
+
+## Recipe: size a curve
+
+`--deck-curve-radius` is in slides, not pixels, where a slide is the step from
+one slide to the next: its width plus the gap. To turn a radius in pixels into
+slides, divide it by that step: 528px under slides 160px wide and 16px apart
+is `528 / (160 + 16)`, 3 slides. CSS cannot divide one length by another in
+every browser, so write the number.
+
+The arc extends past the slides, and the viewport clips it across the axis, so
+leave it room inside the viewport: padding at the block end. With a radius of
+`r` slides, the content of a slide `k` slides from the focal one, `w` wide and
+`h` tall, drops `w × (r − √(r² − k²))` and, turned by `asin(k / r)`, reaches
+`(w × k / r + h × √(r² − k²) / r − h) / 2` further. Leave room for the
+furthest slide that shows: one `r` or more slides away has turned a quarter
+and faded out. Below, `r` is 3, so the furthest slides that show are 2 away:
+they drop 122px and turning adds 28px, so the arc needs 150px. Mid-move,
+content also lifts a little above its place, at most about `w / (8 × r)`. A
+vertical deck's arc bends toward the inline end: leave the room there, with
+`w` and `h` swapped.
+
+<!-- example: apps/storybook/stories/recipes/curve-size.css -->
+
+```css
+/* An arc of radius 528px under slides 160px wide and 16px apart:
+   528 / (160 + 16) = 3 slides. */
+.showcase [data-slidedeck-viewport] {
+  --deck-curve-radius: 3;
+  gap: 16px;
+  /* The first and last slides centred too. */
+  padding-inline: calc(50% - 80px);
+  /* Room for the arc: 150px for the slides 2 away, rounded up. */
+  padding-block-end: 152px;
+}
+.showcase [data-slidedeck-slide] {
+  width: 160px;
+  scroll-snap-align: center;
+}
+.showcase .card {
+  height: 200px;
+}
+```
+
+Each slide holds one `.card` that fills it, as the curve draws on a slide's
+content. The story is `Recipes / Curve Size`. An end-to-end test checks that
+no slide that shows reaches past the viewport, at rest and after moves.
+
+## Recipe: custom controls and a counter
+
+`Deck.useDeck()` (see [Hooks](#hooks)) gives your own components what the
+built-in controls read. Here Previous, Next, a button per page and a counter
+are built from a design system's button, whose API is not a native button's:
+
+<!-- example: apps/storybook/stories/recipes/custom-controls.tsx -->
+
+```tsx
+import * as Deck from '@slidedeck/react';
+// Your design system's button.
+import { Button } from './design-system';
+
+/** Previous, Next, a button per page and a counter, from your own button. */
+function Controls() {
+  const { index, count, fits, canPrev, canNext, prev, next, scrollTo } =
+    Deck.useDeck();
+  // Every slide fits: there is nowhere to go.
+  if (fits) return null;
+  return (
+    <div className="controls">
+      <Button isDisabled={!canPrev} onPress={prev}>
+        Previous
+      </Button>
+      {/* Pages, as Deck.Dots: none until the deck is measured. */}
+      <div role="group" aria-label="Choose page">
+        {Array.from({ length: count ?? 0 }, (_, page) => (
+          <Button
+            key={page}
+            aria-label={`Go to page ${page + 1}`}
+            aria-current={page === index ? 'true' : undefined}
+            onPress={() => scrollTo(page)}
+          >
+            {page + 1}
+          </Button>
+        ))}
+      </div>
+      <span>{count !== null && `${index + 1} / ${count}`}</span>
+      <Button isDisabled={!canNext} onPress={next}>
+        Next
+      </Button>
+    </div>
+  );
+}
+
+export function Products() {
+  return (
+    <Deck.Root aria-label="Featured slides">
+      <Deck.Viewport>
+        <Deck.Slide>One</Deck.Slide>
+        <Deck.Slide>Two</Deck.Slide>
+        <Deck.Slide>Three</Deck.Slide>
+        <Deck.Slide>Four</Deck.Slide>
+      </Deck.Viewport>
+      <Controls />
+    </Deck.Root>
+  );
+}
+```
+
+They do what the built-in controls do:
+
+- They render nothing when every slide fits.
+- Previous and Next are disabled at the ends, unless the deck loops.
+- The page buttons are a group labelled "Choose page", the current page's
+  marked `aria-current`, as `Deck.Dots`. There are none until the deck is
+  measured: `count` is `null` on the server.
+- `Deck.Root`'s live region still announces the slide the deck moves to, so
+  the counter needs no live region of its own.
+- A move stops autoplay, as the built-in controls' does.
+
+The story is `Recipes / Custom Controls`, where `./design-system` is a
+stand-in.
 
 ## Recipe: play a playdeck video in the focal slide
 
