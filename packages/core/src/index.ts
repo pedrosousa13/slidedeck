@@ -82,7 +82,7 @@ export interface DeckEngine {
  * frame while the viewport scrolls and whenever it settles, never through
  * `onChange` (ADR-0003):
  *
- * - `--deck-progress`: the slide's progress, its signed distance from the
+ * - `--deck-slide-progress`: the slide's progress, its signed distance from the
  *   focal position in slides. 0 at the focal position, -1 one slide before
  *   it, 2.25 two and a quarter slides after it, the way the deck runs, so a
  *   vertical or right-to-left deck reads the same. The focal position is the
@@ -710,7 +710,7 @@ const SCROLL_KEYS = new Set([
   ' '
 ]);
 
-const PROGRESS = '--deck-progress';
+const PROGRESS = '--deck-slide-progress';
 /** Marks a viewport child as a snap target rather than a slide. */
 export const SNAP_TARGET = 'data-slidedeck-snap-target';
 /** Marks a viewport child as a loop's copy of a slide rather than a slide:

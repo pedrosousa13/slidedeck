@@ -1,7 +1,7 @@
 # Curve draws on the slides' content, in contained slides
 
 Curve leaves the slides in the deck's flow, untransformed, and draws the arc
-on their content with CSS on `--deck-progress`: each slide's children turn
+on their content with CSS on `--deck-slide-progress`: each slide's children turn
 about their centre and drop across the axis onto a circle, and the slide
 fades. The slide boxes are where the flow put them, so the engine and the
 browser measure and snap exactly as without the curve, with the consumer's

@@ -305,8 +305,8 @@ read it while the deck scrolls:
 
 | Where                 | Attribute or property        | Meaning                                                                                                                      |
 | --------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Each slide            | `--deck-progress`            | Signed distance from the focal position, in slides: 0 there, -1 one slide before, 2.25 two and a quarter after. Every frame. |
-| Each slide            | `--deck-index`               | The slide's index. Static, so server HTML has it.                                                                            |
+| Each slide            | `--deck-slide-progress`      | Signed distance from the focal position, in slides: 0 there, -1 one slide before, 2.25 two and a quarter after. Every frame. |
+| Each slide            | `--deck-slide-index`         | The slide's index. Static, so server HTML has it.                                                                            |
 | Each slide            | `data-in-view`               | Any part of the slide is in the viewport. Hides nothing.                                                                     |
 | Each slide            | `data-focal`                 | The focal slide.                                                                                                             |
 | Each slide            | `data-current`               | The current slide.                                                                                                           |
@@ -335,7 +335,12 @@ is measured from:
 .products [data-slidedeck-slide] {
   /* abs() spelled with max() for older browsers. */
   scale: calc(
-    1 - min(max(var(--deck-progress, 0), -1 * var(--deck-progress, 0)), 1) * 0.2
+    1 -
+      min(
+        max(var(--deck-slide-progress, 0), -1 * var(--deck-slide-progress, 0)),
+        1
+      ) *
+      0.2
   );
   transform-origin: center;
 }
@@ -392,8 +397,8 @@ that fills it, styled as the slide is seen. The radius, in slides, is
 has `contain: layout`, so a `position: fixed` element inside it is placed
 against the slide. Under reduced motion the content stays flat and only fades.
 
-Both effects' styles are zero-specificity rules on `--deck-progress`, so your
-CSS overrides any of them.
+Both effects' styles are zero-specificity rules on `--deck-slide-progress`, so
+your CSS overrides any of them.
 
 ## Theme
 
@@ -629,7 +634,7 @@ pinned installs, and CI fails if this table is stale.
 
 | Library                | Version   | Min+gzip | Native scroll                                    | Accessibility out of the box                                                                                                           | API shape                                                                                          |
 | ---------------------- | --------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `@slidedeck/react`     | this repo | 6.62 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
+| `@slidedeck/react`     | this repo | 6.63 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
 | `embla-carousel-react` | 8.6.0     | 7.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels or controls; scrolls a focused slide into view                                                                        | A hook returning a ref and an API object; markup and controls are yours                            |
 | `keen-slider`          | 6.8.6     | 6.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels, controls or keyboard handling                                                                                        | A hook returning a ref and an instance, plus a required stylesheet; markup and controls are yours  |
 

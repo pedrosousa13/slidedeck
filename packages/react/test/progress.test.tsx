@@ -15,8 +15,8 @@ import {
 } from './fixtures';
 
 // Progress (CONTEXT.md): each slide's signed distance from the focal
-// position, in slides, written to the DOM as `--deck-progress`, never React
-// state (ADR-0003). In-view: `data-in-view` on each slide the viewport shows.
+// position, in slides, written to the DOM as `--deck-slide-progress`, never
+// React state (ADR-0003). In-view: `data-in-view` on each slide the viewport shows.
 
 const HEIGHT = 200;
 
@@ -82,7 +82,7 @@ const closeTo = (values: number[]) =>
 // With `CENTRED`, three and a half slides in view: at scroll 0 the centre
 // falls a quarter of a slide past slide 1's centre.
 
-describe('--deck-progress', () => {
+describe('--deck-slide-progress', () => {
   test('is each slide’s distance from the focal slide, in slides, before the first paint', () => {
     const { progress } = renderDeck();
 
@@ -165,7 +165,7 @@ describe('--deck-progress', () => {
   });
 });
 
-describe('--deck-index', () => {
+describe('--deck-slide-index', () => {
   test('is each slide’s index, in the server HTML', () => {
     const html = renderToString(<ProgressDeck slides={3} />);
     const container = document.createElement('div');
@@ -173,7 +173,7 @@ describe('--deck-index', () => {
 
     expect(
       [...viewportOf(container).children].map((slide) =>
-        (slide as HTMLElement).style.getPropertyValue('--deck-index')
+        (slide as HTMLElement).style.getPropertyValue('--deck-slide-index')
       )
     ).toEqual(['0', '1', '2']);
   });
@@ -188,7 +188,7 @@ describe('--deck-index', () => {
     );
     const slide = screen.getByRole('group', { name: '1 of 1' });
 
-    expect(slide.style.getPropertyValue('--deck-index')).toBe('0');
+    expect(slide.style.getPropertyValue('--deck-slide-index')).toBe('0');
     expect(slide.style.color).toBe('red');
   });
 });

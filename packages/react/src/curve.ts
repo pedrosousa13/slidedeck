@@ -1,8 +1,9 @@
 import type { Effect } from './index.js';
 
-// Slides of the curve deck, the progress of each, from `--deck-progress`, or
-// before the engine has written it, as in server HTML, 0: flat. The curve is
-// drawn on a slide's content, its children: the slide box stays in place.
+// Slides of the curve deck, the progress of each, from
+// `--deck-slide-progress`, or before the engine has written it, as in server
+// HTML, 0: flat. The curve is drawn on a slide's content, its children: the
+// slide box stays in place.
 const slide = '[data-slidedeck-effect=curve]>[data-slidedeck-slide]';
 const content = `${slide}>*`;
 const p = 'var(--slidedeck-curve-progress)';
@@ -25,7 +26,7 @@ const MIN_RADIUS = 0.001;
 
 const css =
   `:where(${slide}){` +
-  '--slidedeck-curve-progress:var(--deck-progress,0);' +
+  '--slidedeck-curve-progress:var(--deck-slide-progress,0);' +
   `--slidedeck-curve-radius:max(var(--deck-curve-radius,${RADIUS}),${MIN_RADIUS});` +
   `--slidedeck-curve-x:clamp(-1,${p}/${r},1);` +
   `--slidedeck-curve-turn:asin(${x});` +

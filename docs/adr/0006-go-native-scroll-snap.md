@@ -99,7 +99,7 @@ own end, if one comes, with one more `onIndexChange`.
 
 **Fade: sticky stack.** Slides are stacked with `position: sticky`, opacity
 is set from a scroll listener, and non-focal slides are `inert`. As built,
-opacity is CSS on `--deck-progress` (ADR-0007). CSS view
+opacity is CSS on `--deck-slide-progress` (ADR-0007). CSS view
 timelines were rejected for now: Firefox 155 does not support them, and in
 Chromium 153 RTL every opacity was 0.
 
