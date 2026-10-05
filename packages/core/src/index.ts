@@ -330,9 +330,12 @@ export function createDeck(
   // The user's scroll ends a move without a settle: the scroll in flight
   // ends as the user's, and nothing the engine asked for resumes. A wheel,
   // a key that scrolls, a touch or pen pan, which the browser takes over
-  // with `pointercancel`, and a mouse drag (below). A click or typing
-  // scrolls nothing and leaves the move going; focus entering a slide
-  // scrolls it into view, and the deck goes on to it (below).
+  // with `pointercancel`, and a mouse drag (below). Focus entering a slide
+  // scrolls it into view, so it is the user's scroll too, and the deck goes
+  // on to it (below). Input that scrolls nothing leaves the move going: a
+  // click, even one that focuses a control in another slide, Enter, a key
+  // in a text field or one the page has prevented, Tab out of a slide, and
+  // focus within a slide or on the viewport (ADR-0006).
   const onWheel = () => endMove();
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || !SCROLL_KEYS.has(event.key)) return;
@@ -353,38 +356,47 @@ export function createDeck(
     onPointerUp(event);
   };
   // Focus entering a slide from outside it, as Tab does, scrolls the slide
-  // into view: the user's scroll too, and it stops the move's scroll where
-  // it is (#43). Focus wins: the move is replaced by one to the snap point
-  // of the focused slide's page, so the deck rests with the focus in view.
-  // The browser scrolls the focus into view after this event, and Chromium
-  // ignores a smooth scroll asked for until a frame after that, to the
-  // stopped scroll's target above all: the new move scrolls two frames on.
-  // Its target is set now, so the end of the stopped scroll is a late one.
-  // Focus within a slide, or on the viewport, leaves the move going.
+  // into view, stopping the move's scroll where it is. Focus wins
+  // (ADR-0006): the move is replaced by one to the snap point of the focused
+  // slide's page, so the deck rests with the focus in view. The browser
+  // scrolls the focus into view after this event, and Chromium ignores a
+  // smooth scroll asked for until a frame after that, to the stopped
+  // scroll's target above all: the new move scrolls two frames on. Its
+  // target is set now, so the end of the stopped scroll is a late one. A
+  // pointer pressed on the viewport, as a mouse pressing a control in a
+  // slide, is a click: it leaves the move going.
   let focusFrame = 0;
   const onFocusIn = (event: FocusEvent) => {
-    if (!move) return;
+    if (!move || pressed.size > 0) return;
     let slide = event.target instanceof Element ? event.target : null;
     while (slide && slide.parentElement !== viewport) {
       slide = slide.parentElement;
     }
     const from = event.relatedTarget;
     if (!slide || (from instanceof Node && slide.contains(from))) return;
-    const index = slidesOf(viewport).slides.indexOf(slide);
+    const { slides: own, boxes, first } = slidesOf(viewport);
+    const index = own.indexOf(slide);
     if (index === -1) return;
     const along = axis();
-    const { slides } = snapPoints(viewport, along);
-    const owner = pageOwner(viewport, along, slides, index);
-    if (owner === -1) {
-      endMove();
-      return;
-    }
-    startMove(slides[owner]);
+    const geometry = snapPoints(viewport, along);
+    const owner = pageOwner(viewport, along, geometry.slides, index);
+    // A slide in no page, as one before the first snap point where the
+    // slides snap to their start, goes to the snap point nearest its start,
+    // so the deck still rests on a snap point.
+    const target =
+      owner === -1
+        ? indexAt(
+            geometry,
+            along.position +
+              alignOffset(along, along.view(), boxes[first + index], 'start')
+          )
+        : geometry.slides[owner];
+    startMove(target);
     const focused = move;
     cancelAnimationFrame(focusFrame);
     focusFrame = requestAnimationFrame(() => {
       focusFrame = requestAnimationFrame(() => {
-        if (move === focused) scrollTo(slides[owner]);
+        if (move === focused) scrollTo(target);
       });
     });
   };

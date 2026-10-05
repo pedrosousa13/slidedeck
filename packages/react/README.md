@@ -464,7 +464,7 @@ What a deck does with no extra work:
   it is off while autoplay rotates the deck.
 - No slide is hidden or `inert` for being off-screen. Tabbing into an
   off-screen slide scrolls it into view natively, and snap settles it; during
-  a move, the deck goes to that slide instead.
+  a move, the deck goes to the snap point of that slide's page instead.
 - The viewport is focusable, so the arrow keys, Page Up, Page Down, Home and
   End scroll it.
 - Loop copies are `inert` and `aria-hidden`: never focused, never announced.
@@ -623,7 +623,7 @@ pinned installs, and CI fails if this table is stale.
 
 | Library                | Version   | Min+gzip | Native scroll                                    | Accessibility out of the box                                                                                                           | API shape                                                                                          |
 | ---------------------- | --------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `@slidedeck/react`     | this repo | 6.77 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
+| `@slidedeck/react`     | this repo | 6.83 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
 | `embla-carousel-react` | 8.6.0     | 7.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels or controls; scrolls a focused slide into view                                                                        | A hook returning a ref and an API object; markup and controls are yours                            |
 | `keen-slider`          | 6.8.6     | 6.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels, controls or keyboard handling                                                                                        | A hook returning a ref and an instance, plus a required stylesheet; markup and controls are yours  |
 

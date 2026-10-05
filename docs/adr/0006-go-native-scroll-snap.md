@@ -65,19 +65,25 @@ event cannot say which move it ends. The events, and what each does:
   the engine is idle again, without a settle, and quiet stops where
   `scrollend` is there. The user's scroll settles at its own end, and
   nothing the engine asked for resumes. Input that scrolls nothing leaves
-  the move going: a click, Enter, Tab out of a slide, or a key in a text
-  field, or one the page has prevented. A drag's release is a new move.
+  the move going: a click, even one that focuses a control in another
+  slide, Enter, a key in a text field or one the page has prevented, Tab
+  out of a slide, and focus within a slide or on the viewport. A drag's
+  release is a new move.
 - _Focus entering a slide_ from outside it, as Tab does (amended for #43):
-  the browser scrolls the slide into view, stopping the move's scroll, so
-  this is the user's scroll too, and focus wins. The move is replaced by one
-  to the snap point of the focused slide's page, a slide, never a copy, so
-  the deck rests with the focus in view and announces it as the user's move.
-  Its target is set at once, so the stopped scroll's end is a late one, but
-  its scroll starts two frames on: measured in Chromium, a smooth scroll
-  asked for in the frame of the focus scroll, or the next, is ignored,
-  above all one to the stopped scroll's own target. Focus within a slide,
-  or with no move in flight, changes nothing: the browser's focus scroll
-  ends as any user scroll does.
+  the browser scrolls the slide into view and stops the move's scroll. Like
+  the user's scroll, this ends the move, and focus wins: a new move replaces
+  it, to the snap point of the focused slide's page. That is a slide, never
+  a copy, so the deck rests with the focus in view, and Root announces the
+  settle as the user's move. A slide in no page, as one before the first
+  snap point where the slides snap to their start, goes to the snap point
+  nearest its start, so the deck still rests on a snap point. The new
+  move's target is set at once, so the stopped scroll's end is a late one,
+  but its scroll starts two frames on: measured in Chromium, a smooth
+  scroll asked for in the frame of the focus scroll, or the next, is
+  ignored, above all one to the stopped scroll's own target. Focus while a
+  pointer is pressed on the viewport, as a mouse pressing a control, is a
+  click and leaves the move going. With no move in flight, focus changes
+  nothing: the browser's focus scroll ends as any user scroll does.
 - _A pointer held on the viewport_: an end does not settle until the last
   pointer lets go, so the deck never jumps off a copy under a finger or the
   mouse. A scroll after the end, as a touch pan, settles at its own end. A

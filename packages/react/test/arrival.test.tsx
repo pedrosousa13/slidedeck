@@ -535,6 +535,10 @@ describe('focus entering a slide during a move', () => {
   // which is the user's scroll, so it ends the move. The deck then rests on
   // the snap point of the focused slide's page, with the focused element in
   // view, and reports and announces that page.
+  //
+  // Focus can enter at any time during a move, not only as it arrives, so
+  // each test moves focus at each of these delays after the press, from
+  // just after the scroll starts to about when it arrives.
   const FOCUS_DELAYS = [20, 60, 120, 200, 260];
 
   /** At every delay into a press of Next, moves focus with `focus`: the deck
@@ -545,9 +549,9 @@ describe('focus entering a slide during a move', () => {
     focus: () => unknown,
     focused: string,
     expected: number,
-    pageSize = 1
+    { pageSize = 1, delays = FOCUS_DELAYS } = {}
   ) {
-    for (const delay of FOCUS_DELAYS) {
+    for (const delay of delays) {
       const onIndexChange = vi.fn();
       const { unmount } = render(
         <TestDeck
@@ -687,11 +691,65 @@ describe('focus entering a slide during a move', () => {
         focusOn('Button 8'),
         'Button 8',
         2,
-        3
+        { pageSize: 3 }
       );
     },
     SWEEP_MS
   );
+
+  test('focus into a slide in no page rests on the snap point nearest it', async () => {
+    // Only every third slide from the second snaps, to its start: the first
+    // slide is in no page.
+    addStyle(`
+      .offset > * { width: calc(100% / 3); }
+      .offset > [data-slidedeck-slide]:nth-child(3n + 2) {
+        scroll-snap-align: start;
+      }
+      .offset > [data-slidedeck-slide]:not(:nth-child(3n + 2)) {
+        scroll-snap-align: none;
+      }
+    `);
+    const onIndexChange = vi.fn();
+    render(
+      <TestDeck
+        slides={10}
+        viewportClassName="offset"
+        onIndexChange={onIndexChange}
+      />
+    );
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+
+    screen.getByRole('button', { name: 'Next' }).click();
+    await sleep(60);
+    screen.getByRole('button', { name: 'Button 1' }).focus();
+
+    await expectRestOnASlide(viewport, root, onIndexChange, 3);
+    expect(root.dataset.index).toBe('0');
+    expect(viewport.scrollLeft).toBe(WIDTH / 3);
+  });
+
+  test('a mouse press on a button in another slide is a click: the move goes on', async () => {
+    const onIndexChange = vi.fn();
+    render(<TestDeck defaultIndex={1} onIndexChange={onIndexChange} />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+    const button = screen.getByRole('button', { name: 'Button 2' });
+
+    screen.getByRole('button', { name: 'Next' }).click();
+    await sleep(30);
+    // On the part of the button the move has not yet taken out of view.
+    const box = button.getBoundingClientRect();
+    const view = viewport.getBoundingClientRect();
+    const x = (Math.max(box.left, view.left) + box.right) / 2;
+    const y = (box.top + box.bottom) / 2;
+    await mouseAt('mousePressed', x, y, 1);
+    await mouseAt('mouseReleased', x, y, 0);
+
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(document.activeElement).toBe(button);
+    expect(root.dataset.index).toBe('2');
+  });
 
   describe('in an engine without scrollend', () => {
     withoutScrollEnd();
