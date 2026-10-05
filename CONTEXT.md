@@ -120,7 +120,8 @@ _Avoid_: autoscroll, slideshow
 **Move**:
 A scroll slidedeck starts toward a snap point: Prev, Next, a dot, `scrollTo`,
 a new controlled `index`, a drag's release. A new move replaces the one in
-flight; the user's own scroll ends it (ADR-0006).
+flight; the user's own scroll ends it, and focus entering a slide replaces
+it (ADR-0006).
 _Avoid_: animation, transition
 
 **Arrive**:

@@ -447,6 +447,19 @@ export function Root({
         // again (APG carousel); focus on the toggle itself does not.
         onFocus={(event) => {
           onFocus?.(event);
+          // Focus entering a slide from outside it mid-move takes the move
+          // over (ADR-0006), so its settle is announced.
+          let slide = event.target as Element | null;
+          while (slide && slide.parentElement !== viewportRef.current) {
+            slide = slide.parentElement;
+          }
+          if (
+            slide &&
+            !slide.contains(event.relatedTarget as Node | null) &&
+            engineRef.current?.target() != null
+          ) {
+            takeOver();
+          }
           if (
             autoplaying &&
             !(event.target as Element).closest(

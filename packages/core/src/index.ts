@@ -330,8 +330,14 @@ export function createDeck(
   // The user's scroll ends a move without a settle: the scroll in flight
   // ends as the user's, and nothing the engine asked for resumes. A wheel,
   // a key that scrolls, a touch or pen pan, which the browser takes over
-  // with `pointercancel`, and a mouse drag (below). A click, typing or Tab
-  // scrolls nothing and leaves the move going.
+  // with `pointercancel`, and a mouse drag (below). Focus entering a slide
+  // scrolls it into view, so it is the user's scroll too, and the deck goes
+  // on to it (below). Input that scrolls nothing leaves the move going: a
+  // click, even one that focuses a control in another slide, Enter, and a
+  // key in a text field or one the page has prevented. Focus within a slide
+  // or on the viewport, as Tab out of a slide gives, is meant to leave it
+  // going too, but in Chromium it stops the move short of its snap point
+  // (ADR-0006).
   const onWheel = () => endMove();
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || !SCROLL_KEYS.has(event.key)) return;
@@ -350,6 +356,51 @@ export function createDeck(
   const onPointerCancel = (event: PointerEvent) => {
     if (event.pointerType !== 'mouse') endMove();
     onPointerUp(event);
+  };
+  // Focus entering a slide from outside it, as Tab does, scrolls the slide
+  // into view, stopping the move's scroll where it is. Focus wins
+  // (ADR-0006): the move is replaced by one to the snap point of the focused
+  // slide's page, so the deck rests with the focus in view. The browser
+  // scrolls the focus into view after this event, and Chromium ignores a
+  // smooth scroll asked for until a frame after that, to the stopped
+  // scroll's target above all: the new move scrolls two frames on. Its
+  // target is set now, so the end of the stopped scroll is a late one. A
+  // pointer pressed on the viewport, as a mouse pressing a control in a
+  // slide, is a click: it leaves the move going.
+  let focusFrame = 0;
+  const onFocusIn = (event: FocusEvent) => {
+    if (!move || pressed.size > 0) return;
+    let slide = event.target instanceof Element ? event.target : null;
+    while (slide && slide.parentElement !== viewport) {
+      slide = slide.parentElement;
+    }
+    const from = event.relatedTarget;
+    if (!slide || (from instanceof Node && slide.contains(from))) return;
+    const { slides: own, boxes, first } = slidesOf(viewport);
+    const index = own.indexOf(slide);
+    if (index === -1) return;
+    const along = axis();
+    const geometry = snapPoints(viewport, along);
+    const owner = pageOwner(viewport, along, geometry.slides, index);
+    // A slide in no page, as one before the first snap point where the
+    // slides snap to their start, goes to the snap point nearest its start,
+    // so the deck still rests on a snap point.
+    const target =
+      owner === -1
+        ? indexAt(
+            geometry,
+            along.position +
+              alignOffset(along, along.view(), boxes[first + index], 'start')
+          )
+        : geometry.slides[owner];
+    startMove(target);
+    const focused = move;
+    cancelAnimationFrame(focusFrame);
+    focusFrame = requestAnimationFrame(() => {
+      focusFrame = requestAnimationFrame(() => {
+        if (move === focused) scrollTo(target);
+      });
+    });
   };
 
   const refresh = () => {
@@ -430,6 +481,7 @@ export function createDeck(
   viewport.addEventListener('scrollend', onEnd);
   viewport.addEventListener('wheel', onWheel, { passive: true });
   viewport.addEventListener('keydown', onKeyDown);
+  viewport.addEventListener('focusin', onFocusIn);
   // A resize can add or remove snap points without any scroll, and only
   // Chromium reports that through `scrollsnapchange`.
   const resizes = new ResizeObserver(refresh);
@@ -669,6 +721,7 @@ export function createDeck(
     destroy() {
       stopQuiet();
       cancelAnimationFrame(frame);
+      cancelAnimationFrame(focusFrame);
       for (const slide of slidesOf(viewport).run) {
         slide.removeAttribute(IN_VIEW);
         if (slide instanceof HTMLElement) slide.style.removeProperty(PROGRESS);
@@ -680,6 +733,7 @@ export function createDeck(
       viewport.removeEventListener('scrollend', onEnd);
       viewport.removeEventListener('wheel', onWheel);
       viewport.removeEventListener('keydown', onKeyDown);
+      viewport.removeEventListener('focusin', onFocusIn);
       viewport.removeEventListener('pointerdown', onPointerDown);
       viewport.removeEventListener('pointermove', onPointerMove);
       viewport.removeEventListener('pointerup', onPointerUp);

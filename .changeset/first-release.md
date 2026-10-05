@@ -17,5 +17,5 @@ The first release: a headless carousel for React 19 built on native CSS scroll s
 - **Effects**: `fade` from `@slidedeck/react/fade` and `curve` from `@slidedeck/react/curve`, each its own entry point, so a deck ships only the effects it imports.
 - **Theme**: an optional `@slidedeck/react/theme.css` for the controls, every rule in `:where()` and every value a custom property. The autoplay toggle is filled with the accent while playing, and a dot that is not current changes under a pointer.
 - **Server rendering**: the primitives render on the server, and the deck starts at `defaultIndex` with no layout shift.
-- **Accessibility**: a carousel region with labelled slides, native buttons, a polite live region, keyboard scrolling on the viewport, and reduced-motion handling throughout.
+- **Accessibility**: a carousel region with labelled slides, native buttons, a polite live region, keyboard scrolling on the viewport, focus moving into a slide bringing the deck to rest on that slide's page, even mid-move, and reduced-motion handling throughout.
 - **`@slidedeck/core`**: the framework-neutral engine the React package builds on.

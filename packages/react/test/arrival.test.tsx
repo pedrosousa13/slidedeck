@@ -432,8 +432,9 @@ describe("the user's own scroll as the deck arrives", () => {
 });
 
 describe('input that does not scroll, during a move', () => {
-  // Only the user's scroll ends a move: a click, typing or Tab in a slide
-  // leaves it going, so a second press still steps on from where it heads.
+  // Only the user's scroll ends a move: a click, typing or Tab out of a
+  // slide leaves it going, so a second press still steps on from where it
+  // heads. Focus entering a slide is the user's scroll (#43): see below.
   function WithInput() {
     return (
       <Deck.Root aria-label="Test deck" defaultIndex={1}>
@@ -526,6 +527,246 @@ describe('input that does not scroll, during a move', () => {
       userEvent.wheel(viewport, { delta: { x: -100 } })
     );
     expect(index).toBe(String(Number(from) + 1));
+  });
+});
+
+describe('focus entering a slide during a move', () => {
+  // Focus wins (#43): the browser scrolls a slide focus enters into view,
+  // which is the user's scroll, so it ends the move. The deck then rests on
+  // the snap point of the focused slide's page, with the focused element in
+  // view, and reports and announces that page.
+  //
+  // Focus can enter at any time during a move, not only as it arrives, so
+  // each test moves focus at each of these delays after the press, from
+  // just after the scroll starts to about when it arrives.
+  const FOCUS_DELAYS = [20, 60, 120, 200, 260];
+
+  /** At every delay into a press of Next, moves focus with `focus`: the deck
+   * must rest on the page `expected`, of `pageSize` slides, with the element
+   * labelled `focused` in view and focused. */
+  async function focusAtEveryDelay(
+    props: Parameters<typeof TestDeck>[0],
+    focus: () => unknown,
+    focused: string,
+    expected: number,
+    { pageSize = 1, delays = FOCUS_DELAYS } = {}
+  ) {
+    for (const delay of delays) {
+      const onIndexChange = vi.fn();
+      const { unmount } = render(
+        <TestDeck
+          onIndexChange={onIndexChange}
+          controls={
+            <>
+              <Deck.Dots />
+              <Deck.Counter />
+            </>
+          }
+          {...props}
+        />
+      );
+      const root = screen.getByRole('region', { name: 'Test deck' });
+      const viewport = viewportOf(root);
+
+      // Focused, as Next is once the user presses it.
+      const next = screen.getByRole('button', { name: 'Next' });
+      next.focus();
+      next.click();
+      await sleep(delay);
+      await focus();
+
+      await expectRestOnASlide(viewport, root, onIndexChange, pageSize);
+      const element = screen.getByRole('button', { name: focused });
+      const box = element.getBoundingClientRect();
+      const view = viewport.getBoundingClientRect();
+      const counter = root.querySelector('[data-slidedeck-counter]')!;
+      const count = counter.getAttribute('data-count');
+      expect({
+        delay,
+        index: root.dataset.index,
+        focused: document.activeElement === element,
+        inView: box.left >= view.left - 0.5 && box.right <= view.right + 0.5,
+        dot: root
+          .querySelector('[data-slidedeck-dots] [aria-current]')
+          ?.getAttribute('data-index'),
+        counter: counter.textContent,
+        announced: root.querySelector('[aria-live]')?.textContent
+      }).toEqual({
+        delay,
+        index: String(expected),
+        focused: true,
+        inView: true,
+        dot: String(expected),
+        counter: `${expected + 1} / ${count}`,
+        // A deck back where it started has not moved: nothing to announce.
+        announced:
+          expected === (props.defaultIndex ?? 0)
+            ? ''
+            : `Slide ${expected * pageSize + 1} of ${props.slides ?? 5}`
+      });
+      expect(
+        viewport.querySelector('[data-focal]')?.getAttribute('aria-label')
+      ).toBe(`${expected * pageSize + 1} of ${props.slides ?? 5}`);
+      unmount();
+    }
+  }
+
+  const focusOn = (name: string) => () =>
+    screen.getByRole('button', { name }).focus();
+
+  test(
+    'Shift+Tab from Next into the last slide',
+    async () => {
+      await focusAtEveryDelay(
+        {},
+        () => userEvent.keyboard('{Shift>}{Tab}{/Shift}'),
+        'Button 5',
+        4
+      );
+    },
+    SWEEP_MS
+  );
+
+  test(
+    'focus into the slide the move heads to',
+    async () => {
+      await focusAtEveryDelay({}, focusOn('Button 2'), 'Button 2', 1);
+    },
+    SWEEP_MS
+  );
+
+  test(
+    'focus into a slide past the one the move heads to',
+    async () => {
+      await focusAtEveryDelay({}, focusOn('Button 4'), 'Button 4', 3);
+    },
+    SWEEP_MS
+  );
+
+  test(
+    'focus back into the slide the move left',
+    async () => {
+      await focusAtEveryDelay(
+        { defaultIndex: 2 },
+        focusOn('Button 3'),
+        'Button 3',
+        2
+      );
+    },
+    SWEEP_MS
+  );
+
+  test(
+    'looping, focus into the first slide as Next crosses the seam onto its copy',
+    async () => {
+      await focusAtEveryDelay(
+        { loop: true, defaultIndex: 4 },
+        focusOn('Button 1'),
+        'Button 1',
+        0
+      );
+    },
+    SWEEP_MS
+  );
+
+  test(
+    'looping, focus into the last slide as Next crosses the seam',
+    async () => {
+      await focusAtEveryDelay(
+        { loop: true, defaultIndex: 4 },
+        focusOn('Button 4'),
+        'Button 4',
+        3
+      );
+    },
+    SWEEP_MS
+  );
+
+  test(
+    "pages of 3 over 10, focus into a slide rests on its page's snap point",
+    async () => {
+      addStyle(`${pagesOf(3)} .pages > * { width: calc(100% / 3); }`);
+      await focusAtEveryDelay(
+        { slides: 10, viewportClassName: 'pages' },
+        focusOn('Button 8'),
+        'Button 8',
+        2,
+        { pageSize: 3 }
+      );
+    },
+    SWEEP_MS
+  );
+
+  test('focus into a slide in no page rests on the snap point nearest it', async () => {
+    // Only every third slide from the second snaps, to its start: the first
+    // slide is in no page.
+    addStyle(`
+      .offset > * { width: calc(100% / 3); }
+      .offset > [data-slidedeck-slide]:nth-child(3n + 2) {
+        scroll-snap-align: start;
+      }
+      .offset > [data-slidedeck-slide]:not(:nth-child(3n + 2)) {
+        scroll-snap-align: none;
+      }
+    `);
+    const onIndexChange = vi.fn();
+    render(
+      <TestDeck
+        slides={10}
+        viewportClassName="offset"
+        onIndexChange={onIndexChange}
+      />
+    );
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+
+    screen.getByRole('button', { name: 'Next' }).click();
+    await sleep(60);
+    screen.getByRole('button', { name: 'Button 1' }).focus();
+
+    await expectRestOnASlide(viewport, root, onIndexChange, 3);
+    expect(root.dataset.index).toBe('0');
+    expect(viewport.scrollLeft).toBe(WIDTH / 3);
+  });
+
+  test('a mouse press on a button in another slide is a click: the move goes on', async () => {
+    const onIndexChange = vi.fn();
+    render(<TestDeck defaultIndex={1} onIndexChange={onIndexChange} />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+    const button = screen.getByRole('button', { name: 'Button 2' });
+
+    screen.getByRole('button', { name: 'Next' }).click();
+    await sleep(30);
+    // On the part of the button the move has not yet taken out of view.
+    const box = button.getBoundingClientRect();
+    const view = viewport.getBoundingClientRect();
+    const x = (Math.max(box.left, view.left) + box.right) / 2;
+    const y = (box.top + box.bottom) / 2;
+    await mouseAt('mousePressed', x, y, 1);
+    await mouseAt('mouseReleased', x, y, 0);
+
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(document.activeElement).toBe(button);
+    expect(root.dataset.index).toBe('2');
+  });
+
+  describe('in an engine without scrollend', () => {
+    withoutScrollEnd();
+
+    test(
+      'looping, focus into the first slide as Next crosses the seam onto its copy',
+      async () => {
+        expect('onscrollend' in window).toBe(false);
+        await focusAtEveryDelay(
+          { loop: true, defaultIndex: 4 },
+          focusOn('Button 1'),
+          'Button 1',
+          0
+        );
+      },
+      SWEEP_MS
+    );
   });
 });
 
