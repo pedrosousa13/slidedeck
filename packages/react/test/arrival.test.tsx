@@ -771,10 +771,15 @@ describe('focus entering a slide during a move', () => {
 });
 
 describe('focus within a slide or onto the viewport during a move', () => {
-  // Neither is the user taking over: the move goes on to its own target.
-  // In Chromium the browser's focus scroll stops the move's scroll, so the
-  // deck must start it again, and still report only what the move does.
-  const FOCUS_DELAYS = [20, 60, 120, 200, 260];
+  // Neither is the user taking over (#51): the move goes on to its own
+  // target. In Chromium the browser's focus scroll stops the move's scroll,
+  // so the deck must start it again, and still report only what the move
+  // does.
+  //
+  // Focus can move at any time during a move, not only as it arrives, so
+  // each test moves focus at each of these delays after the press, from
+  // just after the scroll starts to about when it arrives.
+  const MID_MOVE_DELAYS = [20, 60, 120, 200, 260];
 
   /** Five slides of two buttons each, "A n" and "B n". */
   function TwoButtons(props: Deck.RootProps) {
@@ -799,13 +804,13 @@ describe('focus within a slide or onto the viewport during a move', () => {
   /** At every delay into a press of Next, from focus on `from`, moves focus
    * with `focus`: the deck must rest on slide `expected`, the move's target,
    * and report it once. */
-  async function focusAtEveryDelay(
+  async function moveGoesOnAtEveryDelay(
     props: Deck.RootProps,
     from: (viewport: HTMLElement) => void,
     focus: (viewport: HTMLElement) => unknown,
     expected: number
   ) {
-    for (const delay of FOCUS_DELAYS) {
+    for (const delay of MID_MOVE_DELAYS) {
       const onIndexChange = vi.fn();
       const { unmount } = render(
         <TwoButtons onIndexChange={onIndexChange} {...props} />
@@ -842,7 +847,7 @@ describe('focus within a slide or onto the viewport during a move', () => {
     }
   }
 
-  const focusOn =
+  const focusButton =
     (name: string, preventScroll = false) =>
     () =>
       screen.getByRole('button', { name }).focus({ preventScroll });
@@ -852,7 +857,12 @@ describe('focus within a slide or onto the viewport during a move', () => {
   test(
     'focus within the slide the move leaves',
     async () => {
-      await focusAtEveryDelay({}, focusOn('A 1'), focusOn('B 1'), 1);
+      await moveGoesOnAtEveryDelay(
+        {},
+        focusButton('A 1'),
+        focusButton('B 1'),
+        1
+      );
     },
     SWEEP_MS
   );
@@ -861,7 +871,12 @@ describe('focus within a slide or onto the viewport during a move', () => {
     'focus within the slide the move heads to',
     async () => {
       // Focus starts in the next slide without scrolling it into view.
-      await focusAtEveryDelay({}, focusOn('A 2', true), focusOn('B 2'), 1);
+      await moveGoesOnAtEveryDelay(
+        {},
+        focusButton('A 2', true),
+        focusButton('B 2'),
+        1
+      );
     },
     SWEEP_MS
   );
@@ -869,7 +884,7 @@ describe('focus within a slide or onto the viewport during a move', () => {
   test(
     'focus from Next onto the viewport',
     async () => {
-      await focusAtEveryDelay({}, focusOn('Next'), focusViewport, 1);
+      await moveGoesOnAtEveryDelay({}, focusButton('Next'), focusViewport, 1);
     },
     SWEEP_MS
   );
@@ -877,7 +892,7 @@ describe('focus within a slide or onto the viewport during a move', () => {
   test(
     'Shift+Tab out of a slide onto the viewport',
     async () => {
-      await focusAtEveryDelay({}, focusOn('A 1'), shiftTab, 1);
+      await moveGoesOnAtEveryDelay({}, focusButton('A 1'), shiftTab, 1);
     },
     SWEEP_MS
   );
@@ -885,10 +900,10 @@ describe('focus within a slide or onto the viewport during a move', () => {
   test(
     'looping, focus within the last slide as Next crosses the seam',
     async () => {
-      await focusAtEveryDelay(
+      await moveGoesOnAtEveryDelay(
         { loop: true, defaultIndex: 4 },
-        focusOn('A 5'),
-        focusOn('B 5'),
+        focusButton('A 5'),
+        focusButton('B 5'),
         0
       );
     },
@@ -898,9 +913,9 @@ describe('focus within a slide or onto the viewport during a move', () => {
   test(
     'looping, focus onto the viewport as Next crosses the seam',
     async () => {
-      await focusAtEveryDelay(
+      await moveGoesOnAtEveryDelay(
         { loop: true, defaultIndex: 4 },
-        focusOn('Next'),
+        focusButton('Next'),
         focusViewport,
         0
       );
@@ -911,10 +926,10 @@ describe('focus within a slide or onto the viewport during a move', () => {
   test(
     'looping, focus within a slide as Next moves away from the seam',
     async () => {
-      await focusAtEveryDelay(
+      await moveGoesOnAtEveryDelay(
         { loop: true, defaultIndex: 1 },
-        focusOn('A 2'),
-        focusOn('B 2'),
+        focusButton('A 2'),
+        focusButton('B 2'),
         2
       );
     },
@@ -937,8 +952,43 @@ describe('focus within a slide or onto the viewport during a move', () => {
     await expectRestOnASlide(viewport, root, onIndexChange);
     expect(root.dataset.index).toBe('2');
   });
-});
 
+  test("the user's scroll right after focus within a slide ends the move", async () => {
+    const onIndexChange = vi.fn();
+    render(<TwoButtons onIndexChange={onIndexChange} />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+    screen.getByRole('button', { name: 'A 1' }).focus();
+
+    screen.getByRole('button', { name: 'Next' }).click();
+    await sleep(60);
+    screen.getByRole('button', { name: 'B 1' }).focus();
+    // A wheel back to the start, before the move's scroll starts again.
+    viewport.dispatchEvent(new WheelEvent('wheel', { deltaX: -WIDTH }));
+    viewport.scrollTo({ left: 0, behavior: 'instant' });
+
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(root.dataset.index).toBe('0');
+  });
+
+  test('focus entering another slide right after focus within a slide goes to that slide', async () => {
+    const onIndexChange = vi.fn();
+    render(<TwoButtons onIndexChange={onIndexChange} />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+    screen.getByRole('button', { name: 'A 1' }).focus();
+
+    screen.getByRole('button', { name: 'Next' }).click();
+    await sleep(60);
+    screen.getByRole('button', { name: 'B 1' }).focus();
+    const a4 = screen.getByRole('button', { name: 'A 4' });
+    a4.focus();
+
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(root.dataset.index).toBe('3');
+    expect(document.activeElement).toBe(a4);
+  });
+});
 describe('a pointer held on the deck', () => {
   test('as the deck arrives on a copy, it jumps off the copy only once the pointer lets go', async () => {
     const onIndexChange = vi.fn();

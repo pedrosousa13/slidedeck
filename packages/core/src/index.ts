@@ -333,9 +333,10 @@ export function createDeck(
   // with `pointercancel`, and a mouse drag (below). Focus entering a slide
   // scrolls it into view, so it is the user's scroll too, and the deck goes
   // on to it (below). Input that scrolls nothing leaves the move going: a
-  // click, even one that focuses a control in another slide, Enter, a key
-  // in a text field or one the page has prevented, and focus within a slide
-  // or on the viewport, as Tab out of a slide gives (below).
+  // click, even one that focuses a control in another slide, Enter, and a
+  // key in a text field or one the page has prevented. Focus within a slide
+  // or on the viewport, as Tab out of a slide gives, scrolls, but the move
+  // resumes to its target (below).
   const onWheel = () => endMove();
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || !SCROLL_KEYS.has(event.key)) return;
@@ -365,10 +366,10 @@ export function createDeck(
   // scrolls the focus into view after this event, and Chromium ignores a
   // smooth scroll asked for until a frame after that, to the stopped
   // scroll's target above all. A looping move's target may be on the
-  // copies, so the scroll may go across. A new move's target is set now, so
-  // the end of the stopped scroll is a late one. A pointer pressed on the
-  // viewport, as a mouse pressing a control in a slide, is a click: it
-  // leaves the move going.
+  // copies, so the scroll may go across the seam. A new move's target is
+  // set now, so the end of the stopped scroll is a late one. A pointer
+  // pressed on the viewport, as a mouse pressing a control in a slide, is a
+  // click: it leaves the move going.
   let focusFrame = 0;
   const resume = () => {
     const focused = move;

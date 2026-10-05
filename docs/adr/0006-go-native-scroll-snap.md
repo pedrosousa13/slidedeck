@@ -67,8 +67,9 @@ event cannot say which move it ends. The events, and what each does:
   nothing the engine asked for resumes. Input that scrolls nothing leaves
   the move going: a click, even one that focuses a control in another
   slide, Enter, and a key in a text field or one the page has prevented.
-  So does focus within a slide or on the viewport, as Tab out of a slide
-  gives (below). A drag's release is a new move.
+  Focus within a slide or on the viewport, as Tab out of a slide gives,
+  scrolls, but the move resumes to its target (below). A drag's release is
+  a new move.
 - _Focus entering a slide_ from outside it, as Tab does (amended for #43):
   the browser scrolls the slide into view and stops the move's scroll. Like
   the user's scroll, this ends the move, and focus wins: a new move replaces
