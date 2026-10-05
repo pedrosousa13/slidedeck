@@ -1234,68 +1234,62 @@ test('the curve-size recipe leaves the arc room: no slide that is not faded out 
   // At the first slide, it and the two after it are not faded out.
   await expect.poll(clipped).toEqual([0, 0, 0]);
 
-  // Record, in the page, each frame the viewport scrolls in while Next moves
-  // the deck, and read the record once the deck has settled: no frame is
-  // missed, however late the click comes or slow the frames are. This scroll
-  // listener comes after the deck's, so its frame callback reads the cards
-  // after the deck writes the slides' progress, as the frame shows them. Of
-  // the frames mid-move: the most any card not faded out reaches past an
-  // edge, and how far the lowest one drops below where a card rests.
-  const viewport = deck.locator('[data-slidedeck-viewport]');
-  await viewport.evaluate((el) => {
-    const slides = [
-      ...el.querySelectorAll<HTMLElement>('[data-slidedeck-slide]')
-    ];
-    let frames = 0;
-    let clipped = 0;
-    let deepest = 0;
-    let frame = 0;
-    const record = () => {
-      frame = 0;
-      const moving = slides.some(
-        (slide) =>
-          !Number.isInteger(
-            Number(slide.style.getPropertyValue('--deck-slide-progress'))
-          )
-      );
-      if (!moving) return;
-      frames++;
-      const v = el.getBoundingClientRect();
+  // Mid-move: a mouse drag holds the deck 0.4 of a slide on from the first,
+  // where it does not settle while the button is down, so every run measures
+  // the same pose. Of the cards not faded out, the most any reaches past an
+  // edge, and how far the lowest drops below the first slide's card.
+  const card = (await deck
+    .getByRole('group', { name: '1 of 6' })
+    .locator('.card')
+    .boundingBox())!;
+  const x = card.x + card.width / 2;
+  const y = card.y + 30;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  // 0.4 of a 176px snap step (160px slides, 16px apart).
+  await page.mouse.move(x - 70, y, { steps: 12 });
+  const midMove = () =>
+    deck.locator('[data-slidedeck-viewport]').evaluate((viewport) => {
+      const slides = [
+        ...viewport.querySelectorAll<HTMLElement>('[data-slidedeck-slide]')
+      ];
+      const v = viewport.getBoundingClientRect();
       const rest = slides[0].getBoundingClientRect().bottom;
+      let clipped = 0;
+      let deepest = 0;
       for (const slide of slides) {
         if (Number(getComputedStyle(slide).opacity) <= 0) continue;
         const c = slide.firstElementChild!.getBoundingClientRect();
         clipped = Math.max(clipped, v.top - c.top, c.bottom - v.bottom);
         deepest = Math.max(deepest, c.bottom - rest);
       }
-    };
-    el.addEventListener('scroll', () => {
-      frame ||= requestAnimationFrame(record);
-    });
-    Object.assign(el, {
-      record: () => ({
-        frames,
+      return {
+        progress: Number(
+          slides[0].style.getPropertyValue('--deck-slide-progress')
+        ),
         clipped: Math.round(clipped),
         deepest: Math.round(deepest)
-      })
+      };
     });
-  });
-  await deck.getByRole('button', { name: 'Next' }).click();
-
-  await expect(deck).toHaveAttribute('data-index', '1');
-  await expect.poll(clipped).toEqual([0, 0, 0, 0]);
-  const move = await viewport.evaluate((el) =>
-    (
-      el as unknown as {
-        record: () => { frames: number; clipped: number; deepest: number };
-      }
-    ).record()
-  );
-  expect(move.frames).toBeGreaterThan(0);
+  // Held, the first slide's progress is -0.4, give or take the pixel a
+  // drag's scroll rounds to.
+  await expect.poll(async () => (await midMove()).progress).toBeLessThan(-0.35);
+  const move = await midMove();
+  expect(move.progress).toBeGreaterThan(-0.45);
   expect(move.clipped).toBeLessThanOrEqual(0);
-  // Past the 150px a card drops at rest: the frames caught the arc's faint
+  // Past the 150px a card drops at rest: the pose shows the arc's faint
   // end, which only the room for a moving deck covers.
   expect(move.deepest).toBeGreaterThan(160);
+  // Held still, then let go short of half a slide: the deck goes back to
+  // the first rather than flinging on.
+  await page.waitForTimeout(200);
+  await page.mouse.up();
+  await expect(deck).toHaveAttribute('data-index', '0');
+  await expect.poll(clipped).toEqual([0, 0, 0]);
+
+  await deck.getByRole('button', { name: 'Next' }).click();
+  await expect(deck).toHaveAttribute('data-index', '1');
+  await expect.poll(clipped).toEqual([0, 0, 0, 0]);
 
   await deck.getByRole('button', { name: 'Next' }).click();
   await expect(deck).toHaveAttribute('data-index', '2');
