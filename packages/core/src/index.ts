@@ -139,12 +139,13 @@ export function createDeck(
     writeProgress(viewport, along, align);
   };
 
-  // Whether the viewport held loop's copies and an effect's snap targets at
-  // the last settle (see `shapeOf`).
+  // Whether the viewport holds loop's copies and an effect's snap targets,
+  // as of the last settle or refresh (see `shapeOf`).
   let shape = '';
 
   const settle = () => {
     shape = shapeOf(viewport);
+    placeOwed = null;
     alignCopies(viewport);
     const along = axis();
     const geometry = snapPoints(viewport, along);
@@ -259,11 +260,13 @@ export function createDeck(
     if (move) move.stalled = false;
     if (!hasScrollEnd || move) awaitQuiet();
   };
-  // The layout moved the snap points mid-move (see `keepPlace`); `endMove`
-  // clears it.
+  // The layout moved the snap points mid-move (see `keepPlace`), so the
+  // move's target counts the old snap points; `startMove` and `endMove`
+  // clear it, as a new move's target counts the new ones.
   let relaidOut = false;
   const startMove = (target: number) => {
     move = { target, stalled: false };
+    relaidOut = false;
     awaitQuiet();
   };
   // Ends the move, if any, without a settle. Where `scrollend` is there, a
@@ -285,14 +288,22 @@ export function createDeck(
   // pressed lets go of any other of its type, as none can still be down.
   const pressed = new Map<number, string>();
   let settleOwed = false;
+  // The layout moved the snap points while a pointer held the deck (see
+  // `keepPlace`): the snap point the deck goes back to once it lets go, its
+  // current index or a move's target. Any settle before then clears it.
+  let placeOwed: number | null = null;
   // Lets go of pointer `id`, or of every pointer.
   const letGo = (id?: number) => {
     if (id === undefined) pressed.clear();
     else if (!pressed.delete(id)) return;
-    if (pressed.size > 0 || !settleOwed) return;
+    if (pressed.size > 0 || !(settleOwed || placeOwed !== null)) return;
+    const place = placeOwed;
     settleOwed = false;
+    placeOwed = null;
     // A scroll since, as a touch pan, settles at its own end.
-    if (!scrolling && !move && drag !== 'dragging') settle();
+    if (scrolling || move || drag === 'dragging') return;
+    if (place === null) settle();
+    else restOn(place);
   };
   const onWindowPointer = (event: PointerEvent) => {
     if (
@@ -322,14 +333,15 @@ export function createDeck(
     }
     scrolling = false;
     // A new layout may have cut the move short: rest on its target.
-    const target = relaidOut && move ? move.target : null;
+    const target = relaidOut && move ? wrap(move.target, state.count) : null;
     endMove();
     if (pressed.size > 0) {
-      settleOwed = true;
+      if (target === null) settleOwed = true;
+      else placeOwed = target;
       return;
     }
     if (target === null) settle();
-    else restOn(wrap(target, state.count));
+    else restOn(target);
   };
 
   // `scrollend` and `scrollsnapchange` end a move only once it has arrived.
@@ -432,8 +444,13 @@ export function createDeck(
     // Loop's copies or an effect's snap targets came or went, as when `loop`
     // or an effect changes on a mounted deck: the snap points moved under
     // the viewport, and where the browser puts it then is no snap point of
-    // the deck's own choosing.
-    if (shapeOf(viewport) !== shape && keepPlace()) return;
+    // the deck's own choosing. Noted at once, so a later refresh, as the
+    // resize the new layout can bring, does not count it twice.
+    const next = shapeOf(viewport);
+    if (next !== shape) {
+      shape = next;
+      if (keepPlace()) return;
+    }
     if (!scrolling && !move && drag !== 'dragging') settle();
     else paint();
   };
@@ -517,17 +534,26 @@ export function createDeck(
   // short in any of them. So a deck at rest goes back to its snap point, as
   // if it had mounted that way, before the browser renders the new layout,
   // and a moving deck rests on its move's target once the move ends
-  // (`scrollEnded`). While a pointer holds the deck, the settle after it
-  // lets go stands, as does a scroll of the user's. Returns whether the deck
-  // went back to its snap point.
+  // (`scrollEnded`). A deck a pointer holds goes back, or on to the
+  // target, once it lets go (`letGo`). A scroll of the user's stands, a touch pan or a mouse drag
+  // included: it settles at its own end. Where the new layout has fewer
+  // snap points, the deck rests on the last, and reports it. Returns
+  // whether the deck has kept its place, or will once the pointer lets go,
+  // so nothing settles before then.
   const keepPlace = () => {
-    if (drag === 'dragging' || pressed.size > 0) return false;
-    if (move) relaidOut = true;
-    else if (!scrolling) {
-      restOn(state.index);
+    if (drag === 'dragging') return false;
+    if (move) {
+      relaidOut = true;
+      return false;
+    }
+    if (pressed.size > 0) {
+      placeOwed = state.index;
+      paint();
       return true;
     }
-    return false;
+    if (scrolling) return false;
+    restOn(state.index);
+    return true;
   };
 
   // Writing direction is read from the computed `direction` (ADR-0003), and
@@ -737,7 +763,12 @@ export function createDeck(
   // pressed.
   const step = (delta: number) => {
     if (move) {
-      scrollTo(move.target + delta, true);
+      // Since a new layout, the target counts the old snap points: go on
+      // from the slides' snap point it stands for.
+      scrollTo(
+        (relaidOut ? wrap(move.target, state.count) : move.target) + delta,
+        true
+      );
       return;
     }
     const along = axis();

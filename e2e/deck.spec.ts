@@ -1282,20 +1282,41 @@ test('the per-breakpoint recipe crossfades below 768px and loops from it, keepin
         )
       )
     );
-  /** Resizes the window, then waits long enough for a stray settle to show,
-   * and returns every index the deck reported meanwhile. */
+  /** Resizes the window, waits for the deck to be at rest, and returns
+   * every index the deck reported meanwhile. At rest is the same scroll
+   * position and index at three reads in a row, 150ms apart, so a stray
+   * settle after the resize has time to show. */
   const resize = async (width: number) => {
     await deck.evaluate((root) => {
       const seen: string[] = [];
-      (root as unknown as { seen: string[] }).seen = seen;
-      new MutationObserver(() => seen.push(root.dataset.index!)).observe(root, {
-        attributeFilter: ['data-index']
-      });
+      const watch = new MutationObserver(() => seen.push(root.dataset.index!));
+      watch.observe(root, { attributeFilter: ['data-index'] });
+      (root as unknown as { stop: () => string[] }).stop = () => {
+        watch.disconnect();
+        return seen;
+      };
     });
     await page.setViewportSize({ width, height: 720 });
-    await page.waitForTimeout(500);
-    return deck.evaluate(
-      (root) => (root as unknown as { seen: string[] }).seen
+    const at = () =>
+      viewport.evaluate(
+        (el) =>
+          `${el.scrollLeft} ${el.closest<HTMLElement>('[data-index]')!.dataset.index}`
+      );
+    let last = '';
+    let quiet = 0;
+    await expect
+      .poll(
+        async () => {
+          const now = await at();
+          quiet = now === last ? quiet + 1 : 0;
+          last = now;
+          return quiet;
+        },
+        { intervals: [150] }
+      )
+      .toBeGreaterThanOrEqual(2);
+    return deck.evaluate((root) =>
+      (root as unknown as { stop: () => string[] }).stop()
     );
   };
 
