@@ -353,7 +353,9 @@ export function Hero() {
 
 The toggle carries `data-playing` while autoplay is on. Children replace its
 text: give both states and show one with `[data-playing]` in CSS. Starting it
-again where it stopped at the last snap point goes back to the first.
+again where it stopped at the last snap point goes back to the first. To
+autoplay on some screens only, see
+[change `effect`, `loop` or `autoplay` per breakpoint](#recipe-change-effect-loop-or-autoplay-per-breakpoint).
 
 ## Vertical and right-to-left
 
@@ -496,7 +498,8 @@ To turn a radius in pixels into slides and leave the arc room in the
 viewport, see [size a curve](#recipe-size-a-curve).
 
 Both effects' styles are zero-specificity rules on `--deck-slide-progress`, so
-your CSS overrides any of them.
+your CSS overrides any of them. To use an effect on some screens only, see
+[change `effect`, `loop` or `autoplay` per breakpoint](#recipe-change-effect-loop-or-autoplay-per-breakpoint).
 
 ## Theme
 
@@ -622,6 +625,7 @@ the CSS, `.products` and `.showcase` are classes on `Deck.Root`.
 - [Highlight the middle slide in view](#recipe-highlight-the-middle-slide-in-view)
 - [Size a curve](#recipe-size-a-curve)
 - [Custom controls and a counter](#recipe-custom-controls-and-a-counter)
+- [Change `effect`, `loop` or `autoplay` per breakpoint](#recipe-change-effect-loop-or-autoplay-per-breakpoint)
 - [Play a playdeck video in the focal slide](#recipe-play-a-playdeck-video-in-the-focal-slide)
 
 ## Recipe: centre the first and last slide
@@ -854,6 +858,91 @@ They do what the built-in controls do:
 The story is `Recipes / Custom Controls`, where `./design-system` is a
 stand-in.
 
+## Recipe: change `effect`, `loop` or `autoplay` per breakpoint
+
+A prop cannot read a media query, so read it in your component and pass the
+props it picks. A deck takes a new `effect`, `loop` or `autoplay` after it
+mounts: it stays at its current index, at rest on its snap point, and
+announces nothing. A move in flight still ends where it was going. Where the
+new layout has fewer snap points than the index needs, the deck rests on the
+last one and reports it, through `onIndexChange` and the live region. Here a
+narrow screen crossfades one slide at a time, and from 768px the deck shows
+three slides and loops:
+
+<!-- example: apps/storybook/stories/recipes/responsive-deck.tsx -->
+
+```tsx
+import { useCallback, useSyncExternalStore, type ReactNode } from 'react';
+import * as Deck from '@slidedeck/react';
+import { fade } from '@slidedeck/react/fade';
+
+/** Whether `query` matches. Server HTML, and hydrating it, use `initial`;
+ * the browser's answer follows once mounted, and every change after. */
+export function useMediaQuery(query: string, initial = false) {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const list = matchMedia(query);
+      list.addEventListener('change', onChange);
+      return () => list.removeEventListener('change', onChange);
+    },
+    [query]
+  );
+  return useSyncExternalStore(
+    subscribe,
+    () => matchMedia(query).matches,
+    () => initial
+  );
+}
+
+/** A crossfade, one slide at a time, on a narrow screen; from 768px, a deck
+ * that loops. Slides per view stays in CSS, at the same breakpoint. */
+export function ResponsiveDeck({ children }: { children: ReactNode }) {
+  const wide = useMediaQuery('(min-width: 768px)');
+  return (
+    <Deck.Root aria-label="Featured slides" className="products" loop={wide}>
+      <Deck.Viewport effect={wide ? undefined : fade}>{children}</Deck.Viewport>
+      <Deck.Prev />
+      <Deck.Next />
+    </Deck.Root>
+  );
+}
+```
+
+Slides per view stays in CSS, at the same breakpoint:
+
+<!-- example: apps/storybook/stories/recipes/responsive-deck.css -->
+
+```css
+/* From 768px, the breakpoint the hook reads, three slides in view, 16px
+   apart. Below it, fade shows one slide at a time and ignores slide width. */
+@media (min-width: 768px) {
+  .products [data-slidedeck-viewport] {
+    gap: 16px;
+  }
+  .products [data-slidedeck-slide] {
+    width: calc((100% - 2 * 16px) / 3);
+  }
+}
+```
+
+Notes:
+
+- Keep the breakpoint in the hook and in CSS the same, so the CSS applies
+  only where the deck does not fade: fade lays out the slides itself.
+- Server HTML, and hydrating it, use the hook's `initial`, `false` here: the
+  narrow layout. On a wide screen the deck then switches to the loop once it
+  mounts, on the same slide. Pass the `initial` most of your visitors see.
+- Autoplay works the same way: `autoplay={wide ? 5000 : undefined}` rotates
+  the deck on wide screens only. Keep `Deck.AutoplayToggle` in the deck; it is
+  absent while `autoplay` is unset.
+- The deck keeps its index, not its slide. With [pages](#pages), an index is
+  a page, so on the side of the breakpoint that pages, the same index shows
+  other slides than on the side that fades.
+
+The story is `Recipes / Per Breakpoint`. An end-to-end test resizes the window
+across 768px both ways and checks that the deck stays on its slide, with no
+index reported and nothing announced.
+
 ## Recipe: play a playdeck video in the focal slide
 
 A social-style deck of videos: the video in the focal slide plays, muted, and
@@ -1040,7 +1129,7 @@ pinned installs, and CI fails if this table is stale.
 
 | Library                | Version   | Min+gzip | Native scroll                                    | Accessibility out of the box                                                                                                           | API shape                                                                                          |
 | ---------------------- | --------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `@slidedeck/react`     | this repo | 7.06 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
+| `@slidedeck/react`     | this repo | 7.20 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
 | `embla-carousel-react` | 8.6.0     | 7.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels or controls; scrolls a focused slide into view                                                                        | A hook returning a ref and an API object; markup and controls are yours                            |
 | `keen-slider`          | 6.8.6     | 6.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels, controls or keyboard handling                                                                                        | A hook returning a ref and an instance, plus a required stylesheet; markup and controls are yours  |
 

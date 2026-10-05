@@ -693,11 +693,14 @@ export function Viewport({ style, children, effect, ...props }: ViewportProps) {
   const run = slides.length * (copies ? 3 : 1);
   const layout = effect?.layout?.(orientation, run);
   const target = layout?.target;
-  // Adding or removing a slide, or the copies, can change the snap points
-  // without resizing the viewport, which is all the engine observes.
+  const stacked = target !== undefined;
+  // Adding or removing a slide, the copies or an effect's snap targets can
+  // change the snap points without resizing the viewport, which is all the
+  // engine observes. Where the copies or snap targets came or went, the
+  // engine keeps the current index (ADR-0007, ADR-0009).
   useLayoutEffect(() => {
     engineRef.current?.refresh();
-  }, [engineRef, slides.length, copies]);
+  }, [engineRef, slides.length, copies, stacked]);
   const set = (copy?: 'before' | 'after') =>
     slides.map((slide, index) => (
       // `toArray` gives every element a key derived from the consumer's,
@@ -707,7 +710,7 @@ export function Viewport({ style, children, effect, ...props }: ViewportProps) {
         value={{
           index,
           count: slides.length,
-          stacked: target !== undefined,
+          stacked,
           // The copies before the slides come after them in the document, so
           // a consumer's `:nth-child()` still counts the slides from 1.
           style:
