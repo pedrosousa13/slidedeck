@@ -150,6 +150,8 @@ export function createDeck(
     const along = axis();
     const geometry = snapPoints(viewport, along);
     jumpOffCopies(along, geometry);
+    // Its own settle reports where the deck comes to rest.
+    if (resnap(along, geometry)) return;
     const { points, slides } = geometry;
     const index = indexAt(geometry, along.position);
     const slide = slides.indexOf(index);
@@ -178,6 +180,79 @@ export function createDeck(
     if (point !== undefined) along.scrollTo(point, 'instant');
   };
 
+  // At rest off every snap point under mandatory snapping, move to a snap
+  // point, as the browser would have snapped it (ADR-0006): a long task can
+  // leave the deck there, and the browser never snaps it back. The nearest
+  // one, or where the user's scroll took a move over, the nearest the way
+  // that scroll went: the browser can carry the move's scroll on after it,
+  // and stop part way back toward the move's target. With loop, the copies'
+  // snap points count, and the move's settle jumps off a copy as ever. Only
+  // once quiet confirms the deck is still there: an end event can come late,
+  // as the browser's own snap begins. Never while the user has the deck: a
+  // pointer pressed on it, a drag, or a scroll still going, which only an end
+  // event tells apart from a finger held still. Not with proximity snapping,
+  // where resting between snap points is the browser's own choice. Where the
+  // browser holds the deck off the snap points as measured, as scroll padding
+  // does, a re-snap from there moves nothing, and the deck settles there at
+  // the next try. Returns whether the settle waits: for quiet, or for the
+  // move it started.
+  let resnapFrom: number | null = null;
+  // Waiting for quiet to confirm a re-snap, then due once it has.
+  let confirm: 'waiting' | 'due' | null = null;
+  const resnap = (along: Axis, geometry: Geometry) => {
+    const at = along.position;
+    const count = geometry.points.length;
+    if (count === 0) return false;
+    const reach = geometry.length > 0 ? count : 0;
+    const indexes = Array.from(
+      { length: count + 2 * reach },
+      (_, i) => i - reach
+    );
+    // A copy's snap point past either end of the scroll range rests at
+    // that end.
+    const max = along.max();
+    const restsAt = (i: number) =>
+      Math.min(Math.max(positionOf(geometry, i), 0), max);
+    if (indexes.some((i) => Math.abs(restsAt(i) - at) <= 1)) {
+      resnapFrom = null;
+      taken = null;
+      confirm = null;
+      return false;
+    }
+    if (
+      !hasScrollEnd ||
+      drag !== 'idle' ||
+      !getComputedStyle(viewport).scrollSnapType.includes('mandatory') ||
+      (resnapFrom !== null && Math.abs(at - resnapFrom) < 1)
+    ) {
+      confirm = null;
+      return false;
+    }
+    // The last pointer to let go settles the deck again.
+    if (pressed.size > 0) {
+      settleOwed = true;
+      confirm = null;
+      return false;
+    }
+    if (confirm !== 'due') {
+      confirm = 'waiting';
+      awaitQuiet();
+      return true;
+    }
+    confirm = null;
+    const way = taken ? taken.way || Math.sign(at - taken.at) : 0;
+    const distance = (i: number) => Math.abs(positionOf(geometry, i) - at);
+    const ahead = (i: number) => (positionOf(geometry, i) - at) * way > 1;
+    const reached = indexes.filter((i) => reachable(geometry, along, i));
+    const onward = reached.filter(ahead);
+    const nearest = (onward.length > 0 ? onward : reached).reduce((a, b) =>
+      distance(b) < distance(a) ? b : a
+    );
+    resnapFrom = at;
+    scrollTo(nearest, true);
+    return move !== null;
+  };
+
   // The engine's move, a scroll it started (ADR-0006): null when idle, or
   // moving to `target`, the snap point it heads to, until it ends or the
   // user's scroll takes over. A second press steps on from the target, not
@@ -186,6 +261,15 @@ export function createDeck(
   // a quiet has found it short of its target, until its next scroll event.
   // `startMove` and `endMove` below own it, with the quiet that ends it.
   let move: { target: number; stalled: boolean } | null = null;
+  // Where the user's scroll took a move over, and the way it went along the
+  // axis, 1 or -1, where the input says; 0 where it does not, as for a touch
+  // pan. Until the deck next rests on a snap point, or a new move starts.
+  let taken: { at: number; way: number } | null = null;
+  // Quiet ends the user's scroll too, as where `scrollend` is missing: a
+  // wheel's or a key's scroll can stop with no end event, as when page
+  // script stops the move's scroll it took over. Not a touch pan or a drag,
+  // which can hold still. Until the scroll ends, or a new move starts.
+  let untilQuiet = false;
   // The move has arrived: the viewport is at its target, its end not seen.
   const arrived = ({ target }: { target: number }) => {
     const along = axis();
@@ -252,13 +336,14 @@ export function createDeck(
       awaitQuiet();
       return;
     }
+    if (confirm === 'waiting') confirm = 'due';
     scrollEnded();
   };
   const onScroll = () => {
     scrolling = true;
     frame ||= requestAnimationFrame(() => paint());
     if (move) move.stalled = false;
-    if (!hasScrollEnd || move) awaitQuiet();
+    if (!hasScrollEnd || move || confirm || untilQuiet) awaitQuiet();
   };
   // The layout moved the snap points mid-move (see `keepPlace`), so the
   // move's target counts the old snap points; `startMove` and `endMove`
@@ -267,6 +352,9 @@ export function createDeck(
   const startMove = (target: number) => {
     move = { target, stalled: false };
     relaidOut = false;
+    taken = null;
+    confirm = null;
+    untilQuiet = false;
     awaitQuiet();
   };
   // Ends the move, if any, without a settle. Where `scrollend` is there, a
@@ -275,6 +363,16 @@ export function createDeck(
     move = null;
     relaidOut = false;
     if (hasScrollEnd) stopQuiet();
+  };
+  // The user's scroll ends the move, if any, going `way` along the axis
+  // where the input says. It also ends the wait for a re-snap: the user's
+  // scroll settles at its own end, or at quiet `untilQuiet`.
+  const takeOver = (way = 0, quietEnds = false) => {
+    untilQuiet = quietEnds && move !== null;
+    if (move) taken = { at: axis().position, way };
+    confirm = null;
+    endMove();
+    if (untilQuiet) awaitQuiet();
   };
 
   // Pointers pressed on the viewport, by id, with their type, until they
@@ -332,6 +430,7 @@ export function createDeck(
       restoreSnap();
     }
     scrolling = false;
+    untilQuiet = false;
     // A new layout may have cut the move short: rest on its target.
     const target = relaidOut && move ? wrap(move.target, state.count) : null;
     endMove();
@@ -365,7 +464,13 @@ export function createDeck(
   // key in a text field or one the page has prevented. Focus within a slide
   // or on the viewport, as Tab out of a slide gives, scrolls, but the move
   // resumes to its target (below).
-  const onWheel = () => endMove();
+  // `at` reads a wheel's delta along the axis, signed the way the deck
+  // runs, as it reads a point: the way the wheel scrolls the deck.
+  const onWheel = (event: WheelEvent) =>
+    takeOver(
+      Math.sign(axis().at({ clientX: event.deltaX, clientY: event.deltaY })),
+      true
+    );
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || !SCROLL_KEYS.has(event.key)) return;
     const on = event.target;
@@ -378,10 +483,10 @@ export function createDeck(
     ) {
       return;
     }
-    endMove();
+    takeOver(0, true);
   };
   const onPointerCancel = (event: PointerEvent) => {
-    if (event.pointerType !== 'mouse') endMove();
+    if (event.pointerType !== 'mouse') takeOver();
     onPointerUp(event);
   };
   // Focus in the viewport during a move scrolls the focus into view, and in
@@ -636,7 +741,7 @@ export function createDeck(
       // The drag takes over any scroll in flight, its own release included:
       // where the deck goes now is decided when the pointer lets go.
       drag = 'dragging';
-      endMove();
+      takeOver();
       removeSnap();
       viewport.setPointerCapture(pointer);
     }

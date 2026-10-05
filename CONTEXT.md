@@ -133,7 +133,10 @@ _Avoid_: land, reach
 **Settle**:
 What the deck does when a scroll ends: it reads where the viewport rests,
 jumps off a copy to its slide, and publishes the current index, slide and
-focal slide. The only time `onIndexChange` and `onFocalChange` fire.
+focal slide. The only time `onIndexChange` and `onFocalChange` fire. Under
+mandatory snapping, a deck at rest off every snap point first moves to the
+nearest one, or the nearest the way the user's scroll went, and that move's
+settle publishes (ADR-0006).
 _Avoid_: snap, finish
 
 **Quiet**:

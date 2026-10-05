@@ -123,9 +123,15 @@ function gestureClock() {
  * A real touch swipe (CDP touch events); positive `dx` moves the finger left.
  * Six moves 25ms apart on the gesture's clock, then the finger lifts: the
  * browser reads the same fling speed from it on every run, however late the
- * events arrive, so where the deck comes to rest depends only on `dx`.
+ * events arrive, so where the deck comes to rest depends only on `dx`. With
+ * `release: false` the finger stays down: call the function it returns to
+ * lift it.
  */
-export async function touchSwipe(el: Element, dx: number) {
+export async function touchSwipe(
+  el: Element,
+  dx: number,
+  { release = true }: { release?: boolean } = {}
+): Promise<() => Promise<unknown>> {
   const box = el.getBoundingClientRect();
   const y = box.top + box.height / 2;
   const startX = box.left + box.width * 0.75;
@@ -144,11 +150,15 @@ export async function touchSwipe(el: Element, dx: number) {
       ...time(step * 25)
     });
   }
-  await cdp().send('Input.dispatchTouchEvent', {
-    type: 'touchEnd',
-    touchPoints: [],
-    ...time(6 * 25)
-  });
+  // A lift the caller makes later is stamped when it is sent.
+  const lift = (stamp = {}) =>
+    cdp().send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+      ...stamp
+    });
+  if (release) await lift(time(6 * 25));
+  return () => lift();
 }
 
 /**
@@ -261,6 +271,19 @@ export async function expectSnaps(
   if (viewport[axis] === rest) viewport[axis] = rest - 40;
   await expectSettledTo(() => viewport[axis], rest);
 }
+
+/** One real mouse wheel turn (CDP) over the middle of `el`, scrolling it
+ * `dx` along the x axis: negative scrolls back. Sent at once, so a test can
+ * turn it from a scroll listener at a given position. */
+export const wheelOver = (el: Element, dx: number): Promise<unknown> => {
+  const box = el.getBoundingClientRect();
+  return cdp().send('Input.dispatchMouseEvent', {
+    type: 'mouseWheel',
+    ...toPage(box.left + box.width / 2, box.top + box.height / 2),
+    deltaX: dx,
+    deltaY: 0
+  });
+};
 
 /** A smooth two-finger-style scroll gesture, synthesised by Chromium. */
 export async function gestureScroll(el: Element, dx: number) {

@@ -527,11 +527,26 @@ describe('loop, presses that outrun the copies', () => {
     const { viewport, root, onIndexChange } = await outrun();
 
     await gestureScroll(viewport, -600);
-    // From the gesture's end, nothing moves the deck on again.
-    const motion = trackMotion(viewport);
+    // From the gesture's end, nothing moves the deck on again, but for the
+    // browser's own snap to the snap point nearest where the gesture left
+    // it, which is on from there where the gesture ends past halfway
+    // between two snap points. Where it ends depends on where the deck is
+    // as the gesture begins, so on the machine's load.
+    const left = viewport.scrollLeft;
+    const nearest = Math.round(left / WIDTH) * WIDTH;
+    const positions: number[] = [];
+    let sampling = true;
+    const sample = () => {
+      positions.push(viewport.scrollLeft);
+      if (sampling) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
 
     await expectRestOnASlide(viewport, root, onIndexChange);
-    expect(motion.against(-1, 2.5 * WIDTH)).toEqual([]);
+    sampling = false;
+    expect(positions.filter((at) => at > Math.max(left, nearest) + 1)).toEqual(
+      []
+    );
   });
 });
 
