@@ -1234,61 +1234,68 @@ test('the curve-size recipe leaves the arc room: no slide that is not faded out 
   // At the first slide, it and the two after it are not faded out.
   await expect.poll(clipped).toEqual([0, 0, 0]);
 
-  // Sample every frame while Next moves the deck: in the frames mid-move,
-  // the most any card not faded out reaches past an edge, and how far the
-  // lowest one drops below where a card rests.
-  const sampled = page.evaluate(
-    () =>
-      new Promise<{ frames: number; clipped: number; deepest: number }>(
-        (resolve) => {
-          const viewport = document.querySelector('[data-slidedeck-viewport]')!;
-          const slides = [
-            ...viewport.querySelectorAll<HTMLElement>('[data-slidedeck-slide]')
-          ];
-          let frames = 0;
-          let clipped = 0;
-          let deepest = 0;
-          const start = performance.now();
-          const sample = () => {
-            const moving = slides.some(
-              (slide) =>
-                !Number.isInteger(
-                  Number(slide.style.getPropertyValue('--deck-slide-progress'))
-                )
-            );
-            if (moving) {
-              frames++;
-              const v = viewport.getBoundingClientRect();
-              const rest = slides[0].getBoundingClientRect().bottom;
-              for (const slide of slides) {
-                if (Number(getComputedStyle(slide).opacity) <= 0) continue;
-                const c = slide.firstElementChild!.getBoundingClientRect();
-                clipped = Math.max(clipped, v.top - c.top, c.bottom - v.bottom);
-                deepest = Math.max(deepest, c.bottom - rest);
-              }
-            }
-            if (performance.now() - start < 1500) requestAnimationFrame(sample);
-            else
-              resolve({
-                frames,
-                clipped: Math.round(clipped),
-                deepest: Math.round(deepest)
-              });
-          };
-          requestAnimationFrame(sample);
-        }
-      )
-  );
+  // Record, in the page, each frame the viewport scrolls in while Next moves
+  // the deck, and read the record once the deck has settled: no frame is
+  // missed, however late the click comes or slow the frames are. This scroll
+  // listener comes after the deck's, so its frame callback reads the cards
+  // after the deck writes the slides' progress, as the frame shows them. Of
+  // the frames mid-move: the most any card not faded out reaches past an
+  // edge, and how far the lowest one drops below where a card rests.
+  const viewport = deck.locator('[data-slidedeck-viewport]');
+  await viewport.evaluate((el) => {
+    const slides = [
+      ...el.querySelectorAll<HTMLElement>('[data-slidedeck-slide]')
+    ];
+    let frames = 0;
+    let clipped = 0;
+    let deepest = 0;
+    let frame = 0;
+    const record = () => {
+      frame = 0;
+      const moving = slides.some(
+        (slide) =>
+          !Number.isInteger(
+            Number(slide.style.getPropertyValue('--deck-slide-progress'))
+          )
+      );
+      if (!moving) return;
+      frames++;
+      const v = el.getBoundingClientRect();
+      const rest = slides[0].getBoundingClientRect().bottom;
+      for (const slide of slides) {
+        if (Number(getComputedStyle(slide).opacity) <= 0) continue;
+        const c = slide.firstElementChild!.getBoundingClientRect();
+        clipped = Math.max(clipped, v.top - c.top, c.bottom - v.bottom);
+        deepest = Math.max(deepest, c.bottom - rest);
+      }
+    };
+    el.addEventListener('scroll', () => {
+      frame ||= requestAnimationFrame(record);
+    });
+    Object.assign(el, {
+      record: () => ({
+        frames,
+        clipped: Math.round(clipped),
+        deepest: Math.round(deepest)
+      })
+    });
+  });
   await deck.getByRole('button', { name: 'Next' }).click();
-  const move = await sampled;
+
+  await expect(deck).toHaveAttribute('data-index', '1');
+  await expect.poll(clipped).toEqual([0, 0, 0, 0]);
+  const move = await viewport.evaluate((el) =>
+    (
+      el as unknown as {
+        record: () => { frames: number; clipped: number; deepest: number };
+      }
+    ).record()
+  );
   expect(move.frames).toBeGreaterThan(0);
   expect(move.clipped).toBeLessThanOrEqual(0);
   // Past the 150px a card drops at rest: the frames caught the arc's faint
   // end, which only the room for a moving deck covers.
   expect(move.deepest).toBeGreaterThan(160);
-
-  await expect(deck).toHaveAttribute('data-index', '1');
-  await expect.poll(clipped).toEqual([0, 0, 0, 0]);
 
   await deck.getByRole('button', { name: 'Next' }).click();
   await expect(deck).toHaveAttribute('data-index', '2');
