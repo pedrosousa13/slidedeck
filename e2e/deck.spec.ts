@@ -1155,7 +1155,7 @@ for (const { id, focal } of [
   });
 }
 
-test('the curve-size recipe leaves the arc room: no slide that shows is clipped', async ({
+test('the curve-size recipe leaves the arc room: no slide that is not faded out is clipped, at rest or mid-move', async ({
   page
 }) => {
   await page.goto('/iframe.html?id=recipes--curve-size&viewMode=story');
@@ -1163,42 +1163,85 @@ test('the curve-size recipe leaves the arc room: no slide that shows is clipped'
   await expect(deck.getByRole('group', { name: '1 of 6' })).toHaveAttribute(
     'data-focal'
   );
-  /** Per slide that shows, how far its card reaches past the viewport's top
-   * or bottom edge, to the nearest px; and the lowest card's bottom edge
-   * against the viewport's. */
-  const overflow = () =>
+  /** Per slide not faded out, how far its card reaches past the viewport's
+   * top or bottom edge, to the nearest px. */
+  const clipped = () =>
     deck.locator('[data-slidedeck-slide]').evaluateAll((slides) => {
       const v = slides[0]
         .closest('[data-slidedeck-viewport]')!
         .getBoundingClientRect();
-      const shown = slides.filter(
-        (slide) => Number(getComputedStyle(slide).opacity) > 0
-      );
-      const cards = shown.map((slide) =>
-        slide.firstElementChild!.getBoundingClientRect()
-      );
-      return {
-        clipped: cards.map((c) =>
-          Math.max(
+      return slides
+        .filter((slide) => Number(getComputedStyle(slide).opacity) > 0)
+        .map((slide) => {
+          const c = slide.firstElementChild!.getBoundingClientRect();
+          return Math.max(
             0,
             Math.round(v.top - c.top),
             Math.round(c.bottom - v.bottom)
-          )
-        ),
-        lowest: Math.max(...cards.map((c) => Math.round(c.bottom - v.bottom)))
-      };
+          );
+        });
     });
 
-  // At the first slide, it and the two after it show, on the arc.
-  await expect.poll(overflow).toMatchObject({ clipped: [0, 0, 0] });
-  // The arc comes near the edge: the room is not far more than it needs.
-  expect((await overflow()).lowest).toBeGreaterThan(-10);
+  // At the first slide, it and the two after it are not faded out.
+  await expect.poll(clipped).toEqual([0, 0, 0]);
 
+  // Sample every frame while Next moves the deck: in the frames mid-move,
+  // the most any card not faded out reaches past an edge, and how far the
+  // lowest one drops below where a card rests.
+  const sampled = page.evaluate(
+    () =>
+      new Promise<{ frames: number; clipped: number; deepest: number }>(
+        (resolve) => {
+          const viewport = document.querySelector('[data-slidedeck-viewport]')!;
+          const slides = [
+            ...viewport.querySelectorAll<HTMLElement>('[data-slidedeck-slide]')
+          ];
+          let frames = 0;
+          let clipped = 0;
+          let deepest = 0;
+          const start = performance.now();
+          const sample = () => {
+            const moving = slides.some(
+              (slide) =>
+                !Number.isInteger(
+                  Number(slide.style.getPropertyValue('--deck-slide-progress'))
+                )
+            );
+            if (moving) {
+              frames++;
+              const v = viewport.getBoundingClientRect();
+              const rest = slides[0].getBoundingClientRect().bottom;
+              for (const slide of slides) {
+                if (Number(getComputedStyle(slide).opacity) <= 0) continue;
+                const c = slide.firstElementChild!.getBoundingClientRect();
+                clipped = Math.max(clipped, v.top - c.top, c.bottom - v.bottom);
+                deepest = Math.max(deepest, c.bottom - rest);
+              }
+            }
+            if (performance.now() - start < 1500) requestAnimationFrame(sample);
+            else
+              resolve({
+                frames,
+                clipped: Math.round(clipped),
+                deepest: Math.round(deepest)
+              });
+          };
+          requestAnimationFrame(sample);
+        }
+      )
+  );
   await deck.getByRole('button', { name: 'Next' }).click();
+  const move = await sampled;
+  expect(move.frames).toBeGreaterThan(0);
+  expect(move.clipped).toBeLessThanOrEqual(0);
+  // Past the 150px a card drops at rest: the frames caught the arc's faint
+  // end, which only the room for a moving deck covers.
+  expect(move.deepest).toBeGreaterThan(160);
+
   await expect(deck).toHaveAttribute('data-index', '1');
-  await expect.poll(overflow).toMatchObject({ clipped: [0, 0, 0, 0] });
+  await expect.poll(clipped).toEqual([0, 0, 0, 0]);
 
   await deck.getByRole('button', { name: 'Next' }).click();
   await expect(deck).toHaveAttribute('data-index', '2');
-  await expect.poll(overflow).toMatchObject({ clipped: [0, 0, 0, 0, 0] });
+  await expect.poll(clipped).toEqual([0, 0, 0, 0, 0]);
 });

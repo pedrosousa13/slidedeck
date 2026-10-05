@@ -67,8 +67,8 @@ export const MiddleByProgress: Story = {
 
 /**
  * The README's recipe "size a curve": a radius of 528px under 160px slides,
- * 16px apart, is 3 slides, and the viewport's block-end padding leaves the
- * arc room, so no slide that shows is clipped.
+ * 16px apart, is 3 slides, and the viewport's block padding leaves the arc
+ * room, so no slide that is not faded out is clipped, at rest or mid-move.
  */
 export const CurveSize: Story = {
   render: () => (
@@ -105,7 +105,7 @@ export const CurveSize: Story = {
 };
 
 /**
- * The README's recipe "custom controls and counter": Previous, Next, a
+ * The README's recipe "custom controls and a counter": Previous, Next, a
  * button per page and a counter, from a design system's button, built on
  * `Deck.useDeck()`.
  */
