@@ -24,6 +24,13 @@ name: Release
 #   `contents: write`; `tag` keeps that separation, and tags whatever is on
 #   npm but untagged, so a release that failed halfway is tagged on the next
 #   run that succeeds.
+#
+# npm can answer 404 for a version for minutes after publishing it (#63: the
+# 0.1.0 run tagged nothing). So `tag` waits, for the versions `publish` names
+# in its `published-packages` output only: it polls npm with backoff for up to
+# ten minutes, tags each as soon as npm shows it, and fails, naming them, if
+# any is still missing at the end. A version not published in this run is
+# checked once, as before. `scripts/tag-releases.mjs` does it.
 on:
   push:
     branches: [main]
@@ -136,6 +143,9 @@ jobs:
       # Trusted publishing, and provenance: without it npm refuses a publish
       # whose manifest sets `publishConfig.provenance`.
       id-token: write
+    # What this run published, for `tag` to wait for.
+    outputs:
+      published-packages: ${{ steps.publish.outputs.published-packages }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -202,7 +212,8 @@ jobs:
       # published without core. Provenance comes from each manifest's
       # `publishConfig.provenance`. Tags and releases are `tag`'s, so this job
       # needs no `contents: write`.
-      - uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+      - id: publish
+        uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         with:
@@ -214,35 +225,22 @@ jobs:
     needs: publish
     if: vars.RELEASE_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Up to ten minutes waiting for npm, and the tagging around it.
+    timeout-minutes: 20
     permissions:
       contents: write # create the tags and the GitHub releases
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # No install and none of the repo's code: the manifests and changelogs
-      # are read as data. Every package version on npm without a release gets
-      # one, tagged `<name>@<version>` at this commit, as Changesets tags, with
-      # its changelog section as the notes.
+      # No install: the script, from the commit `verify` checked, uses Node's
+      # built-ins only and reads the manifests and changelogs as data. It
+      # reads npm anonymously; this job holds no npm credential. Every package
+      # version on npm without a release gets one, tagged `<name>@<version>`
+      # at this commit, as Changesets tags, with its changelog section as the
+      # notes.
       - name: Tag and release what npm has
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          for manifest in packages/*/package.json; do
-            dir=$(dirname "$manifest")
-            name=$(node -p "require('./$manifest').name")
-            version=$(node -p "require('./$manifest').version")
-            tag="$name@$version"
-            if ! npm view "$tag" version > /dev/null 2>&1; then
-              echo "$tag is not on npm; not tagged."
-              continue
-            fi
-            if gh release view "$tag" > /dev/null 2>&1; then
-              echo "$tag already has a release."
-              continue
-            fi
-            awk -v heading="## $version" '$0 == heading { found = 1; next } /^## / { found = 0 } found' \
-              "$dir/CHANGELOG.md" > "$RUNNER_TEMP/notes.md"
-            gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file "$RUNNER_TEMP/notes.md"
-          done
+          PUBLISHED_PACKAGES: ${{ needs.publish.outputs.published-packages }}
+        run: node scripts/tag-releases.mjs
