@@ -5,6 +5,7 @@ import { fade } from '@slidedeck/react/fade';
 import theme from '@slidedeck/react/theme.css?inline';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import clip from './assets/clip.webm';
+import { eventLog } from './event-log';
 import { VideoDeck } from './video-deck';
 
 const slidesOf = (count: number) =>
@@ -365,6 +366,11 @@ export const RightToLeft: Story = {
   ]
 };
 
+/** A story's decorators, then the event log, which `log=1` in the URL turns
+ * on (see `eventLog`). */
+const withLog = (decorators: Story['decorators']) =>
+  [decorators ?? [], eventLog].flat();
+
 /**
  * With `loop`, scrolling past the last slide arrives at the first, and back:
  * Prev and Next are never disabled, and a drag, a flick or a wheel crosses the
@@ -376,27 +382,30 @@ export const RightToLeft: Story = {
  */
 export const Loop: Story = {
   args: { loop: true },
-  decorators: Peek.decorators
+  decorators: withLog(Peek.decorators)
 };
 
 /** Loop in pages of three over ten slides, as in Pages: the last page holds
  * one slide, and Next from it goes on to the first page. */
 export const LoopPages: Story = {
   ...Pages,
-  args: { loop: true }
+  args: { loop: true },
+  decorators: withLog(Pages.decorators)
 };
 
 /** Loop on a vertical deck: Next on the last slide steps down to the first. */
 export const LoopVertical: Story = {
   ...Vertical,
-  args: { orientation: 'vertical', loop: true }
+  args: { orientation: 'vertical', loop: true },
+  decorators: withLog(Vertical.decorators)
 };
 
 /** Loop in a right-to-left document: past the last slide, at the left, is the
  * first. */
 export const LoopRightToLeft: Story = {
   ...RightToLeft,
-  args: { loop: true }
+  args: { loop: true },
+  decorators: withLog(RightToLeft.decorators)
 };
 
 /**

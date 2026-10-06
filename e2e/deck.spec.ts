@@ -46,9 +46,9 @@ async function watchScroll(page: Page): Promise<() => Promise<number>> {
  * story can outlast the expect timeout, and every assertion after the wait
  * still gets that timeout for what it checks.
  */
-async function openStory(page: Page, id: string, args?: string) {
+async function openStory(page: Page, id: string, args?: string, query = '') {
   await page.goto(
-    `/iframe.html?id=${id}&viewMode=story${args ? `&args=${args}` : ''}`
+    `/iframe.html?id=${id}&viewMode=story${args ? `&args=${args}` : ''}${query}`
   );
   await page.waitForFunction(() => {
     const viewports = [
@@ -1247,6 +1247,71 @@ test('a loop deck steps across the seam with Prev and Next, and no copy is reach
       )
     ).toBe(false);
   }
+});
+
+// The event log (#82): an opt-in panel on the loop stories, off unless the
+// URL asks for it with `log=1`, for watching on a phone what happens at the
+// end of each swipe (#48).
+for (const { id, last } of [
+  { id: 'deck--loop', last: 5 },
+  { id: 'deck--loop-pages', last: 3 },
+  { id: 'deck--loop-vertical', last: 5 },
+  { id: 'deck--loop-right-to-left', last: 5 }
+] as const) {
+  test(`${id}: with log=1, the event log records a press, the scroll's end, the index and the jump off a copy across the seam`, async ({
+    page
+  }) => {
+    await openStory(page, id, undefined, '&log=1');
+    const deck = page.getByRole('region', { name: 'Featured slides' });
+    const log = page.getByRole('log', { name: 'Event log' });
+    await expect(log).toContainText(/onscrollend in window: (true|false)/);
+    await expect(log).toContainText(/devicePixelRatio: \d/);
+
+    await deck.getByRole('button', { name: 'Previous' }).click();
+
+    await expect(deck).toHaveAttribute('data-index', String(last));
+    await expect(log).toContainText('pointerdown mouse');
+    await expect(log).toContainText('pointerup mouse');
+    await expect(log).toContainText(/\d scrollend -?\d/);
+    await expect(log).toContainText(`onIndexChange ${last}`);
+    await expect(log).toContainText(/jump -?[\d.]+ → -?[\d.]+/);
+    // The rest after the jump reads as a slide's, within the engine's 1px.
+    await expect(log).toContainText(/quiet -?[\d.]+ .*on a slide/);
+  });
+}
+
+// A scroll the engine did not start, as a touch swipe's on a phone, settles
+// at its end event: the log reads the rest there before the engine does, so
+// it shows the copy the deck came to rest on, then the jump off it.
+test('deck--loop: with log=1, a wheel step back across the seam logs the rest on a copy, then the jump', async ({
+  page
+}) => {
+  await openStory(page, 'deck--loop', undefined, '&log=1');
+  const deck = page.getByRole('region', { name: 'Featured slides' });
+  const log = page.getByRole('log', { name: 'Event log' });
+  const viewport = deck.locator('[data-slidedeck-viewport]');
+  const box = (await viewport.boundingBox())!;
+  const step = await deck
+    .getByRole('group', { name: '1 of 6' })
+    .evaluate((el) => el.getBoundingClientRect().width);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+
+  await page.mouse.wheel(-step, 0);
+
+  await expect(deck).toHaveAttribute('data-index', '5');
+  await expect(log).toContainText(
+    /\d (scrollsnapchange|scrollend) -?[\d.]+ nearest copy before of slide 6 .*: on a copy, no slide within 1px/
+  );
+  await expect(log).toContainText(/jump -?[\d.]+ → -?[\d.]+/);
+});
+
+test('without log=1, a loop story has no event log', async ({ page }) => {
+  await openStory(page, 'deck--loop');
+  await page.getByRole('button', { name: 'Previous' }).click();
+  await expect(
+    page.getByRole('region', { name: 'Featured slides' })
+  ).toHaveAttribute('data-index', '5');
+  await expect(page.getByRole('log')).toHaveCount(0);
 });
 
 // The README's recipes (#58), each run by a story under Recipes.
