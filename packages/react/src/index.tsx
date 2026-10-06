@@ -746,7 +746,7 @@ export function Viewport({ style, children, effect, ...props }: ViewportProps) {
       {...props}
     >
       <style href="slidedeck-slide" precedence="slidedeck">
-        {slideDefaults}
+        {deckDefaults}
       </style>
       {effect && (
         <style href={`slidedeck-${effect.name}`} precedence="slidedeck">
@@ -772,11 +772,14 @@ export function Viewport({ style, children, effect, ...props }: ViewportProps) {
 // A slide's size and alignment are geometry, which belongs to consumer CSS
 // (ADR-0003). These defaults make a deck work with no stylesheet, and their
 // zero specificity lets any consumer rule override them, which inline styles
-// would not. The viewport's scrollbar is hidden, and it still scrolls. Only an
-// engine without `scrollbar-width` gets `::-webkit-scrollbar`: where both
-// apply, Chromium honours the pseudo-element whenever `scrollbar-width` is
-// `auto`, so a consumer's `scrollbar-width: auto` alone would not restore it.
-const slideDefaults =
+// would not. The viewport's scrollbar is hidden too, and it still scrolls:
+// `scrollbar-width: none` has zero specificity like the rest. Only an engine
+// without `scrollbar-width` gets `::-webkit-scrollbar`, as Chromium honours
+// the pseudo-element while `scrollbar-width` is `auto`, and a consumer's
+// `scrollbar-width: auto` alone would not restore it. The pseudo-element
+// makes that rule (0,0,1), so a consumer's
+// `[data-slidedeck-viewport]::-webkit-scrollbar` still wins.
+const deckDefaults =
   ':where([data-slidedeck-slide]){width:100%;scroll-snap-align:start}' +
   ':where([data-orientation=vertical]>[data-slidedeck-slide]){height:100%}' +
   ':where([data-slidedeck-viewport]){scrollbar-width:none}' +

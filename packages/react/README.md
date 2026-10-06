@@ -210,8 +210,25 @@ back, one rule:
 }
 ```
 
-Safari before 18.2 does not support `scrollbar-width`, and needs a second
-rule, `[data-slidedeck-viewport]::-webkit-scrollbar { display: block; }`.
+Safari before 18.2 does not support `scrollbar-width`, and its native
+scrollbar cannot come back there: any `::-webkit-scrollbar` rule replaces it
+with one drawn from your CSS. To show a styled one there instead, only where
+`scrollbar-width` is not supported, so other browsers keep theirs (untested in
+Safari before 18.2):
+
+```css
+@supports not (scrollbar-width: auto) {
+  [data-slidedeck-viewport]::-webkit-scrollbar {
+    display: block;
+    width: 8px;
+    height: 8px;
+  }
+  [data-slidedeck-viewport]::-webkit-scrollbar-thumb {
+    background: rgb(0 0 0 / 0.4);
+    border-radius: 4px;
+  }
+}
+```
 
 Media queries and container queries work as they do for anything else, and
 the deck re-reads its snap points when the viewport resizes. The structural
