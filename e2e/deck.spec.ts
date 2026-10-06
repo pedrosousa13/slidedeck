@@ -959,12 +959,17 @@ test('an autoplay deck rotates quietly until its toggle stops it', async ({
   await expect(live).toHaveText('Slide 3 of 6');
 });
 
-/** A flick's speed. The deck reads a release faster than 0.4px/ms as a
- * flick, and in every loop story a release slower than about 1.4px/ms as a
- * flick of one snap point, not a fling across several. */
-const FLICK_PX_PER_MS = 0.8;
-/** A drag's speed, too slow for a flick. */
-const DRAG_PX_PER_MS = 0.3;
+/**
+ * The test's flick speed, in px/ms. The deck's thresholds are the engine's,
+ * in packages/core/src/index.ts: a release faster than its `FLICK_PX_PER_MS`
+ * is a flick, its speed measured over the moves in `VELOCITY_WINDOW_MS`, and
+ * it carries `MOMENTUM_MS` at that speed. This speed is well over the flick
+ * threshold, and slow enough to be a flick of one snap point, not a fling
+ * across several, in every loop story.
+ */
+const FLICK_SPEED = 0.8;
+/** The test's drag speed, in px/ms: under the engine's `FLICK_PX_PER_MS`. */
+const DRAG_SPEED = 0.3;
 /** How often a flick moves the pointer. */
 const FLICK_MOVE_MS = 16;
 
@@ -972,7 +977,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * A mouse flick on the deck's viewport: `distance` px along the axis at
- * `pxPerMs`, with a move every 16ms, let go at once. Positive moves the
+ * `speed` px/ms, with a move every 16ms, let go at once. Positive moves the
  * pointer right, or down. The deck reads the release speed from the times
  * of the moves in its last 80ms, so each event is stamped on the gesture's
  * own clock, not when a busy machine gets round to it, and the deck reads
@@ -982,17 +987,24 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  *   tests' gestures do (#49).
  * - Firefox and WebKit take no time for an input event. The moves are real,
  *   and the page restamps each pointer event before the deck hears it: see
- *   `stampFlick`.
+ *   `stampFlick`. So there the deck reads the flick's times, not the
+ *   browser's: these tests do not check how it paces input, nor the engine's
+ *   check that a pointer held still before letting go (`STILL_MS`) releases
+ *   at rest.
+ *
+ * Not covered in any browser: one that stalls 80ms or more at the end of
+ * the flick may coalesce the last moves into one event, which leaves the deck
+ * a single move in its velocity window, and it reads a drag.
  */
 async function flick(
   page: Page,
   distance: number,
   axis: 'x' | 'y' = 'x',
-  pxPerMs = FLICK_PX_PER_MS
+  speed = FLICK_SPEED
 ) {
   const viewport = page.locator('[data-slidedeck-viewport]').first();
   const box = (await viewport.boundingBox())!;
-  const duration = Math.abs(distance) / pxPerMs;
+  const duration = Math.abs(distance) / speed;
   /** Where the pointer is `ms` into the flick. */
   const at = (ms: number) => {
     const d = distance * (ms / duration - 1 / 2);
@@ -1016,21 +1028,24 @@ async function flick(
         clickCount: type === 'mouseMoved' ? 0 : 1,
         timestamp: (start + ms) / 1000
       });
-    await send('mouseMoved', 0, 0);
-    await send('mousePressed', 0, 1);
-    // The gesture waits out each move, so no event is stamped later than it
-    // is sent.
-    for (let ms = 0; ms < duration;) {
-      ms = Math.min(ms + FLICK_MOVE_MS, duration);
-      await sleep(FLICK_MOVE_MS);
-      await send('mouseMoved', ms, 1);
+    try {
+      await send('mouseMoved', 0, 0);
+      await send('mousePressed', 0, 1);
+      // The gesture waits out each move, so no event is stamped later than
+      // it is sent.
+      for (let ms = 0; ms < duration;) {
+        ms = Math.min(ms + FLICK_MOVE_MS, duration);
+        await sleep(FLICK_MOVE_MS);
+        await send('mouseMoved', ms, 1);
+      }
+      await send('mouseReleased', duration, 0);
+    } finally {
+      await cdp.detach();
     }
-    await send('mouseReleased', duration, 0);
-    await cdp.detach();
     return;
   }
   await page.mouse.move(at(0).x, at(0).y);
-  await page.evaluate(stampFlick, { axis, pxPerMs });
+  await page.evaluate(stampFlick, { axis, speed });
   await page.mouse.down();
   for (let ms = 0; ms < duration;) {
     ms = Math.min(ms + FLICK_MOVE_MS, duration);
@@ -1038,6 +1053,13 @@ async function flick(
     await page.mouse.move(at(ms).x, at(ms).y);
   }
   await page.mouse.up();
+  // Every pointer event the deck heard had the flick's time, or the flick
+  // was the browser's pacing after all: fail rather than pass on that.
+  const stamped = await page.evaluate(
+    () => (window as unknown as { flickStamped: boolean[] }).flickStamped
+  );
+  expect(stamped.length).toBeGreaterThan(2);
+  expect(stamped).not.toContain(false);
 }
 
 /**
@@ -1047,10 +1069,16 @@ async function flick(
  * is stamped, before the deck hears it, on the flick's own clock: the press
  * at its own time, and every move and the release when the flick, at its
  * steady speed, is where the event is. However late or bunched the browser
- * handles them, the deck reads the flick's speed.
+ * handles them, the deck reads the flick's speed. These are not the times
+ * the browser gave: see `flick` for what that leaves unchecked.
+ *
+ * `window.flickStamped` records, per event, whether its new time took, for
+ * `flick` to check.
  */
-function stampFlick({ axis, pxPerMs }: { axis: 'x' | 'y'; pxPerMs: number }) {
+function stampFlick({ axis, speed }: { axis: 'x' | 'y'; speed: number }) {
   const types = ['pointerdown', 'pointermove', 'pointerup'] as const;
+  const stamped: boolean[] = [];
+  (window as unknown as { flickStamped: boolean[] }).flickStamped = stamped;
   let from = 0;
   let start = 0;
   const stamp = (event: PointerEvent) => {
@@ -1059,9 +1087,12 @@ function stampFlick({ axis, pxPerMs }: { axis: 'x' | 'y'; pxPerMs: number }) {
       from = along;
       start = event.timeStamp;
     }
-    Object.defineProperty(event, 'timeStamp', {
-      value: start + Math.abs(along - from) / pxPerMs
-    });
+    const time = start + Math.abs(along - from) / speed;
+    try {
+      Object.defineProperty(event, 'timeStamp', { value: time });
+    } finally {
+      stamped.push(event.timeStamp === time);
+    }
     if (event.type === 'pointerup') {
       for (const type of types) removeEventListener(type, stamp, true);
     }
@@ -1128,7 +1159,7 @@ for (const { id, slides, last, back, axis } of [
         rest
       );
 
-    await flick(page, back, axis, DRAG_PX_PER_MS);
+    await flick(page, back, axis, DRAG_SPEED);
 
     // Back where it rested: the index alone reads 0 before the deck settles.
     await expect.poll(moved).toBeLessThan(1);
