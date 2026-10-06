@@ -232,6 +232,39 @@ describe('a controlled deck', () => {
     expect(onIndexChange).not.toHaveBeenCalled();
   });
 
+  // Measured in WebKit under load (#75): a press can come after the deck
+  // settles and reports its index, but before React renders the parent
+  // taking it. The parent took the index the deck reported: that is no new
+  // `index` to go back to, and the press steps on.
+  test('a press before the parent renders the index it took steps on', async () => {
+    const onIndexChange = vi.fn();
+    const next = () => screen.getByRole('button', { name: 'Next' });
+    function Parent() {
+      const [index, setIndex] = useState(0);
+      return (
+        <TestDeck
+          index={index}
+          onIndexChange={(reported) => {
+            onIndexChange(reported);
+            setIndex(reported);
+            // React renders the parent in a later task: a press in a
+            // microtask comes first, as one under load can.
+            if (reported === 1) queueMicrotask(() => next().click());
+          }}
+        />
+      );
+    }
+    render(<Parent />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+
+    act(() => next().click());
+
+    await expectSettledTo(() => viewport.scrollLeft, 2 * WIDTH);
+    expect(root.dataset.index).toBe('2');
+    expect(onIndexChange.mock.calls).toEqual([[1], [2]]);
+  });
+
   test('goes to index once slides arrive in a deck that had none', async () => {
     const { rerender } = render(
       <TestDeck slides={0} index={2} onIndexChange={() => {}} />
