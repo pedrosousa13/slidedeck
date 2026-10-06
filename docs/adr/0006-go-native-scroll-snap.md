@@ -12,15 +12,17 @@ decided each choice are summarised here.
 **Loop: clone and jump.** A full set of copies goes on each side of the real
 slides, `aria-hidden` and `inert`. When the viewport rests on a snap point
 after `scrollend` (or a debounce where `scrollend` is missing), it jumps one
-set length onto the identical real slides. It never jumps mid-motion. This
-was the only technique with no measured jump, edge hit or focus on a copy in
-any browser. Jumping mid-motion showed jumps of up to 0.30 slide and killed
-momentum; one viewport of copies was too short for a hard scroll across the
-seam. Reposition was rejected: its runway is about n/2 slides (4.8 forward
-in a 12-slide deck, so a wheel burst hit the end), and moving DOM nodes
-trapped Tab: 40 presses never left the deck. Its CSS `order` variant fixes
-Tab but splits visual order from reading order. As built, the copies are
-rendered by `Deck.Viewport` and never counted (ADR-0009).
+set length onto the identical real slides. It never jumps mid-motion, but for
+a press on the copies, which shifts the deck a set onto the slides where
+nothing shows (amended for #48, ADR-0009). This was the only technique with no
+measured jump, edge hit or focus on a copy in any browser. Jumping mid-motion
+showed jumps of up to 0.30 slide and killed momentum; one viewport of copies
+was too short for a hard scroll across the seam. Reposition was rejected: its
+runway is about n/2 slides (4.8 forward in a 12-slide deck, so a wheel burst
+hit the end), and moving DOM nodes trapped Tab: 40 presses never left the
+deck. Its CSS `order` variant fixes Tab but splits visual order from reading
+order. As built, the copies are rendered by `Deck.Viewport` and never counted
+(ADR-0009).
 
 **Drag: scripted handoff.** Snapping is off while the mouse drags. On
 release slidedeck projects the velocity to a snap point, smooth-scrolls
@@ -96,13 +98,25 @@ event cannot say which move it ends. The events, and what each does:
 - _A pointer held on the viewport_: an end does not settle until the last
   pointer lets go, so the deck never jumps off a copy under a finger or the
   mouse. A scroll after the end, as a touch pan, settles at its own end. A
-  release the engine does not hear would hold the deck unsettled for good,
-  so a pointer lets go at the first of: a `pointerup` or `pointercancel`,
-  heard on the window in the capture phase, before any page listener can
-  stop it; a `pointermove` or `pointerover` anywhere with no button down;
-  the window losing focus, as the release may then go to another window;
-  and a new primary pointer of its type pressed on the viewport, as none
-  other of that type can then still be down.
+  release the engine does not hear would hold the deck unsettled for good, so
+  a pointer lets go at the first of (amended for #48: a touch the browser pans
+  lets go only as its last finger lifts, below): a `pointerup` or
+  `pointercancel`, heard on the window in the capture phase, before any page
+  listener can stop it; a `pointermove` or `pointerover` anywhere with no
+  button down; the window losing focus, as the release may then go to another
+  window; and a new primary pointer of its type pressed on the viewport, as
+  none other of that type can then still be down.
+- _A touch the browser pans_ (amended for #48): it lets go when the last
+  finger lifts, not at the `pointercancel` that hands the pan to the
+  browser. The finger is still down then, and the pan has sent no scroll
+  yet, so a settle owed, as when a move or a fling comes to rest under the
+  finger, jumped off a copy and reported as the pan began. Now the pan
+  settles at its own end. The lift is the first `touchend` or `touchcancel`
+  heard on the window in the capture phase or on the node the touch began
+  on: the node hears it where the window does not, once the node has left
+  the page, as when a consumer swaps a slide's content mid-pan. A browser
+  with no touch events lets go at `pointercancel`, as before, and so does a
+  pen.
 - _The jump off a copy_ is part of a settle, so it comes only when idle or at
   a move's end. Its own end, if a new move has started, is a late end.
 
@@ -154,6 +168,13 @@ copy's snap point counts, and that move's settle jumps off the copy.
   there is no re-snap.
 - Proximity snapping is exempt: resting between snap points is the
   browser's choice there.
+- _A copy's snap point past an end of the scroll range_ (amended for #48),
+  as a centred deck's last copies' are, is none. The browser rests such a
+  copy clamped to the end, but the deck cannot jump off it: its slide a
+  set back would rest on no snap point. Measured in Chromium, a drag or a
+  flick to the end left the deck there for good, on the copies, reporting
+  a slide it did not show. It now re-snaps to the nearest snap point within
+  the scroll range, and jumps off that copy as usual.
 - Where the browser still holds the deck somewhere the engine does not
   measure, a re-snap from there moves nothing, and the deck settles there
   without trying again.
