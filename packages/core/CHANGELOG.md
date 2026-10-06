@@ -1,5 +1,17 @@
 # @slidedeck/core
 
+## 0.3.0
+
+### Patch Changes
+
+- f53e539: A looping deck no longer runs out of copies when swipes or drags come faster than it comes to rest. Each swipe carried on from the momentum of the one before, so the deck never rested, never jumped back off the copies, and stopped at an end of its scroll range after a few swipes, on an iPhone and with a mouse in Chrome. Now a touch or pen pressed on the viewport while it is on the copies, or a mouse drag starting there, moves the deck back one set of slides, to the same place among them, before the swipe or drag goes on. Nothing shows: the index stays the same, `onIndexChange` does not fire, nothing is announced, focus stays where it is, and `--deck-slide-progress` and `data-in-view` read as before. A mouse click, and a tap during a move, change nothing.
+
+  A touch that the browser turns into a pan now holds the deck until the finger lifts. Before, a deck that came to rest under the finger, at the end of a move or a fling, jumped off a copy and reported its index as the pan began.
+
+  A looping deck with centred slides at an end of its scroll range, as after a hard drag or flick, stayed there on the copies, off its slides' snap points, and reported a slide it did not show. It now moves to the nearest snap point within the scroll range, and then jumps back onto its slide as usual.
+
+- 9a9242a: In Chromium, after slides are removed or shrink so that the deck rests past the new end, the deck could stop following its layout: a controlled deck did not go back to `index` once slides were added again, Dots and Counter kept the old count, and a switch of `effect` or `loop` did not keep the current slide. It happened where Chromium never ended the scroll that moves the deck back into range, as after a touch fling on another scroller was cut short by leaving the page. The deck now treats that scroll as part of the new layout, and settles a scroll that is not the user's once no scroll event has come for 100ms. A scroll of the user's still settles only at its own end.
+
 ## 0.2.0
 
 ### Minor Changes
