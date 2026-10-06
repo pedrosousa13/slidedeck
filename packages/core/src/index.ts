@@ -150,6 +150,9 @@ export function createDeck(
   let known: Geometry = { points: [], slides: [], length: 0 };
 
   const settle = () => {
+    refreshOwed = false;
+    userInput = false;
+    userScroll = false;
     shape = shapeOf(viewport);
     placeOwed = null;
     alignCopies(viewport);
@@ -432,15 +435,59 @@ export function createDeck(
       awaitQuiet();
       return;
     }
+    relaidAt = null;
+    // Input with no scroll since is not the user's scroll: a scroll after
+    // this quiet is not taken for one.
+    if (!userScroll) userInput = false;
     if (confirm === 'waiting') confirm = 'due';
+    // Nothing scrolled since the last end, or a scroll the engine did not
+    // start, which ends at its own end event: but one a refresh found going
+    // ends here, unless it is the user's (see `refreshOwed`).
+    else if (
+      !move &&
+      (!scrolling || (hasScrollEnd && (!refreshOwed || userScroll)))
+    ) {
+      refreshOwed = false;
+      return;
+    }
     scrollEnded();
   };
   const onScroll = () => {
-    scrolling = true;
     frame ||= requestAnimationFrame(() => paint());
+    // The scroll a refresh's new layout makes, to where it settled the
+    // deck, is no scroll (see `relaidAt`).
+    if (
+      relaidAt !== null &&
+      !move &&
+      Math.abs(axis().position - relaidAt) < 1
+    ) {
+      return;
+    }
+    scrolling = true;
+    if (userInput) userScroll = true;
     if (move) move.stalled = false;
-    if (!hasScrollEnd || move || confirm) awaitQuiet();
+    if (!hasScrollEnd || move || confirm || refreshOwed) awaitQuiet();
   };
+  // A scroll whose end event never comes must not leave `scrolling` set for
+  // good: a refresh would then only paint, a settle owed to a pointer would
+  // be dropped and a new layout would not keep the deck's place, so its
+  // count and a controlled `index` go stale (#87). Chromium sends no
+  // `scrollend` for the scroll a shorter scroll range makes, as when slides
+  // are removed from under the viewport, only a `scrollsnapchange`, and
+  // after a touch fling on another scroller was cut short, as when a page
+  // leaves mid-fling, not even that. So a refresh that settles notes where,
+  // until the next quiet: a scroll to there is the new layout's, and leaves
+  // the deck at rest. A refresh that finds a scroll going, neither a move
+  // nor the user's, settles at its end event or at quiet, whichever comes
+  // first. The user's scroll is never cut short: it settles at its own end.
+  let relaidAt: number | null = null;
+  let refreshOwed = false;
+  // The user's input, until the next quiet or settle, and whether a scroll
+  // followed it, until the next settle: input that scrolls nothing, as a
+  // vertical wheel over a horizontal deck, leaves a refresh owed to settle
+  // at quiet, and makes no later scroll the user's.
+  let userInput = false;
+  let userScroll = false;
   // The layout moved the snap points mid-move (see `keepPlace`), so the
   // move's target counts the old snap points; `startMove` and `endMove`
   // clear it, as a new move's target counts the new ones.
@@ -457,7 +504,8 @@ export function createDeck(
   const endMove = () => {
     move = null;
     relaidOut = false;
-    if (hasScrollEnd) stopQuiet();
+    // Quiet still ends the window after a refresh (see `relaidAt`).
+    if (hasScrollEnd && relaidAt === null) stopQuiet();
   };
   // The user's scroll ends the move, if any, going `way` along the axis
   // where the input says. It also ends the wait for a re-snap, and its way
@@ -466,7 +514,11 @@ export function createDeck(
   const takeOver = (way = 0) => {
     if (move || confirm) taken = { at: axis().position, way };
     confirm = null;
+    userInput = true;
     endMove();
+    // Quiet still ends what a refresh is owed, if this input scrolls
+    // nothing, and ends the input.
+    if (!userScroll) awaitQuiet();
   };
 
   // Pointers pressed on the viewport, by id, with their type, until they
@@ -704,8 +756,19 @@ export function createDeck(
       shape = next;
       if (keepPlace()) return;
     }
-    if (!scrolling && !move && drag !== 'dragging') settle();
-    else paint();
+    if (!scrolling && !move && drag !== 'dragging') {
+      settle();
+      relaidAt = axis().position;
+      awaitQuiet();
+    } else {
+      paint();
+      // A move settles at its own end, and so do a drag and the user's
+      // scroll (see `relaidAt`).
+      if (!move && drag === 'idle' && !userScroll) {
+        refreshOwed = true;
+        awaitQuiet();
+      }
+    }
   };
 
   // `across` lets a looping deck's move run past either end onto the copies
@@ -802,6 +865,10 @@ export function createDeck(
     if (pressed.size > 0) {
       placeOwed = state.index;
       paint();
+      // Where the browser puts the viewport may be a scroll with no end
+      // event: it ends at quiet, unless the user scrolls (see `relaidAt`).
+      refreshOwed = !userScroll;
+      awaitQuiet();
       return true;
     }
     if (scrolling) return false;

@@ -62,6 +62,24 @@ event cannot say which move it ends. The events, and what each does:
   missing, it also ends every other scroll, the user's included, as before.
   So every move ends: at its end event, or at worst 200ms after its last
   scroll event.
+- _A new layout and a scroll with no end event_ (amended for #87): a
+  scroll whose end event never came left a stale scrolling flag. Measured
+  in Chromium: the scroll a shorter scroll range makes, as when slides are
+  removed or shrink under the viewport, gets no `scrollend`, only a
+  `scrollsnapchange`, and after a touch fling on another scroller was cut
+  short none of either, nor for the scroll that puts the viewport where
+  the browser chooses after an effect or loop switch. With the flag stale,
+  a refresh only painted, a settle owed to a pointer was dropped and an
+  effect or loop switch did not keep the deck's place, so its count and a
+  controlled `index` went stale. Now a refresh that settles notes where,
+  until the next quiet, and a scroll to there is the new layout's own: the
+  deck stays at rest. A scroll that a refresh, or a switch under a pressed
+  pointer, finds or starts, neither a move nor the user's, ends at its end
+  event or at quiet, whichever comes first, and input that scrolls nothing
+  does not end that wait; nor does a later scroll count as the user's,
+  once a quiet has passed since that input. Like the re-snap, it never
+  fights the user: a new layout during the user's scroll waits for its own
+  end, however long the user holds still.
 - _The user's scroll_ (a wheel, a key that scrolls, a touch or pen pan,
   which the browser takes over with `pointercancel`, a mouse drag): moving,
   the engine is idle again, without a settle, and quiet stops where
