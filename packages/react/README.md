@@ -200,6 +200,36 @@ start. These defaults have zero specificity, so any rule of yours wins:
 }
 ```
 
+The viewport shows no scrollbar by default. It still scrolls by touch,
+trackpad, mouse wheel, drag, keyboard and the controls. To bring the scrollbar
+back, one rule:
+
+```css
+[data-slidedeck-viewport] {
+  scrollbar-width: auto;
+}
+```
+
+Safari before 18.2 does not support `scrollbar-width`, and its native
+scrollbar cannot come back there: any `::-webkit-scrollbar` rule replaces it
+with one drawn from your CSS. To show a styled one there instead, only where
+`scrollbar-width` is not supported, so other browsers keep theirs (untested in
+Safari before 18.2):
+
+```css
+@supports not (scrollbar-width: auto) {
+  [data-slidedeck-viewport]::-webkit-scrollbar {
+    display: block;
+    width: 8px;
+    height: 8px;
+  }
+  [data-slidedeck-viewport]::-webkit-scrollbar-thumb {
+    background: rgb(0 0 0 / 0.4);
+    border-radius: 4px;
+  }
+}
+```
+
 Media queries and container queries work as they do for anything else, and
 the deck re-reads its snap points when the viewport resizes. The structural
 styles a deck needs, such as the scroll container and its snap type, are set
@@ -1132,7 +1162,7 @@ pinned installs, and CI fails if this table is stale.
 
 | Library                | Version   | Min+gzip | Native scroll                                    | Accessibility out of the box                                                                                                           | API shape                                                                                          |
 | ---------------------- | --------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `@slidedeck/react`     | this repo | 8.25 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
+| `@slidedeck/react`     | this repo | 8.30 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
 | `embla-carousel-react` | 8.6.0     | 7.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels or controls; scrolls a focused slide into view                                                                        | A hook returning a ref and an API object; markup and controls are yours                            |
 | `keen-slider`          | 6.8.6     | 6.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels, controls or keyboard handling                                                                                        | A hook returning a ref and an instance, plus a required stylesheet; markup and controls are yours  |
 
