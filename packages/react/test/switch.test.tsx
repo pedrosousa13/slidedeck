@@ -8,7 +8,9 @@ import {
   addStyle,
   expectSettledTo,
   mouseAt,
+  nextFrame,
   sleep,
+  TestDeck,
   viewportOf,
   WIDTH
 } from './fixtures';
@@ -25,12 +27,13 @@ type Layout = {
   loop?: boolean;
   autoplay?: number;
   handleRef?: Ref<Deck.RootHandle>;
+  slides?: number;
 };
 
 type SwitchDeckProps = ComponentProps<typeof Deck.Root> & Layout;
 
 /** Two slides in view, 50% wide, unless an effect stacks them. */
-function SwitchDeck({ effect, ...props }: SwitchDeckProps) {
+function SwitchDeck({ effect, slides = SLIDES, ...props }: SwitchDeckProps) {
   return (
     <Deck.Root aria-label="Test deck" {...props}>
       <Deck.Viewport
@@ -38,7 +41,7 @@ function SwitchDeck({ effect, ...props }: SwitchDeckProps) {
         className="half"
         style={{ width: WIDTH, height: 100 }}
       >
-        {Array.from({ length: SLIDES }, (_, i) => (
+        {Array.from({ length: slides }, (_, i) => (
           <Deck.Slide key={i}>
             <button type="button">Button {i + 1}</button>
           </Deck.Slide>
@@ -366,4 +369,197 @@ describe('switching effect or loop on a mounted deck', () => {
       expect(live()).toBe('');
     }
   );
+});
+
+// Chromium sends no `scrollend` for the scroll a shorter scroll range makes,
+// only a `scrollsnapchange`, and after a touch fling on another scroller was
+// cut short, as when a page leaves mid-fling, not even that (#87). These
+// withhold a scroll's end events from the deck, so the end never comes.
+describe('a new layout and a scroll whose end event never comes', () => {
+  const withholdEnds = (viewport: HTMLElement) => {
+    const withhold = (event: Event) => event.stopImmediatePropagation();
+    const ends = ['scrollend', 'scrollsnapchange'];
+    for (const type of ends) {
+      viewport.addEventListener(type, withhold, { capture: true });
+    }
+    return () => {
+      for (const type of ends) {
+        viewport.removeEventListener(type, withhold, { capture: true });
+      }
+    };
+  };
+
+  const renderDeck = (slides: number, defaultIndex = 0) => {
+    const onIndexChange = vi.fn();
+    const { rerender } = render(
+      <TestDeck
+        slides={slides}
+        defaultIndex={defaultIndex}
+        onIndexChange={onIndexChange}
+      />
+    );
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    return {
+      root,
+      viewport: viewportOf(root),
+      onIndexChange,
+      relayout: (next: number, layout: { loop?: boolean } = {}) =>
+        rerender(
+          <TestDeck
+            slides={next}
+            defaultIndex={defaultIndex}
+            onIndexChange={onIndexChange}
+            {...layout}
+          />
+        )
+    };
+  };
+
+  test('right after slides shrink past the deck, an effect switch keeps it at rest', async () => {
+    const { root, viewport, onIndexChange, switchTo } = renderSwitch(5, {
+      effect: fade
+    });
+    withholdEnds(viewport);
+
+    switchTo({ effect: fade, slides: 4 });
+    expect(onIndexChange.mock.calls).toEqual([[3]]);
+    // The shrink's scroll has come, with no end event.
+    await nextFrame();
+    await nextFrame();
+    // Two slides in view: 4 slides have 3 snap points without fade.
+    switchTo({ slides: 4 });
+
+    const at = ['2', '3 of 4', 0];
+    // Before the browser paints the new layout.
+    expect(restOf(root, viewport, 2)).toEqual(at);
+    await expectSettledTo(() => restOf(root, viewport, 2), at);
+    expect(onIndexChange.mock.calls).toEqual([[3], [2]]);
+  });
+
+  test('an effect switch under a pointer held still keeps the deck’s place once it lets go', async () => {
+    const { root, viewport, onIndexChange, switchTo } = renderSwitch(2);
+    withholdEnds(viewport);
+    const box = viewport.getBoundingClientRect();
+    const x = box.left + box.width / 2;
+    const y = box.bottom - 10;
+
+    await mouseAt('mousePressed', x, y, 1);
+    switchTo({ effect: fade });
+    // Where the browser puts the viewport for the new layout, as Chromium
+    // puts it after a touch fling on another scroller was cut short: at
+    // the start, a scroll with no end event.
+    viewport.scrollLeft = 0;
+    await sleep(300);
+    await mouseAt('mouseReleased', x, y, 0);
+
+    const at = ['2', `3 of ${SLIDES}`, 0];
+    await expectSettledTo(() => restOf(root, viewport, 2), at);
+    expect(onIndexChange).not.toHaveBeenCalled();
+  });
+
+  test('a new layout during the user’s scroll waits for its end, though quiet comes first', async () => {
+    const { viewport, onIndexChange, relayout } = renderDeck(5);
+    const release = withholdEnds(viewport);
+
+    // As a trackpad scroll whose fingers rest on the pad: no scroll event
+    // for a while, and no end event yet.
+    viewport.dispatchEvent(new WheelEvent('wheel', { deltaX: 100 }));
+    viewport.scrollLeft = 2 * WIDTH;
+    await nextFrame();
+    await nextFrame();
+    relayout(6);
+    await sleep(400);
+
+    expect(onIndexChange).not.toHaveBeenCalled();
+    release();
+    viewport.dispatchEvent(new Event('scrollend'));
+    expect(onIndexChange.mock.calls).toEqual([[2]]);
+  });
+
+  test('a new layout during a scroll of the page’s settles at quiet, though input that scrolls nothing comes', async () => {
+    const { viewport, onIndexChange, relayout } = renderDeck(5);
+    withholdEnds(viewport);
+
+    viewport.scrollLeft = 2 * WIDTH;
+    await nextFrame();
+    await nextFrame();
+    relayout(6);
+    // A vertical wheel over a horizontal deck scrolls nothing in it.
+    viewport.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    await sleep(400);
+
+    expect(onIndexChange.mock.calls).toEqual([[2]]);
+  });
+
+  test('once the shrink’s scroll has ended, a scroll event reads no position', async () => {
+    const { viewport, relayout } = renderDeck(6, 4);
+
+    relayout(2);
+    await nextFrame();
+    await nextFrame();
+    // The shrink's scroll ends, as Chromium ends it with `scrollsnapchange`.
+    viewport.dispatchEvent(new Event('scrollend'));
+    await sleep(500);
+    let reads = 0;
+    const { get, set } = Object.getOwnPropertyDescriptor(
+      Element.prototype,
+      'scrollLeft'
+    )!;
+    Object.defineProperty(viewport, 'scrollLeft', {
+      configurable: true,
+      get() {
+        reads++;
+        return get!.call(this);
+      },
+      set(value: number) {
+        set!.call(this, value);
+      }
+    });
+    viewport.dispatchEvent(new Event('scroll'));
+    delete (viewport as { scrollLeft?: number }).scrollLeft;
+
+    expect(reads).toBe(0);
+  });
+
+  // A vertical wheel over a horizontal deck at rest scrolls nothing in it:
+  // a scroll long after is not the user's.
+  const wheelThatScrollsNothing = async (viewport: HTMLElement) => {
+    // At rest: the mount's own refreshes are done.
+    await sleep(300);
+    viewport.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
+    await sleep(300);
+  };
+
+  test('after input that scrolled nothing, an effect switch under a pointer held still keeps the deck’s place', async () => {
+    const { root, viewport, onIndexChange, switchTo } = renderSwitch(2);
+    withholdEnds(viewport);
+    await wheelThatScrollsNothing(viewport);
+    const box = viewport.getBoundingClientRect();
+    const x = box.left + box.width / 2;
+    const y = box.bottom - 10;
+
+    await mouseAt('mousePressed', x, y, 1);
+    switchTo({ effect: fade });
+    viewport.scrollLeft = 0;
+    await sleep(300);
+    await mouseAt('mouseReleased', x, y, 0);
+
+    const at = ['2', `3 of ${SLIDES}`, 0];
+    await expectSettledTo(() => restOf(root, viewport, 2), at);
+    expect(onIndexChange).not.toHaveBeenCalled();
+  });
+
+  test('after input that scrolled nothing, a new layout during a scroll of the page’s settles at quiet', async () => {
+    const { viewport, onIndexChange, relayout } = renderDeck(5);
+    withholdEnds(viewport);
+    await wheelThatScrollsNothing(viewport);
+
+    viewport.scrollLeft = 2 * WIDTH;
+    await nextFrame();
+    await nextFrame();
+    relayout(6);
+    await sleep(400);
+
+    expect(onIndexChange.mock.calls).toEqual([[2]]);
+  });
 });

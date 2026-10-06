@@ -370,6 +370,36 @@ describe('a controlled deck', () => {
     expect(onIndexChange).not.toHaveBeenCalled();
   });
 
+  // Chromium sends no `scrollend` for the scroll a shorter scroll range
+  // makes, only a `scrollsnapchange`, and after a touch fling on another
+  // scroller was cut short, as when a page leaves mid-fling, not even that
+  // (#87). Withheld here, so the shrink's scroll has no end event.
+  test('returns to index when slides shrink past it and grow back, though the shrink has no end event', async () => {
+    const onIndexChange = vi.fn();
+    const { rerender } = render(
+      <TestDeck slides={6} index={4} onIndexChange={onIndexChange} />
+    );
+    const viewport = viewportOf(
+      screen.getByRole('region', { name: 'Test deck' })
+    );
+    const withhold = (event: Event) => event.stopImmediatePropagation();
+    const ends = ['scrollend', 'scrollsnapchange'];
+    for (const type of ends) {
+      viewport.addEventListener(type, withhold, { capture: true });
+    }
+
+    rerender(<TestDeck slides={2} index={4} onIndexChange={onIndexChange} />);
+    await sleep(500);
+    for (const type of ends) {
+      viewport.removeEventListener(type, withhold, { capture: true });
+    }
+    rerender(<TestDeck slides={6} index={4} onIndexChange={onIndexChange} />);
+    await sleep(1500);
+
+    expect(viewport.scrollLeft).toBe(4 * WIDTH);
+    expect(onIndexChange).not.toHaveBeenCalled();
+  });
+
   test('ignores an index that is not a number, so Next still steps', async () => {
     const onIndexChange = vi.fn();
     // One slide: nothing to scroll, so no scroll event clears a bad target.
