@@ -120,22 +120,29 @@ function gestureClock() {
 }
 
 /**
- * A real touch swipe (CDP touch events); positive `dx` moves the finger left.
- * Six moves 25ms apart on the gesture's clock, then the finger lifts: the
- * browser reads the same fling speed from it on every run, however late the
- * events arrive, so where the deck comes to rest depends only on `dx`. With
- * `release: false` the finger stays down: call the function it returns to
- * lift it.
+ * A real touch swipe (CDP touch events); positive `dx` moves the finger left,
+ * or up with `axis: 'y'`. Six moves 25ms apart on the gesture's clock, then
+ * the finger lifts: the browser reads the same fling speed from it on every
+ * run, however late the events arrive, so where the deck comes to rest
+ * depends only on `dx`. With `release: false` the finger stays down: call the
+ * function it returns to lift it.
  */
 export async function touchSwipe(
   el: Element,
   dx: number,
-  { release = true }: { release?: boolean } = {}
+  { release = true, axis = 'x' }: { release?: boolean; axis?: 'x' | 'y' } = {}
 ): Promise<() => Promise<unknown>> {
   const box = el.getBoundingClientRect();
-  const y = box.top + box.height / 2;
-  const startX = box.left + box.width * 0.75;
-  const at = (t: number) => [{ ...toPage(startX - dx * t, y), id: 1 }];
+  const startX = box.left + box.width * (axis === 'x' ? 0.75 : 0.5);
+  const startY = box.top + box.height * (axis === 'y' ? 0.75 : 0.5);
+  const at = (t: number) => [
+    {
+      ...(axis === 'x'
+        ? toPage(startX - dx * t, startY)
+        : toPage(startX, startY - dx * t)),
+      id: 1
+    }
+  ];
   const time = gestureClock();
   await cdp().send('Input.dispatchTouchEvent', {
     type: 'touchStart',
@@ -160,6 +167,20 @@ export async function touchSwipe(
   if (release) await lift(time(6 * 25));
   return () => lift();
 }
+
+/**
+ * Real touch points (CDP) at `x`, `y` in this page: every point down after
+ * the event, by `id`. A point not down before is pressed, one down before
+ * and not now lifts, and with `touchEnd` and no points all lift.
+ */
+export const touchAt = (
+  type: 'touchStart' | 'touchMove' | 'touchEnd',
+  points: { x: number; y: number; id: number }[]
+): Promise<unknown> =>
+  cdp().send('Input.dispatchTouchEvent', {
+    type,
+    touchPoints: points.map(({ x, y, id }) => ({ ...toPage(x, y), id }))
+  });
 
 /**
  * A real mouse drag (CDP mouse events) across `el` along `axis`: presses 10px
@@ -233,19 +254,22 @@ export async function mouseDrag(
 }
 
 /** One real mouse event (CDP) at `x`, `y` in this page, with `buttons` held:
- * 1 for the primary button, 0 for none. */
+ * 1 for the primary button, 0 for none. With `pointerType: 'pen'`, a pen's
+ * instead. */
 export const mouseAt = (
   type: 'mousePressed' | 'mouseMoved' | 'mouseReleased',
   x: number,
   y: number,
-  buttons: number
+  buttons: number,
+  pointerType: 'mouse' | 'pen' = 'mouse'
 ): Promise<unknown> =>
   cdp().send('Input.dispatchMouseEvent', {
     type,
     ...toPage(x, y),
     button: buttons || type !== 'mouseMoved' ? 'left' : 'none',
     buttons,
-    clickCount: 1
+    clickCount: 1,
+    pointerType
   });
 
 /**

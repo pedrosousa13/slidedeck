@@ -78,9 +78,12 @@ export interface DeckEngine {
  * onto the copies, and when the viewport comes to rest on a copy's snap
  * point the engine jumps it, instantly, a set of slides back onto the
  * identical slide's snap point. Never mid-motion: a jump then would show and
- * stop momentum. A set of slides no longer than the viewport has nothing to
- * loop: the engine then reports one snap point, as for any deck whose slides
- * all fit, and the caller should drop the copies.
+ * stop momentum. But a touch or pen pressed on the copies, or a mouse drag
+ * starting there, moves the deck a set onto the slides at once, where
+ * nothing shows, so swipes chained faster than the deck rests never run out
+ * of copies (see `shiftOffCopies`). A set of slides no longer than the
+ * viewport has nothing to loop: the engine then reports one snap point, as
+ * for any deck whose slides all fit, and the caller should drop the copies.
  *
  * It also writes to each slide, and each copy, for CSS to read, once a
  * frame while the viewport scrolls and whenever it settles, never through
@@ -142,6 +145,9 @@ export function createDeck(
   // Whether the viewport holds loop's copies and an effect's snap targets,
   // as of the last settle or refresh (see `shapeOf`).
   let shape = '';
+  // The snap points as of the last settle, for a press to read where the
+  // deck is without measuring (see `shiftOffCopies`).
+  let known: Geometry = { points: [], slides: [], length: 0 };
 
   const settle = () => {
     shape = shapeOf(viewport);
@@ -149,6 +155,7 @@ export function createDeck(
     alignCopies(viewport);
     const along = axis();
     const geometry = snapPoints(viewport, along);
+    known = geometry;
     jumpOffCopies(along, geometry);
     // Its own settle reports where the deck comes to rest.
     if (resnap(along, geometry)) return;
@@ -187,6 +194,64 @@ export function createDeck(
     if (copy === -1) return;
     const point = geometry.slides[wrap(copy - first, slides.length)];
     if (point !== -1) along.scrollTo(geometry.points[point], 'instant');
+  };
+
+  // A touch or pen pressed on the viewport, or a mouse drag as it starts,
+  // while it is on the copies, nearer a copy's snap point than any slide's,
+  // moves it a set onto the slides at once, to the same place among them
+  // (ADR-0009, amended for #48). Swipes chained faster than the deck comes
+  // to rest are one long scroll with no settle to jump at, and would run
+  // through the copies to an end of the scroll range; now each swipe starts
+  // with a full set of copies ahead of it. The slides show what the copies
+  // did, so nothing shows: the shift's scroll paints progress and in-view
+  // before the frame that draws it, and nothing is published. A mouse click
+  // scrolls nothing, and a tap leaves a move going, so neither shifts: the
+  // move ends on its target and jumps there as ever. A pan or a drag takes
+  // the move over first.
+  //
+  // Every press runs it, so it reads no layout off the copies: where the
+  // deck is is read against the snap points of the last settle. Those can
+  // be stale, as when a slide resizes and the viewport does not, so on the
+  // copies the shift is measured afresh, from the copy's own rest to its
+  // slide's, as `jumpOffCopies` measures: WebKit can rest a copy a pixel or
+  // two off its slide's rest plus a set's length.
+  const shiftOffCopies = () => {
+    const { points, length } = known;
+    const count = points.length;
+    if (move || length === 0 || count === 0) return;
+    const along = axis();
+    const at = along.position;
+    let nearest = 0;
+    const distance = (i: number) => Math.abs(positionOf(known, i) - at);
+    for (let i = -count; i < 2 * count; i++) {
+      if (distance(i) < distance(nearest)) nearest = i;
+    }
+    const set = Math.floor(nearest / count);
+    if (set === 0) return;
+    const point = nearest - set * count;
+    const slide = known.slides.indexOf(point);
+    const { slides, boxes, first } = slidesOf(viewport);
+    const own = boxes[first + slide];
+    const copy = boxes[first + slide + set * slides.length];
+    if (slide === -1 || !own || !copy) return;
+    // One read of the viewport for both: the slide's rest is clamped to the
+    // scroll range, as `snapPoints` has it.
+    const restOf = snapRest(viewport, along, false);
+    const to = restOf(own);
+    const from = restOf(copy);
+    if (to === null || from === null) return;
+    const shift = Math.min(Math.max(to, 0), along.max()) - from;
+    // Snapping off for the shift, as the browser would snap it, which shows;
+    // a drag has it off already. Measured in Chromium, snapping put back
+    // while a finger is down snaps nothing.
+    const { style } = viewport;
+    const snap = style.scrollSnapType;
+    style.scrollSnapType = 'none';
+    along.scrollTo(at + shift, 'instant');
+    style.scrollSnapType = snap;
+    // Positions kept from before the shift move with it.
+    if (taken) taken.at += shift;
+    if (resnapFrom !== null) resnapFrom += shift;
   };
 
   // Where snap point `index` rests, as measured: with loop, a copy's from
@@ -232,11 +297,18 @@ export function createDeck(
       (_, i) => i - reach
     );
     // Each slide's and copy's rest as measured: a copy's can differ from
-    // its slide's by a set's length by a pixel or two of rounding.
+    // its slide's by a set's length by a pixel or two of rounding. A copy's
+    // past an end of the scroll range, as a centred deck's last copies' are,
+    // is no rest: the browser rests it at the end, but the deck could not
+    // jump off it, as its slide a set back would rest on no snap point
+    // (#48). So a deck there re-snaps to one within the scroll range.
     const restOf = snapRest(viewport, along);
+    const copyRestOf = snapRest(viewport, along, false);
+    const { slides, boxes, first } = slidesOf(viewport);
     if (
-      slidesOf(viewport).boxes.some((box) => {
-        const rest = restOf(box);
+      boxes.some((box, i) => {
+        const own = i >= first && i < first + slides.length;
+        const rest = (own ? restOf : copyRestOf)(box);
         return rest !== null && Math.abs(rest - at) <= 1;
       })
     ) {
@@ -416,6 +488,42 @@ export function createDeck(
   const letGo = (id?: number) => {
     if (id === undefined) pressed.clear();
     else if (!pressed.delete(id)) return;
+    payOwed();
+  };
+  // Whether the browser sends touch events: then a touch lets go when the
+  // last finger lifts, not at the `pointercancel` that hands its pan to the
+  // browser. The finger is still down then, and the pan has sent no scroll
+  // yet, so a settle owed would jump off a copy under the finger, and
+  // report, as the pan begins (#48). The pan settles at its own end.
+  const touchEvents = 'ontouchstart' in window;
+  const onTouchEnd = (event: TouchEvent) => {
+    if (event.touches.length > 0) return;
+    unholdTouch();
+    let held = false;
+    for (const [id, type] of pressed) {
+      if (type === 'touch') held = pressed.delete(id);
+    }
+    if (held) payOwed();
+  };
+  // A touch's `touchend` goes to the node it began on, and never reaches
+  // the window if that node has left the page, as when a consumer swaps a
+  // slide's content mid-pan. The node itself still hears it.
+  let touched: EventTarget | null = null;
+  const unholdTouch = () => {
+    for (const type of ['touchend', 'touchcancel']) {
+      touched?.removeEventListener(type, onTouchEnd as EventListener);
+    }
+    touched = null;
+  };
+  const holdTouch = (target: EventTarget | null) => {
+    unholdTouch();
+    if (!touchEvents || !target) return;
+    touched = target;
+    for (const type of ['touchend', 'touchcancel']) {
+      target.addEventListener(type, onTouchEnd as EventListener);
+    }
+  };
+  const payOwed = () => {
     if (pressed.size > 0 || !(settleOwed || placeOwed !== null)) return;
     const place = placeOwed;
     settleOwed = false;
@@ -426,6 +534,13 @@ export function createDeck(
     else restOn(place);
   };
   const onWindowPointer = (event: PointerEvent) => {
+    if (
+      event.type === 'pointercancel' &&
+      event.pointerType === 'touch' &&
+      touchEvents
+    ) {
+      return;
+    }
     if (
       event.type === 'pointerup' ||
       event.type === 'pointercancel' ||
@@ -513,7 +628,13 @@ export function createDeck(
     takeOver();
   };
   const onPointerCancel = (event: PointerEvent) => {
-    if (event.pointerType !== 'mouse') takeOver();
+    if (event.pointerType !== 'mouse') {
+      takeOver();
+      // The browser takes the press over as a pan, and the pan any move.
+      // Measured in Chromium, a fling goes on past the press until then,
+      // and undoes a shift made at the press.
+      shiftOffCopies();
+    }
     onPointerUp(event);
   };
   // Focus in the viewport during a move scrolls the focus into view, and in
@@ -735,6 +856,10 @@ export function createDeck(
         }
       }
       pressed.set(event.pointerId, event.pointerType);
+      if (event.pointerType === 'touch') holdTouch(event.target);
+      // A touch or pen, before the browser pans. A mouse shifts only where
+      // its drag starts: a click must leave a scroll in flight alone.
+      if (event.pointerType !== 'mouse') shiftOffCopies();
     }
     if (
       !dragEnabled ||
@@ -771,6 +896,8 @@ export function createDeck(
       takeOver();
       removeSnap();
       viewport.setPointerCapture(pointer);
+      // Before the drag first moves the deck (see `shiftOffCopies`).
+      shiftOffCopies();
     }
     // The deck follows the pointer: a pointer moving toward the deck's start
     // drags it forward.
@@ -851,6 +978,8 @@ export function createDeck(
     window.addEventListener(type, onWindowPointer, { capture: true });
   }
   window.addEventListener('blur', onBlur);
+  window.addEventListener('touchend', onTouchEnd, { capture: true });
+  window.addEventListener('touchcancel', onTouchEnd, { capture: true });
   viewport.addEventListener('lostpointercapture', onLostCapture);
   viewport.addEventListener('dragstart', onDragStart);
 
@@ -978,6 +1107,9 @@ export function createDeck(
         window.removeEventListener(type, onWindowPointer, { capture: true });
       }
       window.removeEventListener('blur', onBlur);
+      window.removeEventListener('touchend', onTouchEnd, { capture: true });
+      window.removeEventListener('touchcancel', onTouchEnd, { capture: true });
+      unholdTouch();
       viewport.removeEventListener('lostpointercapture', onLostCapture);
       viewport.removeEventListener('dragstart', onDragStart);
       viewport.removeEventListener('click', onClick);
