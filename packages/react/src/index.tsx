@@ -290,8 +290,8 @@ export function Root({
   // the direct way, as `scrollTo` goes, and returns to an `index` the parent
   // kept whichever way is shorter, across the seam when that is shorter,
   // whether or not the move it undoes crossed it. An `index` the parent
-  // took from `onIndexChange` is where the deck already rests, so it is no
-  // move: a move started since, as a press before this render, goes on.
+  // took from `onIndexChange` never undoes a move started since, as a press
+  // before this render: that move goes on. A deck at rest off it goes to it.
   const previousIndexRef = useRef(index);
   useLayoutEffect(() => {
     const engine = engineRef.current;
@@ -305,8 +305,9 @@ export function Root({
     reportedRef.current = null;
     if (index !== undefined && state.count !== null && engine) {
       const to = clampSlide(index, state.count);
-      const heading = engine.target() ?? state.index;
-      if (to !== reported && to !== heading) {
+      const target = engine.target();
+      const heading = target ?? state.index;
+      if (to !== heading && (to !== reported || target === null)) {
         engine.scrollTo(index, moved ? 'direct' : 'short');
       }
     }
