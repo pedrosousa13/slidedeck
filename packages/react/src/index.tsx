@@ -772,10 +772,16 @@ export function Viewport({ style, children, effect, ...props }: ViewportProps) {
 // A slide's size and alignment are geometry, which belongs to consumer CSS
 // (ADR-0003). These defaults make a deck work with no stylesheet, and their
 // zero specificity lets any consumer rule override them, which inline styles
-// would not.
+// would not. The viewport's scrollbar is hidden, and it still scrolls. Only an
+// engine without `scrollbar-width` gets `::-webkit-scrollbar`: where both
+// apply, Chromium honours the pseudo-element whenever `scrollbar-width` is
+// `auto`, so a consumer's `scrollbar-width: auto` alone would not restore it.
 const slideDefaults =
   ':where([data-slidedeck-slide]){width:100%;scroll-snap-align:start}' +
-  ':where([data-orientation=vertical]>[data-slidedeck-slide]){height:100%}';
+  ':where([data-orientation=vertical]>[data-slidedeck-slide]){height:100%}' +
+  ':where([data-slidedeck-viewport]){scrollbar-width:none}' +
+  '@supports not (scrollbar-width:none){' +
+  ':where([data-slidedeck-viewport])::-webkit-scrollbar{display:none}}';
 
 // Not yet in React's CSSProperties.
 const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;

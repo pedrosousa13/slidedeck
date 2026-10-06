@@ -24,6 +24,15 @@ through React 19's `<style precedence>`, not inline: an inline style would
 beat consumer CSS, which owns geometry. React state changes only when the
 current index or the slide count changes, never per scroll frame.
 
+**The viewport's scrollbar (amended for #84).** The same stylesheet hides the
+viewport's scrollbar, as appearance a deck with no stylesheet should still
+have: `scrollbar-width: none`, and `::-webkit-scrollbar { display: none }`
+only where `scrollbar-width` is not supported. Both have zero specificity, so
+`[data-slidedeck-viewport] { scrollbar-width: auto }` brings it back. Unguarded,
+the pseudo-element would keep hiding it in Chromium, which honours
+`::-webkit-scrollbar` while `scrollbar-width` is `auto`. Inline style cannot
+reach a pseudo-element, and would beat the consumer's rule.
+
 An accepted exception for autoplay: a deck with `autoplay` also re-renders
 when autoplay's user-driven state changes: whether it is playing, a pointer is
 over the deck, the document is hidden. Those are discrete user-driven

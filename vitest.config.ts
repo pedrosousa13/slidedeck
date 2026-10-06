@@ -50,8 +50,13 @@ export default defineConfig({
       enabled: true,
       headless: true,
       instances: [{ browser: 'chromium' }],
-      // Touch-enabled so a test can swipe with real CDP touch events.
-      provider: playwright({ contextOptions: { hasTouch: true } })
+      // Touch-enabled so a test can swipe with real CDP touch events, and
+      // with classic scrollbars, which Playwright hides by default, so a test
+      // can see one take layout space.
+      provider: playwright({
+        contextOptions: { hasTouch: true },
+        launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] }
+      })
     }
   }
 });

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import {
+  addStyle,
   expectSettledTo,
   expectSnaps,
   gestureScroll,
@@ -82,6 +83,36 @@ describe('with no stylesheet', () => {
     await expectSettledTo(() => viewport.scrollLeft, 2 * WIDTH);
     await userEvent.click(prev);
     await expectSettledTo(() => viewport.scrollLeft, WIDTH);
+  });
+});
+
+describe('the scrollbar', () => {
+  /** How much of the viewport's height a horizontal scrollbar takes. */
+  const scrollbarThickness = (viewport: HTMLElement) =>
+    viewport.offsetHeight - viewport.clientHeight;
+
+  test('is hidden by default, and the deck still scrolls', async () => {
+    const { viewport, next } = renderDeck();
+
+    expect(getComputedStyle(viewport).scrollbarWidth).toBe('none');
+    expect(scrollbarThickness(viewport)).toBe(0);
+    await userEvent.click(next);
+    await expectSettledTo(() => viewport.scrollLeft, WIDTH);
+  });
+
+  test('comes back with one consumer rule', () => {
+    addStyle('[data-slidedeck-viewport] { scrollbar-width: auto; }');
+    const { viewport } = renderDeck();
+    // The tests run with classic scrollbars, which take layout space.
+    const classic = document.createElement('div');
+    classic.style.cssText = 'overflow-x: scroll; width: 50px; height: 50px';
+    document.body.append(classic);
+    const thickness = 50 - classic.clientHeight;
+    classic.remove();
+
+    expect(thickness).toBeGreaterThan(0);
+    expect(getComputedStyle(viewport).scrollbarWidth).toBe('auto');
+    expect(scrollbarThickness(viewport)).toBe(thickness);
   });
 });
 

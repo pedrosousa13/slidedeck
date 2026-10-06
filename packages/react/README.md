@@ -200,6 +200,19 @@ start. These defaults have zero specificity, so any rule of yours wins:
 }
 ```
 
+The viewport shows no scrollbar by default. It still scrolls by touch,
+trackpad, mouse wheel, drag, keyboard and the controls. To bring the scrollbar
+back, one rule:
+
+```css
+[data-slidedeck-viewport] {
+  scrollbar-width: auto;
+}
+```
+
+Safari before 18.2 does not support `scrollbar-width`, and needs a second
+rule, `[data-slidedeck-viewport]::-webkit-scrollbar { display: block; }`.
+
 Media queries and container queries work as they do for anything else, and
 the deck re-reads its snap points when the viewport resizes. The structural
 styles a deck needs, such as the scroll container and its snap type, are set
