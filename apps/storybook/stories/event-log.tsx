@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Decorator } from '@storybook/react-vite';
 
 /**
@@ -9,14 +9,13 @@ import type { Decorator } from '@storybook/react-vite';
  *
  * It watches the deck from outside: window pointer events, the viewport's
  * scroll and `scrollend`, `onIndexChange`, and layout reads. Within a scroll
- * handler it reads only the scroll position. It measures snap points the way
- * the engine does (`snapRest` in packages/core/src/index.ts) only at a
- * `scrollend` and after 300ms of quiet.
+ * or pointer handler it reads only the scroll position. It measures snap
+ * points the way the engine does (`snapRest` in packages/core/src/index.ts)
+ * only at an end event and once the deck has been still 300ms: a readout of
+ * its own, not the engine's 100ms quiet.
  */
 export const eventLog: Decorator = (Story, context) => {
-  if (new URLSearchParams(window.location.search).get('log') !== '1') {
-    return <Story />;
-  }
+  if (!on) return <Story />;
   const onIndexChange = context.args.onIndexChange as
     ((index: number) => void) | undefined;
   return (
@@ -39,11 +38,32 @@ export const eventLog: Decorator = (Story, context) => {
 const MAX_LINES = 40;
 /** A scroll line at most this often, in ms. */
 const SCROLL_LINE_MS = 100;
-/** Quiet this long, in ms, reads where the deck rests. */
-const QUIET_MS = 300;
+/** No scroll for this long, in ms, reads where the deck rests. */
+const STILL_MS = 300;
+
+const on = new URLSearchParams(window.location.search).get('log') === '1';
 
 let lines: string[] = [];
 let render = () => {};
+/** The deck's scroll position along its axis, while a panel is mounted. */
+let position: (() => number) | null = null;
+
+// Pointer lines carry the scroll position as the press or release comes,
+// before the engine hears it: registered as the stories load, so ahead of
+// the engine's own window listeners, which run in the order they were added.
+if (on) {
+  for (const type of ['pointerdown', 'pointerup', 'pointercancel']) {
+    addEventListener(
+      type,
+      (event) => {
+        if (!position) return;
+        const { pointerType } = event as PointerEvent;
+        write(`${type} ${pointerType} at ${round(position())}`);
+      },
+      { capture: true, passive: true }
+    );
+  }
+}
 
 function write(text: string) {
   lines = [`${Math.round(performance.now())} ${text}`, ...lines].slice(
@@ -60,6 +80,10 @@ const features = () =>
 
 function Panel() {
   const out = useRef<HTMLPreElement>(null);
+  const [status, setStatus] = useState('');
+  // The whole log as of when it opened, in a scrollable text field to select
+  // and copy by hand; null when closed.
+  const [full, setFull] = useState<string | null>(null);
 
   useEffect(() => {
     const viewport = document.querySelector<HTMLElement>(
@@ -71,20 +95,14 @@ function Panel() {
       if (out.current) out.current.textContent = [head, ...lines].join('\n');
     };
     const axis = axisOf(viewport);
+    position = axis.position;
     // Read at each rest, so a scroll handler reads no layout.
     let length = setLength(viewport, axis);
     write(`axis ${axis.name}, set length ${round(length)}`);
 
-    const onPointer = (event: PointerEvent) =>
-      write(`${event.type} ${event.pointerType}`);
-    const pointers = ['pointerdown', 'pointerup', 'pointercancel'] as const;
-    for (const type of pointers) {
-      addEventListener(type, onPointer, { capture: true, passive: true });
-    }
-
     let last = axis.position();
     let lineAt = -Infinity;
-    let quiet = 0;
+    let still = 0;
     const rest = (label: string) => {
       length = setLength(viewport, axis);
       write(`${label} ${restReadout(viewport, axis)}`);
@@ -101,8 +119,8 @@ function Panel() {
         lineAt = now;
         write(`scroll ${round(at)}`);
       }
-      clearTimeout(quiet);
-      quiet = window.setTimeout(() => rest('quiet'), QUIET_MS);
+      clearTimeout(still);
+      still = window.setTimeout(() => rest(`still ${STILL_MS}ms`), STILL_MS);
     };
     // The engine settles a scroll it did not start at its end event:
     // `scrollsnapchange` where there is one, as in Chromium, or `scrollend`.
@@ -118,33 +136,45 @@ function Panel() {
       document.addEventListener(type, onEnd, { capture: true });
     }
     return () => {
-      for (const type of pointers) {
-        removeEventListener(type, onPointer, { capture: true });
-      }
       viewport.removeEventListener('scroll', onScroll);
       for (const type of ends) {
         document.removeEventListener(type, onEnd, { capture: true });
       }
-      clearTimeout(quiet);
+      clearTimeout(still);
       lines = [];
       render = () => {};
+      position = null;
     };
   }, []);
 
+  const text = () => out.current?.textContent ?? '';
+  const copied = (ok: boolean) => {
+    setStatus(ok ? 'copied' : 'copy failed: select and copy below');
+    if (!ok) setFull(text());
+  };
   const copyAll = () => {
-    const text = out.current?.textContent ?? '';
     if (navigator.clipboard && window.isSecureContext) {
-      void navigator.clipboard.writeText(text);
+      navigator.clipboard.writeText(text()).then(
+        () => copied(true),
+        () => copied(false)
+      );
       return;
     }
     // Over plain http, as from a phone on the LAN, there is no clipboard API.
+    // iOS selects a field's text only with setSelectionRange, and zooms to a
+    // focused field under 16px.
     const area = document.createElement('textarea');
-    area.value = text;
+    area.value = text();
+    area.readOnly = true;
+    area.style.cssText = 'position:fixed;top:0;opacity:0;font-size:16px';
     document.body.append(area);
     area.select();
-    document.execCommand('copy');
+    area.setSelectionRange(0, area.value.length);
+    const ok = document.execCommand('copy');
     area.remove();
+    copied(ok);
   };
+  const auto = { pointerEvents: 'auto' } as const;
 
   return (
     <section
@@ -167,7 +197,7 @@ function Panel() {
       <div style={{ display: 'flex', gap: 8, padding: 4 }}>
         <button
           type="button"
-          style={{ pointerEvents: 'auto' }}
+          style={auto}
           onClick={() => {
             lines = [];
             render();
@@ -175,18 +205,38 @@ function Panel() {
         >
           Clear
         </button>
-        <button
-          type="button"
-          style={{ pointerEvents: 'auto' }}
-          onClick={copyAll}
-        >
+        <button type="button" style={auto} onClick={copyAll}>
           Copy all
         </button>
+        <button
+          type="button"
+          style={auto}
+          onClick={() => setFull(full === null ? text() : null)}
+        >
+          {full === null ? 'Expand' : 'Close'}
+        </button>
+        <span role="status">{status}</span>
       </div>
       <pre
         ref={out}
+        hidden={full !== null}
         style={{ margin: 0, padding: 4, whiteSpace: 'pre-wrap' }}
       />
+      {full !== null && (
+        <textarea
+          aria-label="Full event log"
+          readOnly
+          value={full}
+          style={{
+            ...auto,
+            boxSizing: 'border-box',
+            width: '100%',
+            height: 'calc(100% - 2.5rem)',
+            overflow: 'auto',
+            font: '16px/1.3 ui-monospace, Menlo, monospace'
+          }}
+        />
+      )}
     </section>
   );
 }

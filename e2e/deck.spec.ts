@@ -37,10 +37,11 @@ async function watchScroll(page: Page): Promise<() => Promise<number>> {
 }
 
 /**
- * Opens story `id`, with Storybook `args` if any, and waits until every deck
- * in it is rendered and measured: its engine has settled once, which marks
- * the slides in view and gives React the deck's measured state in the same
- * layout effect. Every test opens its story with this before its first
+ * Opens story `id`, with Storybook `args` if any and `query` appended to the
+ * URL as it is (`&log=1` turns on the loop stories' event log), and waits
+ * until every deck in it is rendered and measured: its engine has settled
+ * once, which marks the slides in view and gives React the deck's measured
+ * state in the same layout effect. Every test opens its story with this before its first
  * assertion. The wait is not an assertion, so the expect timeout does not
  * bound it, only the test's: under load, a worker's first, cold load of a
  * story can outlast the expect timeout, and every assertion after the wait
@@ -1270,13 +1271,13 @@ for (const { id, last } of [
     await deck.getByRole('button', { name: 'Previous' }).click();
 
     await expect(deck).toHaveAttribute('data-index', String(last));
-    await expect(log).toContainText('pointerdown mouse');
-    await expect(log).toContainText('pointerup mouse');
+    await expect(log).toContainText(/pointerdown mouse at -?[\d.]+/);
+    await expect(log).toContainText(/pointerup mouse at -?[\d.]+/);
     await expect(log).toContainText(/\d scrollend -?\d/);
     await expect(log).toContainText(`onIndexChange ${last}`);
     await expect(log).toContainText(/jump -?[\d.]+ → -?[\d.]+/);
     // The rest after the jump reads as a slide's, within the engine's 1px.
-    await expect(log).toContainText(/quiet -?[\d.]+ .*on a slide/);
+    await expect(log).toContainText(/still 300ms -?[\d.]+ .*on a slide/);
   });
 }
 
@@ -1303,6 +1304,33 @@ test('deck--loop: with log=1, a wheel step back across the seam logs the rest on
     /\d (scrollsnapchange|scrollend) -?[\d.]+ nearest copy before of slide 6 .*: on a copy, no slide within 1px/
   );
   await expect(log).toContainText(/jump -?[\d.]+ → -?[\d.]+/);
+});
+
+test('deck--loop: with log=1, Copy all reports whether it copied, and Expand shows the whole log to select by hand', async ({
+  page
+}) => {
+  await openStory(page, 'deck--loop', undefined, '&log=1');
+  const log = page.getByRole('log', { name: 'Event log' });
+  const full = log.getByRole('textbox', { name: 'Full event log' });
+  await page.getByRole('button', { name: 'Previous' }).click();
+  await expect(log).toContainText('onIndexChange 5');
+
+  await log.getByRole('button', { name: 'Copy all' }).click();
+  await expect(log.getByRole('status')).toHaveText(/^(copied|copy failed)/);
+  // A failed copy opens the whole log, so it can still be copied by hand.
+  if (
+    (await log.getByRole('status').textContent())!.startsWith('copy failed')
+  ) {
+    await expect(full).toBeVisible();
+    await log.getByRole('button', { name: 'Close' }).click();
+  }
+  await expect(full).toHaveCount(0);
+
+  await log.getByRole('button', { name: 'Expand' }).click();
+  await expect(full).toHaveValue(/onscrollend in window[^]*onIndexChange 5/);
+  await expect(full).toHaveCSS('font-size', '16px');
+  await log.getByRole('button', { name: 'Close' }).click();
+  await expect(full).toHaveCount(0);
 });
 
 test('without log=1, a loop story has no event log', async ({ page }) => {
