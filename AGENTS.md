@@ -66,9 +66,9 @@ runs the release workflow's own `pnpm verify` before anything is published.
 If branch protection ever requires CI on it, close and reopen the PR, or push
 an empty commit to its branch, to start `ci.yml`.
 
-**One-time maintainer setup**, done only as far as step 2. Until the last
-step, the jobs after `verify` show as skipped on every push, and nothing is
-published:
+**One-time maintainer setup**, all five steps done; 0.1.0 published on
+2026-10-05. Until the last step, the jobs after `verify` show as skipped on
+every push, and nothing is published:
 
 1. In the repository's Settings, Actions, General, allow GitHub Actions to
    create and approve pull requests. Without it, the version job fails to
@@ -88,7 +88,7 @@ reaches npm, if the repository is private or no credential can publish.
 After the first publish, on npmjs.com add a trusted publisher to each
 package: GitHub Actions, `pedrosousa13` / `slidedeck` / `release.yml`, no
 environment. Then delete the `NPM_TOKEN` secret; later releases publish over
-OIDC.
+OIDC. Not done yet: #79.
 
 ## Agent skills
 
