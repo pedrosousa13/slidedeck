@@ -232,6 +232,98 @@ describe('a controlled deck', () => {
     expect(onIndexChange).not.toHaveBeenCalled();
   });
 
+  // Measured in WebKit under load (#75): a press can come after the deck
+  // settles and reports its index, but before React renders the parent
+  // taking it. The parent took the index the deck reported: that is no new
+  // `index` to go back to, and the press steps on.
+  test('a press before the parent renders the index it took steps on', async () => {
+    const onIndexChange = vi.fn();
+    const next = () => screen.getByRole('button', { name: 'Next' });
+    function Parent() {
+      const [index, setIndex] = useState(0);
+      return (
+        <TestDeck
+          index={index}
+          onIndexChange={(reported) => {
+            onIndexChange(reported);
+            setIndex(reported);
+            // React renders the parent in a later task: a press in a
+            // microtask comes first, as one under load can.
+            if (reported === 1) queueMicrotask(() => next().click());
+          }}
+        />
+      );
+    }
+    render(<Parent />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+
+    act(() => next().click());
+
+    await expectSettledTo(() => viewport.scrollLeft, 2 * WIDTH);
+    expect(root.dataset.index).toBe('2');
+    expect(onIndexChange.mock.calls).toEqual([[1], [2]]);
+  });
+
+  // The parent takes the reported index, but before React renders it the
+  // user's scroll brings the deck back to the old `index` and it settles
+  // there, which reports nothing. The deck rests at `index`: it goes to it.
+  test('the user’s scroll back before the parent renders the index it took still goes to it', async () => {
+    const onIndexChange = vi.fn();
+    function Parent() {
+      const [index, setIndex] = useState(0);
+      return (
+        <TestDeck
+          index={index}
+          onIndexChange={(reported) => {
+            onIndexChange(reported);
+            setIndex(reported);
+            if (reported !== 1) return;
+            // The user's scroll back, ended before React renders the parent.
+            queueMicrotask(() => {
+              viewport.scrollTo({ left: 0, behavior: 'instant' });
+              viewport.dispatchEvent(new Event('scrollend'));
+            });
+          }}
+        />
+      );
+    }
+    render(<Parent />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+
+    act(() => screen.getByRole('button', { name: 'Next' }).click());
+
+    await expectSettledTo(() => viewport.scrollLeft, WIDTH);
+    expect(root.dataset.index).toBe('1');
+    expect(onIndexChange.mock.calls).toEqual([[1]]);
+  });
+
+  test('a scrollTo inside onIndexChange goes on past the index the parent took', async () => {
+    const ref = createRef<Deck.RootHandle>();
+    function Parent() {
+      const [index, setIndex] = useState(0);
+      return (
+        <TestDeck
+          handleRef={ref}
+          index={index}
+          onIndexChange={(reported) => {
+            setIndex(reported);
+            if (reported === 1) ref.current!.scrollTo(3);
+          }}
+        />
+      );
+    }
+    render(<Parent />);
+    const root = screen.getByRole('region', { name: 'Test deck' });
+    const viewport = viewportOf(root);
+
+    act(() => screen.getByRole('button', { name: 'Next' }).click());
+
+    await expectSettledTo(() => viewport.scrollLeft, 3 * WIDTH);
+    expect(root.dataset.index).toBe('3');
+  });
+
   test('goes to index once slides arrive in a deck that had none', async () => {
     const { rerender } = render(
       <TestDeck slides={0} index={2} onIndexChange={() => {}} />

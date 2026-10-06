@@ -191,6 +191,9 @@ export function Root({
   const onIndexChangeRef = useRef(onIndexChange);
   const onFocalChangeRef = useRef(onFocalChange);
   const indexRef = useRef(index);
+  // The index the deck last reported through `onIndexChange`, until the
+  // render after it.
+  const reportedRef = useRef<number | null>(null);
   const orientationRef = useRef(orientation);
   // What the live region says: the current slide, after the deck moves.
   const [announcement, setAnnouncement] = useState('');
@@ -238,6 +241,7 @@ export function Root({
           (controlled === undefined ||
             next.index !== clampSlide(controlled, next.count))
         ) {
+          reportedRef.current = next.index;
           onIndexChangeRef.current?.(next.index);
         }
         if (settled !== undefined && next.index !== settled) {
@@ -285,7 +289,9 @@ export function Root({
   // it belongs to the move it undoes. A looping deck follows a new `index`
   // the direct way, as `scrollTo` goes, and returns to an `index` the parent
   // kept whichever way is shorter, across the seam when that is shorter,
-  // whether or not the move it undoes crossed it.
+  // whether or not the move it undoes crossed it. An `index` the parent
+  // took from `onIndexChange` never undoes a move started since, as a press
+  // before this render: that move goes on. A deck at rest off it goes to it.
   const previousIndexRef = useRef(index);
   useLayoutEffect(() => {
     const engine = engineRef.current;
@@ -295,9 +301,13 @@ export function Root({
       stepFromRef.current = null;
     }
     previousIndexRef.current = index;
+    const reported = reportedRef.current;
+    reportedRef.current = null;
     if (index !== undefined && state.count !== null && engine) {
-      const heading = engine.target() ?? state.index;
-      if (clampSlide(index, state.count) !== heading) {
+      const to = clampSlide(index, state.count);
+      const target = engine.target();
+      const heading = target ?? state.index;
+      if (to !== heading && (to !== reported || target === null)) {
         engine.scrollTo(index, moved ? 'direct' : 'short');
       }
     }
