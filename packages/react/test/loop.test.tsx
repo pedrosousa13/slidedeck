@@ -250,6 +250,33 @@ describe('loop', () => {
     });
   }
 
+  test('a copy resting off its slide plus a set, as WebKit rests one, is arrived at and jumped off', async () => {
+    // Measured in WebKit: a copy can rest a pixel or two off its slide's
+    // rest plus a set's length. A scroll margin on the copies alone moves
+    // their rests 2px here, in every browser.
+    addStyle('.margined > [data-slidedeck-copy] { scroll-margin-left: 2px; }');
+    const { root, viewport, next, onIndexChange } = renderLoop({
+      defaultIndex: 4,
+      viewportClassName: 'margined'
+    });
+    const scrolls: ScrollToOptions[] = [];
+    const scrollTo = viewport.scrollTo.bind(viewport);
+    viewport.scrollTo = ((options: ScrollToOptions) => {
+      scrolls.push(options);
+      scrollTo(options);
+    }) as typeof viewport.scrollTo;
+
+    next.click();
+
+    await expectRestOnASlide(viewport, root, onIndexChange);
+    expect(onIndexChange.mock.calls).toEqual([[0]]);
+    // To the copy's rest, then the jump off it to its slide's.
+    expect(scrolls).toEqual([
+      { left: 2998, behavior: 'smooth' },
+      { left: 1500, behavior: 'instant' }
+    ]);
+  });
+
   test('Dots and Counter count the slides, not the copies', async () => {
     const { prev, dots, counter } = renderLoop();
 
@@ -527,11 +554,29 @@ describe('loop, presses that outrun the copies', () => {
     const { viewport, root, onIndexChange } = await outrun();
 
     await gestureScroll(viewport, -600);
-    // From the gesture's end, nothing moves the deck on again.
-    const motion = trackMotion(viewport);
+    // From the gesture's end, nothing moves the deck on again, but for the
+    // browser's own snap to the snap point nearest where the gesture left
+    // it, which is on from there where the gesture ends past halfway
+    // between two snap points. Where it ends depends on where the deck is
+    // as the gesture begins, so on the machine's load. The deck rests on
+    // that snap point, and never passes it.
+    const left = viewport.scrollLeft;
+    const nearest = Math.round(left / WIDTH) * WIDTH;
+    const positions: number[] = [];
+    let sampling = true;
+    const sample = () => {
+      positions.push(viewport.scrollLeft);
+      if (sampling) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
 
     await expectRestOnASlide(viewport, root, onIndexChange);
-    expect(motion.against(-1, 2.5 * WIDTH)).toEqual([]);
+    sampling = false;
+    expect(positions.filter((at) => at > Math.max(left, nearest) + 1)).toEqual(
+      []
+    );
+    // The copies before the slides start at 0: a set is five slides.
+    expect(root.dataset.index).toBe(String((nearest / WIDTH) % 5));
   });
 });
 

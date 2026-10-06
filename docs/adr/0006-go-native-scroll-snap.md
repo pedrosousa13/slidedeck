@@ -123,6 +123,45 @@ that pauses the scroll, as it may in a hidden tab; neither was measured. The
 deck then settles where the viewport is, and settles again at the scroll's
 own end, if one comes, with one more `onIndexChange`.
 
+**At rest off a snap point (amended for #60).** Measured in Chromium: when
+a long task holds the main thread just after the user's wheel ends a move,
+the browser can carry the move's smooth scroll on. It either runs on to the
+move's target, against the wheel, or stops part way, off every snap point,
+and never snaps the deck back. Page script that scrolls the viewport during
+a move can also leave it off every snap point. The maintainer decided on
+2026-10-05 (option B) that the engine re-snaps, and that the run-on case is
+accepted: that rest is on a snap point, so the engine cannot tell it from a
+move that arrived, and the deck reports the target.
+
+So at a settle under `mandatory` snapping, a deck more than a pixel from
+every snap point moves to the nearest one. Where the user's scroll took a
+move over, it moves to the nearest one the way that scroll went: a wheel's
+delta says the way, and for other input it is from where the user took
+over to where the deck rests. Where quiet ended a move short of its target,
+it moves the way the move went. Measured in WebKit under load, quiet can
+end a move whose scroll goes on, and a re-snap back would stop it. Snap
+points are measured as the browser rests the slides and copies, each from
+its own box, scroll padding and scroll margin included: WebKit can rest a
+copy a pixel or two off its slide's rest plus a set's length. With loop, a
+copy's snap point counts, and that move's settle jumps off the copy.
+
+- It waits for quiet and looks again first. Measured in Chromium, a wheel's
+  scroll ends, with `scrollend`, before the browser's snap from there is
+  done.
+- It never fights the user. A pressed pointer, a drag and a scroll still
+  going all hold it, and the user's scroll ends the wait. Where `scrollend`
+  is missing, quiet cannot tell a finger held still from a scroll's end, so
+  there is no re-snap.
+- Proximity snapping is exempt: resting between snap points is the
+  browser's choice there.
+- Where the browser still holds the deck somewhere the engine does not
+  measure, a re-snap from there moves nothing, and the deck settles there
+  without trying again.
+
+Stopping the move's scroll on the wheel, with an instant scroll by nothing,
+was tried and rejected: where the wheel reached the main thread after the
+long task, the stop also undid the wheel.
+
 **Fade: sticky stack.** Slides are stacked with `position: sticky`, opacity
 is set from a scroll listener, and non-focal slides are `inert`. As built,
 opacity is CSS on `--deck-slide-progress` (ADR-0007; renamed by ADR-0010).

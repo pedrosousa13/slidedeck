@@ -17,6 +17,7 @@ import {
   touchSwipe,
   trackMotion,
   viewportOf,
+  wheelOver,
   WIDTH,
   withoutScrollEnd
 } from './fixtures';
@@ -249,6 +250,74 @@ describe('a long task as the deck arrives', () => {
         '1',
         { delays, busyMs: 150 }
       );
+    },
+    SWEEP_MS
+  );
+});
+
+describe("a long task just after the user's wheel, as a looping Next arrives", () => {
+  // The user's wheel ends the deck's move (ADR-0006). Measured in Chromium:
+  // when a long task holds the main thread just after the wheel, the
+  // browser can carry the move's smooth scroll on afterwards. It either runs
+  // on to the move's target, against the wheel, or stops part way, off any
+  // snap point, and never snaps the deck back. The first is the browser's,
+  // and slidedeck cannot undo it. From the second, the deck re-snaps to the
+  // nearest snap point the way the wheel went. Either way it comes to rest
+  // exactly on a snap point.
+  test(
+    'a wheel back rests exactly on a snap point, the way the wheel went unless the browser ran on',
+    async () => {
+      const failures: unknown[] = [];
+      // Where the scroll is when the wheel turns, and when the long task
+      // starts after it, in ms. 3000 is the copy of the first slide: the
+      // wheel turns as the deck arrives there and jumps off it.
+      for (const at of [2963, 2990, 3000]) {
+        for (const after of [40, 60, 80]) {
+          const onIndexChange = vi.fn();
+          const { unmount } = render(
+            <TestDeck loop defaultIndex={4} onIndexChange={onIndexChange} />
+          );
+          const root = screen.getByRole('region', { name: 'Test deck' });
+          const viewport = viewportOf(root);
+          // Every smooth scroll the deck asks for once the wheel has
+          // turned, from where to where: a re-snap. The jump off a copy is
+          // instant.
+          let turned = false;
+          const resnaps: { from: number; to: number }[] = [];
+          const scrollTo = viewport.scrollTo.bind(viewport);
+          viewport.scrollTo = ((options: ScrollToOptions) => {
+            if (turned && options.behavior === 'smooth') {
+              resnaps.push({ from: viewport.scrollLeft, to: options.left! });
+            }
+            scrollTo(options);
+          }) as typeof viewport.scrollTo;
+          const turn = () => {
+            if (viewport.scrollLeft < at) return;
+            viewport.removeEventListener('scroll', turn);
+            turned = true;
+            void wheelOver(viewport, -200);
+            setTimeout(() => busy(200), after);
+          };
+          viewport.addEventListener('scroll', turn);
+
+          screen.getByRole('button', { name: 'Next' }).click();
+
+          await expectRestOnASlide(viewport, root, onIndexChange).catch(
+            (error: Error) => failures.push({ at, after, error: error.message })
+          );
+          const index = root.dataset.index;
+          // A re-snap goes back, the wheel's way, and rests on the last
+          // slide. With none, the browser rested the deck itself: where the
+          // wheel left it, the last slide, or the move's target, the first.
+          const expected =
+            resnaps.length > 0
+              ? resnaps.every(({ from, to }) => to < from) && index === '4'
+              : index === '4' || index === '0';
+          if (!expected) failures.push({ at, after, index, resnaps });
+          unmount();
+        }
+      }
+      expect(failures).toEqual([]);
     },
     SWEEP_MS
   );
