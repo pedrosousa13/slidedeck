@@ -1,5 +1,15 @@
 # @slidedeck/react
 
+## 0.3.3
+
+### Patch Changes
+
+- e7e406f: A pen swipe no longer reports a slide as it starts. When the browser takes a pen over to pan the deck, a deck that came to rest under the pen now waits for the pen to lift before it settles and calls `onIndexChange`, as it does for a touch. Where the browser gives no sign that the pen lifted, the deck settles 1 second after the pan begins.
+- d232bb2: A looping deck no longer runs out of copies under quick chained trackpad or wheel flicks. Each flick went on from the momentum of the one before, so the deck never came to rest to jump off a copy, and it could scroll on to the end of the range. Now a wheel event along the deck's axis, while the deck is on the copies, moves it back onto the slides, to the same place, as a touch or a drag already did. Nothing shows: the index does not change and nothing is reported or announced.
+- Updated dependencies [e7e406f]
+- Updated dependencies [d232bb2]
+  - @slidedeck/core@0.3.3
+
 ## 0.3.2
 
 ### Patch Changes
