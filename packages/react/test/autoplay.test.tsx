@@ -350,6 +350,24 @@ describe('a move the user makes', () => {
     await expectStill(root, '1');
   });
 
+  // A busy main thread as the gesture begins, as on a loaded CI runner,
+  // holds back the deck's first frame. A wheel the compositor gets before
+  // that frame finds no deck to scroll: it scrolls nothing, though the deck
+  // hears it and stops (#90). `gestureScroll` waits for the deck's frame.
+  // After the wheel scroll above: Chromium starts a page's first gesture
+  // late, after the busy spell.
+  test('a wheel scroll as the deck first renders still moves it', async () => {
+    const { root, viewport } = renderDeck({ autoplay: 1500 });
+
+    const gesture = gestureScroll(viewport, WIDTH);
+    const busyUntil = performance.now() + 300;
+    while (performance.now() < busyUntil);
+    await gesture;
+
+    await expect.poll(indexOf(root), { timeout: 2000 }).toBe('1');
+    expect(toggleOf().textContent).toBe('Start slide rotation');
+  });
+
   test('focus entering a slide mid-step stops it, and its settle is announced', async () => {
     const { root, viewport } = renderDeck();
     const live = liveRegionOf(root);

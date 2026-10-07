@@ -309,8 +309,24 @@ export const wheelOver = (el: Element, dx: number): Promise<unknown> => {
   });
 };
 
-/** A smooth two-finger-style scroll gesture, synthesised by Chromium. */
-export async function gestureScroll(el: Element, dx: number) {
+/**
+ * A smooth two-finger-style scroll gesture, synthesised by Chromium. It
+ * starts once `el` has been drawn: Chromium's compositor scrolls a wheel
+ * gesture, and one that comes before the first frame with `el`, as when a
+ * busy main thread holds that frame back, finds nothing there to scroll. It
+ * scrolls nothing, though `el` hears its wheel events (#90). With
+ * `drawn: true`, as for a deck already moving, it starts at once.
+ */
+export async function gestureScroll(
+  el: Element,
+  dx: number,
+  { drawn = false }: { drawn?: boolean } = {}
+) {
+  if (!drawn) {
+    // The second frame's callbacks run once the first frame is drawn.
+    await nextFrame();
+    await nextFrame();
+  }
   const box = el.getBoundingClientRect();
   await cdp().send('Input.synthesizeScrollGesture', {
     ...toPage(box.left + box.width / 2, box.top + box.height / 2),

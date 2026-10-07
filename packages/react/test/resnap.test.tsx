@@ -267,8 +267,22 @@ describe('a deck at rest off every snap point, while the user has it', () => {
       scrollTo(options);
     }) as typeof viewport.scrollTo;
 
+    // The move's end must not come before the gesture's first wheel event,
+    // or this is a wheel at rest.
+    const first = new Promise<string>((resolve) => {
+      const once = (event: Event) => {
+        viewport.removeEventListener('wheel', once, true);
+        viewport.removeEventListener('scrollend', once, true);
+        resolve(event.type);
+      };
+      viewport.addEventListener('wheel', once, true);
+      viewport.addEventListener('scrollend', once, true);
+    });
+
     // Many wheel events, over most of a second, two slides on.
-    await gestureScroll(viewport, 2 * WIDTH);
+    await gestureScroll(viewport, 2 * WIDTH, { drawn: true });
+
+    expect(await first).toBe('wheel');
 
     await expectRestOnASlide(viewport, root, onIndexChange);
     expect(scrolls).toEqual([]);
