@@ -1,5 +1,12 @@
 # @slidedeck/react
 
+## 0.3.1
+
+### Patch Changes
+
+- a4f3339: `@slidedeck/react`, `@slidedeck/react/fade` and `@slidedeck/react/curve` now start with `'use client'`. In a React Server Components framework, such as the Next.js App Router, a server component can render the deck, with `effect={fade}` or `effect={curve}`, without a client component of your own. Function props such as `onIndexChange`, and a `ref` to the handle, still need a client component.
+- @slidedeck/core@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes
