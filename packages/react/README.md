@@ -591,11 +591,20 @@ own component, Dots and Counter render empty until hydration. `useDeck()`
 reports a `count` of `null` on the server, so a counter built on it renders
 its total at hydration.
 
-Every entry, `@slidedeck/react` and its effects, starts with `'use client'`,
-so a React Server Components framework such as the Next.js App Router renders
+A React Server Components framework such as the Next.js App Router renders
 the deck straight from a server component, `effect={fade}` and the theme
-included. Dots and Counter render empty there until hydration: `Deck.Root`
-cannot see through a server component's `Deck.Viewport` to count its slides.
+included. The client entries, `@slidedeck/react` and its effects, start with
+`'use client'`. Under the `react-server` export condition, which these
+frameworks resolve for a server component, `@slidedeck/react` resolves to a
+server entry instead. Its `Deck.Root` is a server component that counts the
+slides, so Dots and Counter count a page per slide there too. Every other
+export is the client entry's own. A framework that does not resolve
+`react-server` gets the client entry, and Dots and Counter render empty until
+hydration.
+
+In a server file, `Deck.Root` is a server component, not a client reference.
+Render it there as an element. Passing it as a value to a client component,
+as in `as={Deck.Root}`, fails: import it in your client component instead.
 Function props, such as `onIndexChange` and `onFocalChange`, and a `ref` to
 the handle cannot cross from a server component: render the deck from your own
 client component to use them. An effect of your own crosses only from a module
@@ -1169,7 +1178,7 @@ pinned installs, and CI fails if this table is stale.
 
 | Library                | Version   | Min+gzip | Native scroll                                    | Accessibility out of the box                                                                                                           | API shape                                                                                          |
 | ---------------------- | --------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `@slidedeck/react`     | this repo | 8.41 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
+| `@slidedeck/react`     | this repo | 8.43 KB  | Yes: CSS scroll snap in a real scroll container  | Labelled carousel region, slides labelled "n of m", button controls, dots with `aria-current`, a polite live region, loop copies inert | Components (`Deck.Root`, `Deck.Viewport`, `Deck.Slide`, controls), controlled `index` and a handle |
 | `embla-carousel-react` | 8.6.0     | 7.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels or controls; scrolls a focused slide into view                                                                        | A hook returning a ref and an API object; markup and controls are yours                            |
 | `keen-slider`          | 6.8.6     | 6.61 KB  | No: `translate3d` transforms and its own physics | No roles, labels, controls or keyboard handling                                                                                        | A hook returning a ref and an instance, plus a required stylesheet; markup and controls are yours  |
 

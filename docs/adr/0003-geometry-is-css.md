@@ -63,4 +63,5 @@ renders several slides), the server count is a guess: Dots and Counter render
 empty, or count the slides Root can see, and correct at hydration.
 (Amended for #92: a Viewport rendered from a React server component reaches
 Root as a client reference, which Root cannot see through, so Dots and Counter
-render empty until hydration.)
+render empty until hydration.) (Amended for #94: a server entry now counts
+the slides there; see ADR-0011.)
