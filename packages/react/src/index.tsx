@@ -11,7 +11,6 @@ import {
   useState,
   type ComponentProps,
   type CSSProperties,
-  type ReactNode,
   type Ref,
   type RefObject
 } from 'react';
@@ -22,6 +21,8 @@ import {
   type DeckEngine,
   type Orientation
 } from '@slidedeck/core';
+import { ServerSlides } from './server-slides.js';
+import { slidesIn } from './slides-in.js';
 
 export type { Orientation };
 
@@ -435,97 +436,105 @@ export function Root({
   );
 
   // Only the first render is unmeasured, so the walk runs once, and on the
-  // server.
-  const slides = state.count === null ? slidesIn(children) : null;
+  // server. Rendered from a server component, Root cannot recognise the
+  // Viewport, a client reference here: the server component counted it.
+  const serverSlides = use(ServerSlides);
+  const slides =
+    state.count === null
+      ? (slidesIn(children, Viewport) ?? serverSlides)
+      : null;
 
+  // A deck nested in a slide counts its own slides.
   return (
-    <DeckContext
-      value={{
-        ...state,
-        slides,
-        initialIndex,
-        orientation,
-        loop,
-        viewportRef,
-        engineRef,
-        hasAutoplay: autoplaying,
-        playing,
-        togglePlaying,
-        userMove
-      }}
-    >
-      <div
-        role="region"
-        aria-roledescription="carousel"
-        // Raw defaultIndex until measured: clamping needs the slide count.
-        // Like each slide's data-current, the last settled position: it
-        // trails a new `index` until the deck settles there.
-        data-index={state.index}
-        {...props}
-        // Focus entering the deck stops autoplay until the toggle starts it
-        // again (APG carousel); focus on the toggle itself does not.
-        onFocus={(event) => {
-          onFocus?.(event);
-          // Focus entering a slide from outside it mid-move takes the move
-          // over (ADR-0006), so its settle is announced.
-          let slide = event.target as Element | null;
-          while (slide && slide.parentElement !== viewportRef.current) {
-            slide = slide.parentElement;
-          }
-          if (
-            slide &&
-            !slide.contains(event.relatedTarget as Node | null) &&
-            engineRef.current?.target() != null
-          ) {
-            takeOver();
-          }
-          if (
-            autoplaying &&
-            !(event.target as Element).closest(
-              '[data-slidedeck-autoplay-toggle]'
-            )
-          ) {
-            setPlaying(false);
-          }
-        }}
-        onPointerEnter={(event) => {
-          onPointerEnter?.(event);
-          hoveredRef.current = true;
-          if (autoplaying) setHovered(true);
-        }}
-        onPointerLeave={(event) => {
-          onPointerLeave?.(event);
-          hoveredRef.current = false;
-          if (autoplaying) setHovered(false);
-        }}
-        onPointerDown={(event) => {
-          onPointerDown?.(event);
-          userInput(event);
-        }}
-        onKeyDown={(event) => {
-          onKeyDown?.(event);
-          userInput(event);
-        }}
-        onWheel={(event) => {
-          onWheel?.(event);
-          userInput(event);
+    <ServerSlides value={null}>
+      <DeckContext
+        value={{
+          ...state,
+          slides,
+          initialIndex,
+          orientation,
+          loop,
+          viewportRef,
+          engineRef,
+          hasAutoplay: autoplaying,
+          playing,
+          togglePlaying,
+          userMove
         }}
       >
-        {children}
-        {/* Announces the slide the deck moves to, unless autoplay started
+        <div
+          role="region"
+          aria-roledescription="carousel"
+          // Raw defaultIndex until measured: clamping needs the slide count.
+          // Like each slide's data-current, the last settled position: it
+          // trails a new `index` until the deck settles there.
+          data-index={state.index}
+          {...props}
+          // Focus entering the deck stops autoplay until the toggle starts it
+          // again (APG carousel); focus on the toggle itself does not.
+          onFocus={(event) => {
+            onFocus?.(event);
+            // Focus entering a slide from outside it mid-move takes the move
+            // over (ADR-0006), so its settle is announced.
+            let slide = event.target as Element | null;
+            while (slide && slide.parentElement !== viewportRef.current) {
+              slide = slide.parentElement;
+            }
+            if (
+              slide &&
+              !slide.contains(event.relatedTarget as Node | null) &&
+              engineRef.current?.target() != null
+            ) {
+              takeOver();
+            }
+            if (
+              autoplaying &&
+              !(event.target as Element).closest(
+                '[data-slidedeck-autoplay-toggle]'
+              )
+            ) {
+              setPlaying(false);
+            }
+          }}
+          onPointerEnter={(event) => {
+            onPointerEnter?.(event);
+            hoveredRef.current = true;
+            if (autoplaying) setHovered(true);
+          }}
+          onPointerLeave={(event) => {
+            onPointerLeave?.(event);
+            hoveredRef.current = false;
+            if (autoplaying) setHovered(false);
+          }}
+          onPointerDown={(event) => {
+            onPointerDown?.(event);
+            userInput(event);
+          }}
+          onKeyDown={(event) => {
+            onKeyDown?.(event);
+            userInput(event);
+          }}
+          onWheel={(event) => {
+            onWheel?.(event);
+            userInput(event);
+          }}
+        >
+          {children}
+          {/* Announces the slide the deck moves to, unless autoplay started
             the move; off while autoplay rotates the deck (APG carousel).
             Empty until the deck first moves, so hydration announces
             nothing. */}
-        <div
-          aria-live={rotating ? 'off' : 'polite'}
-          aria-atomic="true"
-          data-slidedeck-live=""
-          style={visuallyHidden}
-        >
-          {announcement}
+          <div
+            aria-live={rotating ? 'off' : 'polite'}
+            aria-atomic="true"
+            data-slidedeck-live=""
+            style={visuallyHidden}
+          >
+            {announcement}
+          </div>
         </div>
-      </div>
-    </DeckContext>
+      </DeckContext>
+    </ServerSlides>
   );
 }
 
@@ -546,22 +555,6 @@ const slideCount = (viewport: HTMLElement) =>
   [...viewport.children].filter(
     (child) => !child.hasAttribute(SNAP_TARGET) && !child.hasAttribute(COPY)
   ).length;
-
-/** The slides in the first Deck.Viewport among `children`, looking through
- * elements and fragments but not into components, which Root cannot render
- * ahead of time; null if none is found. Counted as Viewport counts them. */
-function slidesIn(children: ReactNode): number | null {
-  for (const child of Children.toArray(children)) {
-    if (!isValidElement<{ children?: ReactNode }>(child)) continue;
-    if (child.type === Viewport) {
-      return Children.toArray(child.props.children).length;
-    }
-    if (typeof child.type !== 'string' && child.type !== Fragment) continue;
-    const found = slidesIn(child.props.children);
-    if (found !== null) return found;
-  }
-  return null;
-}
 
 /** Warns about controlled-deck mistakes, as React does for an input's
  * `value`: once per deck instance for each kind, so one warning never hides

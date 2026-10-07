@@ -3,6 +3,8 @@ import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { afterEach, expect, test, vi } from 'vitest';
 import * as Deck from '@slidedeck/react';
+// Internal: see the test that uses it.
+import { ServerSlidesProvider } from '../src/server-slides';
 import { nextFrame, TestDeck, viewportOf, WIDTH } from './fixtures';
 
 type DeckProps = ComponentProps<typeof TestDeck>;
@@ -227,4 +229,49 @@ test('a looping deck starts on the slide at defaultIndex without layout shift', 
   expect(slideOffset(viewport)).toBe(0);
   expect(viewport.scrollLeft).toBe(7 * WIDTH);
   expect(index).toBe('2');
+});
+
+// Rendered from a server component, Root sees its Viewport as a client
+// reference it cannot recognise; the server component's Root counts the
+// slides and provides them (the `react-server` entry, ADR-0011). A Viewport
+// inside a component stands in here for the client reference. A deck nested
+// in a slide counts its own slides, not the outer deck's.
+//
+// This reaches the internal provider, as no public path covers it: outside a
+// Flight render the server Root sees the same Viewport the client Root does,
+// so the client Root never needs the count. `pnpm test:next` covers the whole
+// path through a real server component.
+test('Dots and Counter count the slides a server component counted', () => {
+  const Hidden = (props: ComponentProps<typeof Deck.Viewport>) => (
+    <Deck.Viewport {...props} />
+  );
+  const container = document.createElement('div');
+  container.innerHTML = renderToString(
+    <ServerSlidesProvider count={3}>
+      <Deck.Root aria-label="Outer">
+        <Hidden>
+          <Deck.Slide>
+            <Deck.Root aria-label="Inner">
+              <Hidden>
+                <Deck.Slide>Inner one</Deck.Slide>
+              </Hidden>
+              <Deck.Counter />
+            </Deck.Root>
+          </Deck.Slide>
+          <Deck.Slide>Two</Deck.Slide>
+          <Deck.Slide>Three</Deck.Slide>
+        </Hidden>
+        <Deck.Dots />
+        <Deck.Counter />
+      </Deck.Root>
+    </ServerSlidesProvider>
+  );
+  const counters = container.querySelectorAll('[data-slidedeck-counter]');
+  expect(
+    container.querySelectorAll('[data-slidedeck-dots] button')
+  ).toHaveLength(3);
+  expect([...counters].map((counter) => counter.textContent)).toEqual([
+    '',
+    '1 / 3'
+  ]);
 });

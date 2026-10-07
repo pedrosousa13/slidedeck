@@ -80,11 +80,10 @@ try {
 run('pnpm', ['exec', 'next', 'build'], fixture);
 
 const html = readFileSync(join(fixture, '.next/server/app/index.html'), 'utf8');
-// Dots and Counter are there but empty: the server component hands Deck.Root
-// its Deck.Viewport as a client reference, which Root cannot count slides
-// through, so they fill in at hydration (README, "Server rendering"; ADR-0003,
-// amended for #92). A fix that counts them on the server must flip the
-// `absent` checks below on purpose.
+// Dots and Counter count a page per slide, as in a client component's server
+// HTML: the server component hands Deck.Root its Deck.Viewport as a client
+// reference, so the slides are counted where it can still be recognised, in
+// the server component render (README, "Server rendering"; ADR-0003).
 const expected = [
   'Slide one',
   'Slide two',
@@ -96,19 +95,15 @@ const expected = [
   '>Previous</button>',
   '>Next</button>',
   'data-slidedeck-dots=""',
-  'data-slidedeck-counter=""'
+  'aria-label="Go to page 1" aria-current="true"',
+  'aria-label="Go to page 3"',
+  '>1 / 3</span>'
 ];
-const absent = ['aria-label="Go to page', '>1 / 3</span>'];
-const failures = [
-  ...expected
-    .filter((text) => !html.includes(text))
-    .map((text) => `the server HTML has no ${text}`),
-  ...absent
-    .filter((text) => html.includes(text))
-    .map((text) => `the server HTML has ${text}`)
-];
-if (!html.includes('<span data-slidedeck-counter=""></span>')) {
-  failures.push('the server HTML has a counter that is not empty');
+const failures = expected
+  .filter((text) => !html.includes(text))
+  .map((text) => `the server HTML has no ${text}`);
+if (html.includes('aria-label="Go to page 4"')) {
+  failures.push('the server HTML has more dots than slides');
 }
 if (failures.length > 0) {
   for (const failure of failures) console.error(`FAIL: ${failure}`);
