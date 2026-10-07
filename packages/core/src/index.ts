@@ -549,6 +549,9 @@ export function createDeck(
   // report, as the pan begins (#48). The pan settles at its own end.
   const touchEvents = 'ontouchstart' in window;
   const onTouchEnd = (event: TouchEvent) => {
+    for (const touch of event.changedTouches) {
+      if ((touch as StylusTouch).touchType === 'stylus') liftPen();
+    }
     if (event.touches.length > 0) return;
     unholdTouch();
     let held = false;
@@ -575,6 +578,28 @@ export function createDeck(
       target.addEventListener(type, onTouchEnd as EventListener);
     }
   };
+  // A pen the browser pans, as a touch, lets go when it lifts, not at the
+  // `pointercancel` that hands its pan to the browser (#97): a settle owed
+  // would jump off a copy under the pen, and report, as the pan begins. The
+  // browser sends none of the pen's events after the cancel, its `pointerup`
+  // included, so it lets go at the first of: the lift of a touch that is the
+  // pen's own, as Safari marks Apple Pencil's (`touchType` 'stylus'), never
+  // a finger's; the lifted pen hovering, with no button down, under any
+  // pointer id; any other way a pointer lets go (`onWindowPointer`); or, as
+  // the pen may lift with none of these, a bounded wait from the cancel. The
+  // pan's `scrollend` is no lift: the shift off the copies at the cancel
+  // ends with one of its own.
+  let penPan: ReturnType<typeof setTimeout> | null = null;
+  const liftPen = () => {
+    if (penPan === null) return;
+    clearTimeout(penPan);
+    penPan = null;
+    let held = false;
+    for (const [id, type] of pressed) {
+      if (type === 'pen') held = pressed.delete(id);
+    }
+    if (held) payOwed();
+  };
   const payOwed = () => {
     if (pressed.size > 0 || !(settleOwed || placeOwed !== null)) return;
     const place = placeOwed;
@@ -586,13 +611,16 @@ export function createDeck(
     else restOn(place);
   };
   const onWindowPointer = (event: PointerEvent) => {
-    if (
-      event.type === 'pointercancel' &&
-      event.pointerType === 'touch' &&
-      touchEvents
-    ) {
-      return;
+    if (event.type === 'pointercancel') {
+      if (event.pointerType === 'touch' && touchEvents) return;
+      if (event.pointerType === 'pen') {
+        if (penPan !== null) clearTimeout(penPan);
+        penPan = setTimeout(liftPen, PEN_LIFT_MS);
+        return;
+      }
     }
+    // A hovering pen may come back under another id than the panned one's.
+    if (event.pointerType === 'pen' && event.buttons === 0) liftPen();
     if (
       event.type === 'pointerup' ||
       event.type === 'pointercancel' ||
@@ -922,6 +950,11 @@ export function createDeck(
           if (type === event.pointerType) pressed.delete(id);
         }
       }
+      // A new pen down: any pen the browser panned has lifted.
+      if (event.pointerType === 'pen' && penPan !== null) {
+        clearTimeout(penPan);
+        penPan = null;
+      }
       pressed.set(event.pointerId, event.pointerType);
       if (event.pointerType === 'touch') holdTouch(event.target);
       // A touch or pen, before the browser pans. A mouse shifts only where
@@ -1151,6 +1184,7 @@ export function createDeck(
     },
     destroy() {
       stopQuiet();
+      if (penPan !== null) clearTimeout(penPan);
       cancelAnimationFrame(frame);
       cancelAnimationFrame(focusFrame);
       for (const slide of slidesOf(viewport).run) {
@@ -1186,6 +1220,11 @@ export function createDeck(
 }
 
 const SCROLL_END_DEBOUNCE_MS = 100;
+/** Safari's `Touch`, which says whether a stylus made it. */
+type StylusTouch = Touch & { touchType?: 'direct' | 'stylus' };
+/** A pen the browser panned lets go this long after the pan began, if its
+ * lift has not been heard by then. */
+const PEN_LIFT_MS = 1000;
 /** Keys a focused scroller scrolls by. */
 const SCROLL_KEYS = new Set([
   'ArrowUp',

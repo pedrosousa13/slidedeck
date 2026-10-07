@@ -118,7 +118,9 @@ event cannot say which move it ends. The events, and what each does:
   mouse. A scroll after the end, as a touch pan, settles at its own end. A
   release the engine does not hear would hold the deck unsettled for good, so
   a pointer lets go at the first of (amended for #48: a touch the browser pans
-  lets go only as its last finger lifts, below): a `pointerup` or
+  lets go only as its last finger lifts, below; amended for #97: a pen the
+  browser pans lets go only as it lifts, or after a bounded wait, below): a
+  `pointerup` or
   `pointercancel`, heard on the window in the capture phase, before any page
   listener can stop it; a `pointermove` or `pointerover` anywhere with no
   button down; the window losing focus, as the release may then go to another
@@ -133,8 +135,37 @@ event cannot say which move it ends. The events, and what each does:
   heard on the window in the capture phase or on the node the touch began
   on: the node hears it where the window does not, once the node has left
   the page, as when a consumer swaps a slide's content mid-pan. A browser
-  with no touch events lets go at `pointercancel`, as before, and so does a
-  pen.
+  with no touch events lets go at `pointercancel`, as before.
+- _A pen the browser pans_ (amended for #97): as a touch, it lets go when it
+  lifts, not at its `pointercancel`, which left a settle owed under the pen
+  to jump off a copy and report as the pen swipe began. After the cancel the
+  browser sends none of the pen's events, its `pointerup` included, so the
+  lift is the first of: the lift (`touchend` or `touchcancel`, heard on
+  the window) of a touch the browser marks as the pen's, as Safari marks
+  Apple Pencil's with `touchType` 'stylus', never a finger's lift, which
+  says nothing of the pen; a pen event with no button down, under any
+  pointer id, as a lifted pen hovering sends; the window losing focus; a
+  new primary pen pressed on the viewport; and, as a pen can lift with none
+  of these, 1 second after the cancel. A browser that sends touch events
+  for a pen but does not mark them lets the pen go only by the others.
+  Then the deck settles, or, if the pan is still scrolling it, at the pan's
+  own end.
+  Measured: in Chromium, a touch pan sends no `pointerup` and no pointer
+  event after its `pointercancel` until the lift, and its `scrollend` comes
+  only after the lift, never while the finger is held still. No engine
+  could be measured with a pen that pans: a pen through CDP
+  (`Input.dispatchMouseEvent`, `pointerType: 'pen'`) or Chromium's
+  `gpuBenchmarking` pen takes the mouse's path, sends `pointerup` and never
+  pans, and Playwright drives no pen in Firefox or WebKit. So the tests
+  send the `pointercancel` a pan would. The pan's `scrollend` was rejected as
+  the lift: the shift off the copies at the cancel scrolls the deck and ends
+  with a `scrollend` of its own, which cannot be told from the pan's. The
+  cost: where none of the signals above comes, a pen held down past the
+  wait without scrolling the deck, as when it pans the page across the
+  deck, lets go while still down, and a settle owed then jumps off a copy
+  and reports under it; and a pen that lifted unheard settles up to that
+  wait late. Open check: a real pen, as an iPad with Apple Pencil and a
+  Windows tablet's pen in Chromium and Firefox.
 - _The jump off a copy_ is part of a settle, so it comes only when idle or at
   a move's end. Its own end, if a new move has started, is a late end.
 
