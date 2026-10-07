@@ -13,16 +13,16 @@ decided each choice are summarised here.
 slides, `aria-hidden` and `inert`. When the viewport rests on a snap point
 after `scrollend` (or a debounce where `scrollend` is missing), it jumps one
 set length onto the identical real slides. It never jumps mid-motion, but for
-a press on the copies, which shifts the deck a set onto the slides where
-nothing shows (amended for #48, ADR-0009). This was the only technique with no
-measured jump, edge hit or focus on a copy in any browser. Jumping mid-motion
-showed jumps of up to 0.30 slide and killed momentum; one viewport of copies
-was too short for a hard scroll across the seam. Reposition was rejected: its
-runway is about n/2 slides (4.8 forward in a 12-slide deck, so a wheel burst
-hit the end), and moving DOM nodes trapped Tab: 40 presses never left the
-deck. Its CSS `order` variant fixes Tab but splits visual order from reading
-order. As built, the copies are rendered by `Deck.Viewport` and never counted
-(ADR-0009).
+a press or a wheel event on the copies, which shifts the deck a set onto the
+slides where nothing shows (amended for #48 and #96, ADR-0009). This was the
+only technique with no measured jump, edge hit or focus on a copy in any
+browser. Jumping mid-motion showed jumps of up to 0.30 slide and killed
+momentum; one viewport of copies was too short for a hard scroll across the
+seam. Reposition was rejected: its runway is about n/2 slides (4.8 forward in
+a 12-slide deck, so a wheel burst hit the end), and moving DOM nodes trapped
+Tab: 40 presses never left the deck. Its CSS `order` variant fixes Tab but
+splits visual order from reading order. As built, the copies are rendered by
+`Deck.Viewport` and never counted (ADR-0009).
 
 **Drag: scripted handoff.** Snapping is off while the mouse drags. On
 release slidedeck projects the velocity to a snap point, smooth-scrolls
@@ -90,6 +90,12 @@ event cannot say which move it ends. The events, and what each does:
   Focus within a slide or on the viewport, as Tab out of a slide gives,
   scrolls, but the move resumes to its target (below). A drag's release is
   a new move.
+- _The shift's own end_ (amended for #96): a wheel event on the copies
+  shifts the deck a set onto the slides mid-scroll (ADR-0009), and that
+  instant scroll sends an end event of its own, with the viewport where the
+  shift put it. Until the user's scroll moves on from there, an end event
+  there is the shift's and is ignored: it settled the deck mid-scroll. If
+  the user's scroll goes no further, quiet settles the deck instead.
 - _Focus entering a slide_ from outside it, as Tab does (amended for #43):
   the browser scrolls the slide into view and stops the move's scroll. Like
   the user's scroll, this ends the move, and focus wins: a new move replaces

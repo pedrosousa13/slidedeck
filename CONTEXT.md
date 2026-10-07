@@ -100,9 +100,10 @@ and `aria-hidden`, so the deck can scroll on across the seam. Loop lays out
 two _sets_ of copies, one before the slides and one after, each a copy of
 every slide, so a set runs as far as the slides do. Once the deck rests on a
 copy it jumps a set back to the identical slide (and, at a press on the
-copies, a set back before the gesture; ADR-0009). Not a slide: indexes, Dots
-and Counter never count copies. "Clone and jump" (ADR-0006) is the name of
-the technique; the elements are copies.
+copies, a set back before the gesture, or at a wheel event there, as it
+scrolls; ADR-0009). Not a slide: indexes, Dots and Counter never count
+copies. "Clone and jump" (ADR-0006) is the name of the technique; the
+elements are copies.
 _Avoid_: clone
 
 **Autoplay**:

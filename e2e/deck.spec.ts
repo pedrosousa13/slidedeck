@@ -1283,21 +1283,18 @@ for (const { id, last } of [
 
 // A scroll the engine did not start, as a touch swipe's on a phone, settles
 // at its end event: the log reads the rest there before the engine does, so
-// it shows the copy the deck came to rest on, then the jump off it.
-test('deck--loop: with log=1, a wheel step back across the seam logs the rest on a copy, then the jump', async ({
+// it shows the copy the deck came to rest on, then the jump off it. A key,
+// not a wheel: a wheel event on the copies shifts the deck off them at once
+// (#96), and Chromium sends it once its scroll is already there.
+test('deck--loop: with log=1, a key scroll back across the seam logs the rest on a copy, then the jump', async ({
   page
 }) => {
   await openStory(page, 'deck--loop', undefined, '&log=1');
   const deck = page.getByRole('region', { name: 'Featured slides' });
   const log = page.getByRole('log', { name: 'Event log' });
-  const viewport = deck.locator('[data-slidedeck-viewport]');
-  const box = (await viewport.boundingBox())!;
-  const step = await deck
-    .getByRole('group', { name: '1 of 6' })
-    .evaluate((el) => el.getBoundingClientRect().width);
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await deck.locator('[data-slidedeck-viewport]').focus();
 
-  await page.mouse.wheel(-step, 0);
+  await page.keyboard.press('ArrowLeft');
 
   await expect(deck).toHaveAttribute('data-index', '5');
   await expect(log).toContainText(

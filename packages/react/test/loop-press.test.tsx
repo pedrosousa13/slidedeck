@@ -212,8 +212,8 @@ async function chain(
   const before = () => presses.push([deck.position()]);
   const after = () => presses.at(-1)!.push(deck.position());
   // A mouse shifts as its drag starts, on a move: that move's own write
-  // follows the shift.
-  const types = ['pointerdown', 'pointercancel', 'pointermove'];
+  // follows the shift. A wheel or trackpad shifts at a wheel event (#96).
+  const types = ['pointerdown', 'pointercancel', 'pointermove', 'wheel'];
   for (const type of types) {
     window.addEventListener(type, before, { capture: true });
     document.addEventListener(type, after);
@@ -308,6 +308,276 @@ describe('loop, swipes chained faster than the deck comes to rest', () => {
       });
     }
   }
+});
+
+// Chained trackpad or wheel flicks press nothing: each goes on from the
+// momentum of the one before, so the deck never rests. A wheel event on the
+// copies moves the deck a set back onto the slides, where nothing shows
+// (#96).
+describe('loop, wheel or trackpad flicks chained faster than the deck comes to rest', () => {
+  beforeEach(parkMouse);
+
+  for (const [name, shape, dx] of [
+    ['horizontal', {}, 250],
+    ['vertical', { vertical: true }, 150],
+    ['right-to-left', { rtl: true }, -250],
+    ['pages', { pages: true }, 250],
+    // A set is under one and a half viewports: shorter flicks.
+    ['centred', { centred: true }, 100]
+  ] as const) {
+    for (const way of [1, -1] as const) {
+      test(`${name}: flicks ${way === 1 ? 'on' : 'back'} carry on round the seam, never to an end`, async () => {
+        const deck = renderLoop(shape);
+        // The engine's own moves: it never scrolls against the user's.
+        const moves: unknown[] = [];
+        const scrollTo = deck.viewport.scrollTo.bind(deck.viewport);
+        deck.viewport.scrollTo = ((options: ScrollToOptions) => {
+          if (options.behavior === 'smooth') moves.push(options);
+          scrollTo(options);
+        }) as typeof deck.viewport.scrollTo;
+        await nextFrame();
+        await nextFrame();
+
+        const run = await chain(
+          deck,
+          () =>
+            gestureScroll(deck.viewport, dx * way, {
+              drawn: true,
+              axis: 'vertical' in shape ? 'y' : 'x'
+            }),
+          14,
+          way
+        );
+
+        expect(run.nearestEnd).toBeGreaterThan(1);
+        expect(run.travel).toBeGreaterThan(2 * run.length);
+        expect(run.shifts).not.toEqual([]);
+        for (const d of run.shifts) {
+          expect(Math.abs(d - run.length)).toBeLessThanOrEqual(1);
+        }
+        expect(moves).toEqual([]);
+        await expectRest(deck);
+      });
+    }
+  }
+
+  test('a wheel on the copies moves the deck a set back onto the slides, and nothing shows or is told', async () => {
+    const deck = renderLoop({ defaultIndex: 4 });
+    const { viewport, root, onIndexChange } = deck;
+    const told = () => ({
+      index: root.dataset.index,
+      reports: onIndexChange.mock.calls.length,
+      live: root.querySelector('[aria-live]')?.textContent
+    });
+    const start = told();
+    // Where the deck is, and what it has told, as each wheel event reaches
+    // the page and once the deck has heard it.
+    // And how many frames had been drawn by then.
+    const wheels: [number, number, ReturnType<typeof told>[], number][] = [];
+    const before = () =>
+      wheels.push([deck.position(), NaN, [told()], frames.length]);
+    const after = () => {
+      wheels.at(-1)![1] = deck.position();
+      wheels.at(-1)![2].push(told());
+    };
+    // Each frame drawn, as the deck painted it: its scroll listener comes
+    // first, so its paint is requested first. What it marks in view, and
+    // what layout shows in view, at least a pixel of it, by each slide's
+    // and copy's place among the viewport's children.
+    const all = () => [
+      ...viewport.querySelectorAll<HTMLElement>(
+        ':scope > [data-slidedeck-slide]'
+      )
+    ];
+    const frames: {
+      picture: ReturnType<typeof shown>;
+      marked: number[];
+      visible: number[];
+    }[] = [];
+    let frame = 0;
+    const onScroll = () => {
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        const run = all();
+        frames.push({
+          picture: shown(viewport, deck.startOf),
+          marked: run
+            .map((el, i) => (el.hasAttribute('data-in-view') ? i : -1))
+            .filter((i) => i !== -1),
+          visible: run
+            .map((el, i) => {
+              const start = deck.startOf(el);
+              const end = start + el.getBoundingClientRect().width;
+              return Math.min(end, WIDTH) - Math.max(start, 0) >= 1 ? i : -1;
+            })
+            .filter((i) => i !== -1)
+        });
+      });
+    };
+    window.addEventListener('wheel', before, { capture: true });
+    document.addEventListener('wheel', after);
+    viewport.addEventListener('scroll', onScroll);
+    onTestFinished(() => {
+      window.removeEventListener('wheel', before, { capture: true });
+      document.removeEventListener('wheel', after);
+      viewport.removeEventListener('scroll', onScroll);
+    });
+
+    // From slide 5 two slides on, onto the copies of slides 1 and 2.
+    await gestureScroll(viewport, 600);
+    await expectRest(deck);
+
+    const shifts = wheels.filter(([from, to]) => Math.abs(to - from) > 750);
+    expect(shifts).not.toEqual([]);
+    for (const [from, to] of shifts) expect(from - to).toBe(1500);
+    // Told nothing until the deck rests, then once.
+    for (const [, , then] of wheels) expect(then).toEqual([start, start]);
+    expect(onIndexChange.mock.calls).toEqual([[Number(root.dataset.index)]]);
+    // A frame drawn before each shift and after it.
+    for (const [, , , drawn] of shifts) {
+      expect(drawn).toBeGreaterThan(0);
+      expect(drawn).toBeLessThan(frames.length);
+    }
+    // Every frame drawn: exactly the slides and copies in view marked so,
+    // each with the progress its place gives it, and no frame's picture
+    // jumps from the last's.
+    let last: number | null = null;
+    for (const { picture, marked, visible } of frames) {
+      expect(marked).toEqual(visible);
+      expect(picture.length).toBeGreaterThan(0);
+      for (const { start, progress } of picture) {
+        expect(Math.abs(Number(progress) - start / WIDTH)).toBeLessThan(0.02);
+      }
+      const [first] = picture;
+      const at = (Number(first.slide!.split(' ')[0]) - 1) * WIDTH - first.start;
+      if (last !== null) {
+        const step = ((((at - last) % 1500) + 2250) % 1500) - 750;
+        expect(Math.abs(step)).toBeLessThan(100);
+      }
+      last = at;
+    }
+  });
+
+  test("the shift's own scroll end does not settle the deck mid-scroll", async () => {
+    const deck = renderLoop({ defaultIndex: 4 });
+    const { viewport } = deck;
+    // The boxes the deck reads at each end event, when the event comes, and
+    // the times of the gesture's first and last wheel events. A settle
+    // measures every slide and copy.
+    const ends: { t: number; boxes: number }[] = [];
+    let first = Infinity;
+    let wheeled = 0;
+    let boxes = 0;
+    const measure = Element.prototype.getBoundingClientRect;
+    const counting = function (this: Element) {
+      boxes++;
+      return measure.call(this);
+    };
+    // Around the deck's own listeners, as it registered them first.
+    const start = () => {
+      boxes = 0;
+      Element.prototype.getBoundingClientRect = counting;
+    };
+    const end = () => {
+      Element.prototype.getBoundingClientRect = measure;
+      ends.push({ t: performance.now(), boxes });
+    };
+    const onWheel = () => {
+      wheeled = performance.now();
+      first = Math.min(first, wheeled);
+    };
+    const types = ['scrollend', 'scrollsnapchange'];
+    for (const type of types) {
+      viewport.addEventListener(type, start, { capture: true });
+      viewport.addEventListener(type, end);
+    }
+    viewport.addEventListener('wheel', onWheel);
+    onTestFinished(() => {
+      Element.prototype.getBoundingClientRect = measure;
+      for (const type of types) {
+        viewport.removeEventListener(type, start, { capture: true });
+        viewport.removeEventListener(type, end);
+      }
+      viewport.removeEventListener('wheel', onWheel);
+    });
+
+    // From slide 5 two slides on, onto the copies of slides 1 and 2.
+    await gestureScroll(viewport, 600);
+    await expectRest(deck);
+
+    const mid = ends.filter(({ t }) => t > first && t < wheeled);
+    // The shift's own scroll ended mid-gesture, and the deck measured
+    // nothing there; the gesture's end settled it.
+    expect(mid).not.toEqual([]);
+    expect(mid.map(({ boxes }) => boxes)).toEqual(mid.map(() => 0));
+    expect(
+      ends.filter(({ t }) => t > wheeled).some(({ boxes }) => boxes > 0)
+    ).toBe(true);
+  });
+
+  test('a wheel event reads no layout on the slides, a copy and its slide on the copies, and is quick', async () => {
+    // As the Loop story, and more: 24 slides and 48 copies.
+    addStyle(
+      `.many > * { width: calc(100% / 2.5); scroll-snap-align: center; }`
+    );
+    render(
+      <TestDeck loop slides={24} defaultIndex={23} viewportClassName="many" />
+    );
+    const viewport = viewportOf(
+      screen.getByRole('region', { name: 'Test deck' })
+    );
+    // Each wheel event: how long the deck's listener took, how many boxes
+    // it read, and whether it shifted the deck.
+    const events: { ms: number; boxes: number; shifted: boolean }[] = [];
+    let t0 = 0;
+    let from = 0;
+    let boxes = 0;
+    const measure = Element.prototype.getBoundingClientRect;
+    const counting = function (this: Element) {
+      boxes++;
+      return measure.call(this);
+    };
+    // Around the deck's own listener: the event reaches the viewport's
+    // capture listener first, its own listener next, then this one.
+    const start = () => {
+      from = viewport.scrollLeft;
+      boxes = 0;
+      Element.prototype.getBoundingClientRect = counting;
+      t0 = performance.now();
+    };
+    const end = () => {
+      const ms = performance.now() - t0;
+      Element.prototype.getBoundingClientRect = measure;
+      events.push({
+        ms,
+        boxes,
+        shifted: Math.abs(viewport.scrollLeft - from) > 1000
+      });
+    };
+    viewport.addEventListener('wheel', start, { capture: true });
+    viewport.addEventListener('wheel', end);
+    onTestFinished(() => {
+      Element.prototype.getBoundingClientRect = measure;
+      viewport.removeEventListener('wheel', start, { capture: true });
+      viewport.removeEventListener('wheel', end);
+    });
+
+    // From the last slide on, onto the copies after the slides.
+    await gestureScroll(viewport, 400);
+    await sleep(500);
+
+    const still = events.filter(({ shifted }) => !shifted);
+    const shifted = events.filter(({ shifted }) => shifted);
+    expect(still.length).toBeGreaterThan(5);
+    expect(shifted.length).toBeGreaterThan(0);
+    // 24 slides of 120px: a set is 2880px.
+    for (const { boxes } of still) expect(boxes).toBe(0);
+    for (const { boxes } of shifted) expect(boxes).toBe(3);
+    const median = (list: typeof events) =>
+      [...list].sort((a, b) => a.ms - b.ms)[Math.floor(list.length / 2)].ms;
+    expect(median(still)).toBeLessThan(1);
+    for (const { ms } of shifted) expect(ms).toBeLessThan(5);
+  });
 });
 
 describe('loop, a press on the copies', () => {
@@ -799,28 +1069,64 @@ describe('loop, a press on the copies', () => {
   test('a mouse click during a wheel scroll on the copies leaves the scroll going', async () => {
     const deck = renderLoop({ defaultIndex: 4 });
     const { viewport } = deck;
-    const at: number[] = [];
-    const onScroll = () => at.push(deck.position());
+    // How far the deck has gone, but for jumps and shifts of a set, as the
+    // wheel's own events shift it onto the slides (#96). A step of a set
+    // must follow a wheel event that shifted the deck, or be the jump off a
+    // copy at rest, from a snap point: anything else is a shift by the click.
+    const at: number[] = [deck.position()];
+    let gone = 0;
+    let shifts = 0;
+    const strays: number[][] = [];
+    const onScroll = () => {
+      const from = at.at(-1)!;
+      const d = deck.position() - from;
+      if (Math.abs(d) < 750) gone += d;
+      else if (shifts > 0) shifts--;
+      else if (from % WIDTH !== 0) strays.push([from, d]);
+      at.push(deck.position());
+    };
     viewport.addEventListener('scroll', onScroll);
-    onTestFinished(() => viewport.removeEventListener('scroll', onScroll));
+    let wheeled = 0;
+    const beforeWheel = () => (wheeled = deck.position());
+    const afterWheel = () => {
+      if (Math.abs(deck.position() - wheeled) > 750) shifts++;
+    };
+    // Where the deck is as the click reaches the page, and once the deck
+    // has heard it.
+    const press: number[] = [];
+    const before = () => press.push(deck.position());
+    const after = () => press.push(deck.position());
+    window.addEventListener('pointerdown', before, { capture: true });
+    document.addEventListener('pointerdown', after);
+    window.addEventListener('wheel', beforeWheel, { capture: true });
+    document.addEventListener('wheel', afterWheel);
+    onTestFinished(() => {
+      viewport.removeEventListener('scroll', onScroll);
+      window.removeEventListener('pointerdown', before, { capture: true });
+      document.removeEventListener('pointerdown', after);
+      window.removeEventListener('wheel', beforeWheel, { capture: true });
+      document.removeEventListener('wheel', afterWheel);
+    });
     const box = viewport.getBoundingClientRect();
 
     const scrolled = gestureScroll(viewport, 900);
-    await expect.poll(() => deck.position()).toBeGreaterThan(2850);
+    // Over half a slide onto the copies after the slides.
+    await expect.poll(() => gone).toBeGreaterThan(150);
     const clicked = at.length;
     await mouseAt('mousePressed', box.left + 50, box.top + 50, 1);
     await mouseAt('mouseReleased', box.left + 50, box.top + 50, 0);
     await scrolled;
 
     await expectRest(deck);
-    // From where the click came, a scroll event at a time: on, but for the
-    // jump off a copy at rest, from a snap point. Never a shift from between
-    // snap points, and never back.
-    const after = at.slice(clicked - 1);
-    const steps = after.slice(1).map((p, i) => [after[i], p - after[i]]);
-    const jumps = steps.filter(([, d]) => Math.abs(d) > 750);
-    expect(jumps.map(([from]) => from % WIDTH)).toEqual(jumps.map(() => 0));
-    expect(steps.filter(([, d]) => d < 0 && d > -750)).toEqual([]);
+    // The click moved nothing, and from where it came the scroll went on,
+    // a scroll event at a time: never back, but for jumps and shifts of a
+    // set, each at a wheel event or a rest.
+    expect(press).toEqual([press[0], press[0]]);
+    expect(strays).toEqual([]);
+    const later = at.slice(clicked - 1);
+    const steps = later.slice(1).map((p, i) => p - later[i]);
+    expect(steps.filter((d) => d < 0 && d > -750)).toEqual([]);
+    expect(gone).toBeGreaterThan(600);
   });
 });
 
