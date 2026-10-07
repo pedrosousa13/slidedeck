@@ -537,6 +537,146 @@ describe('loop, a press on the copies', () => {
     expect(onIndexChange.mock.calls).toEqual([[2]]);
   });
 
+  /**
+   * A pen down as a move arrives on the copy of slide 1, then panned: the
+   * browser takes it over with `pointercancel`, and sends none of its
+   * events until it lifts. A pen through CDP takes the mouse's path in
+   * Chromium, and is never panned, so the test sends the `pointercancel`
+   * the browser would. Returns `lift`, the pen's real `pointerup`, which
+   * the test runs once its pan is done.
+   */
+  async function penPanOnArrival(deck: ReturnType<typeof renderLoop>) {
+    const { viewport, onIndexChange } = deck;
+    const box = viewport.getBoundingClientRect();
+    const [x, y] = [box.left + 150, box.top + 100];
+    let id = -1;
+    const onDown = (event: PointerEvent) => (id = event.pointerId);
+    window.addEventListener('pointerdown', onDown, { once: true });
+    let lifted = false;
+    const lift = async () => {
+      lifted = true;
+      await mouseAt('mouseReleased', x, y, 0, 'pen');
+    };
+    onTestFinished(async () => {
+      window.removeEventListener('pointerdown', onDown);
+      if (!lifted) await lift();
+    });
+
+    screen.getByRole('button', { name: 'Next' }).click();
+    await mouseAt('mousePressed', x, y, 1, 'pen');
+    expect(id).not.toBe(-1);
+    // The move arrives on the copy of slide 1 and ends, the pen still down:
+    // the settle waits for it.
+    await expect.poll(() => deck.position()).toBe(3000);
+    await sleep(300);
+    expect(onIndexChange).not.toHaveBeenCalled();
+    viewport.dispatchEvent(
+      new PointerEvent('pointercancel', {
+        bubbles: true,
+        pointerId: id,
+        pointerType: 'pen',
+        isPrimary: true
+      })
+    );
+    return lift;
+  }
+
+  test('a pen down as a move arrives on a copy: nothing is reported or jumped under it as it pans', async () => {
+    const deck = renderLoop({ defaultIndex: 4 });
+    const lift = await penPanOnArrival(deck);
+    await sleep(300);
+
+    expect(deck.onIndexChange).not.toHaveBeenCalled();
+    await lift();
+    await expectRest(deck);
+    expect(deck.onIndexChange.mock.calls).toEqual([[0]]);
+  });
+
+  test('a panned pen lets go as it hovers, lifted', async () => {
+    const deck = renderLoop({ defaultIndex: 4 });
+    await penPanOnArrival(deck);
+    await sleep(300);
+    expect(deck.onIndexChange).not.toHaveBeenCalled();
+
+    const box = deck.viewport.getBoundingClientRect();
+    await mouseAt('mouseMoved', box.left + 140, box.top + 100, 0, 'pen');
+
+    await expectRest(deck);
+    expect(deck.onIndexChange.mock.calls).toEqual([[0]]);
+  });
+
+  test('a panned pen lets go as it hovers under another pointer id', async () => {
+    const deck = renderLoop({ defaultIndex: 4 });
+    await penPanOnArrival(deck);
+    await sleep(300);
+    expect(deck.onIndexChange).not.toHaveBeenCalled();
+
+    document.dispatchEvent(
+      new PointerEvent('pointermove', {
+        bubbles: true,
+        pointerId: 999,
+        pointerType: 'pen',
+        isPrimary: true,
+        buttons: 0
+      })
+    );
+
+    // At once, not at the bounded wait.
+    await expect
+      .poll(() => deck.onIndexChange.mock.calls, { timeout: 400 })
+      .toEqual([[0]]);
+    await expectRest(deck);
+    expect(deck.onIndexChange.mock.calls).toEqual([[0]]);
+  });
+
+  test("a panned pen lets go as its own touch lifts, as Safari marks Apple Pencil's", async () => {
+    const deck = renderLoop({ defaultIndex: 4 });
+    await penPanOnArrival(deck);
+    await sleep(300);
+    expect(deck.onIndexChange).not.toHaveBeenCalled();
+
+    const pencil = new Touch({ identifier: 9, target: document.body });
+    Object.defineProperty(pencil, 'touchType', { value: 'stylus' });
+    document.body.dispatchEvent(
+      new TouchEvent('touchend', { bubbles: true, changedTouches: [pencil] })
+    );
+
+    // At once, not at the bounded wait.
+    await expect
+      .poll(() => deck.onIndexChange.mock.calls, { timeout: 400 })
+      .toEqual([[0]]);
+    await expectRest(deck);
+    expect(deck.onIndexChange.mock.calls).toEqual([[0]]);
+  });
+
+  test("a finger's lift off the deck does not let a panned pen go", async () => {
+    const deck = renderLoop({ defaultIndex: 4 });
+    await penPanOnArrival(deck);
+    // Well within the bounded wait: a finger taps the page, off the deck.
+    const finger = [{ x: 5, y: window.innerHeight - 5, id: 1 }];
+    await touchAt('touchStart', finger);
+    await touchAt('touchEnd', []);
+    await sleep(300);
+
+    expect(deck.onIndexChange).not.toHaveBeenCalled();
+  });
+
+  test("a pen's lost lift still lets go, within a bounded time", async () => {
+    const deck = renderLoop({ defaultIndex: 4 });
+    await penPanOnArrival(deck);
+    const panned = performance.now();
+
+    // No lift, and no scroll: the deck holds a while, then settles all the
+    // same.
+    await sleep(500);
+    expect(deck.onIndexChange).not.toHaveBeenCalled();
+    await expect
+      .poll(() => deck.onIndexChange.mock.calls, { timeout: 3000 })
+      .toEqual([[0]]);
+    expect(performance.now() - panned).toBeLessThan(2000);
+    await expectRest(deck);
+  });
+
   test('a slide resized since the last settle: a press on the copies still shifts by the set as laid out now', async () => {
     const deck = renderLoop({ defaultIndex: 4 });
     const { viewport, onIndexChange } = deck;
