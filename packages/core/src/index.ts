@@ -78,10 +78,11 @@ export interface DeckEngine {
  * onto the copies, and when the viewport comes to rest on a copy's snap
  * point the engine jumps it, instantly, a set of slides back onto the
  * identical slide's snap point. Never mid-motion: a jump then would show and
- * stop momentum. But a touch or pen pressed on the copies, or a mouse drag
- * starting there, moves the deck a set onto the slides at once, where
- * nothing shows, so swipes chained faster than the deck rests never run out
- * of copies (see `shiftOffCopies`). A set of slides no longer than the
+ * stop momentum. But a touch or pen pressed on the copies, a mouse drag
+ * starting there, or a wheel event there along the axis, moves the deck a
+ * set onto the slides at once, where nothing shows, so swipes and trackpad
+ * or wheel flicks chained faster than the deck rests never run out of
+ * copies (see `shiftOffCopies`). A set of slides no longer than the
  * viewport has nothing to loop: the engine then reports one snap point, as
  * for any deck whose slides all fit, and the caller should drop the copies.
  *
@@ -151,6 +152,7 @@ export function createDeck(
 
   const settle = () => {
     refreshOwed = false;
+    shifted = null;
     userInput = false;
     userScroll = false;
     shape = shapeOf(viewport);
@@ -200,28 +202,30 @@ export function createDeck(
   };
 
   // A touch or pen pressed on the viewport, or a mouse drag as it starts,
-  // while it is on the copies, nearer a copy's snap point than any slide's,
-  // moves it a set onto the slides at once, to the same place among them
-  // (ADR-0009, amended for #48). Swipes chained faster than the deck comes
-  // to rest are one long scroll with no settle to jump at, and would run
-  // through the copies to an end of the scroll range; now each swipe starts
-  // with a full set of copies ahead of it. The slides show what the copies
-  // did, so nothing shows: the shift's scroll paints progress and in-view
-  // before the frame that draws it, and nothing is published. A mouse click
-  // scrolls nothing, and a tap leaves a move going, so neither shifts: the
-  // move ends on its target and jumps there as ever. A pan or a drag takes
-  // the move over first.
+  // or a wheel event along the axis, while it is on the copies, nearer a
+  // copy's snap point than any slide's, moves it a set onto the slides at
+  // once, to the same place among them (ADR-0009, amended for #48 and #96).
+  // Swipes or trackpad flicks chained faster than the deck comes to rest are
+  // one long scroll with no settle to jump at, and would run through the
+  // copies to an end of the scroll range; now each swipe starts with a full
+  // set of copies ahead of it, and a flick's own wheel events keep one
+  // ahead. The slides show what the copies did, so nothing shows: the
+  // shift's scroll paints progress and in-view before the frame that draws
+  // it, and nothing is published. A mouse click scrolls nothing, and a tap
+  // leaves a move going, so neither shifts: the move ends on its target and
+  // jumps there as ever. A pan or a drag takes the move over first.
   //
-  // Every press runs it, so it reads no layout off the copies: where the
-  // deck is is read against the snap points of the last settle. Those can
-  // be stale, as when a slide resizes and the viewport does not, so on the
-  // copies the shift is measured afresh, from the copy's own rest to its
-  // slide's, as `jumpOffCopies` measures: WebKit can rest a copy a pixel or
-  // two off its slide's rest plus a set's length.
+  // Every press and wheel event runs it, so it reads no layout off the
+  // copies: where the deck is is read against the snap points of the last
+  // settle. Those can be stale, as when a slide resizes and the viewport
+  // does not, so on the copies the shift is measured afresh, from the
+  // copy's own rest to its slide's, as `jumpOffCopies` measures: WebKit can
+  // rest a copy a pixel or two off its slide's rest plus a set's length.
+  // Returns where the shift put the deck, or null if it did not shift.
   const shiftOffCopies = () => {
     const { points, length } = known;
     const count = points.length;
-    if (move || length === 0 || count === 0) return;
+    if (move || length === 0 || count === 0) return null;
     const along = axis();
     const at = along.position;
     let nearest = 0;
@@ -230,23 +234,23 @@ export function createDeck(
       if (distance(i) < distance(nearest)) nearest = i;
     }
     const set = Math.floor(nearest / count);
-    if (set === 0) return;
+    if (set === 0) return null;
     const point = nearest - set * count;
     const slide = known.slides.indexOf(point);
     const { slides, boxes, first } = slidesOf(viewport);
     const own = boxes[first + slide];
     const copy = boxes[first + slide + set * slides.length];
-    if (slide === -1 || !own || !copy) return;
+    if (slide === -1 || !own || !copy) return null;
     // One read of the viewport for both: the slide's rest is clamped to the
     // scroll range, as `snapPoints` has it.
     const restOf = snapRest(viewport, along, false);
     const to = restOf(own);
     const from = restOf(copy);
-    if (to === null || from === null) return;
+    if (to === null || from === null) return null;
     const shift = Math.min(Math.max(to, 0), along.max()) - from;
     // Snapping off for the shift, as the browser would snap it, which shows;
     // a drag has it off already. Measured in Chromium, snapping put back
-    // while a finger is down snaps nothing.
+    // while a finger is down, or mid wheel gesture, snaps nothing.
     const { style } = viewport;
     const snap = style.scrollSnapType;
     style.scrollSnapType = 'none';
@@ -255,6 +259,7 @@ export function createDeck(
     // Positions kept from before the shift move with it.
     if (taken) taken.at += shift;
     if (resnapFrom !== null) resnapFrom += shift;
+    return at + shift;
   };
 
   // Where snap point `index` rests, as measured: with loop, a copy's from
@@ -442,9 +447,11 @@ export function createDeck(
     if (confirm === 'waiting') confirm = 'due';
     // Nothing scrolled since the last end, or a scroll the engine did not
     // start, which ends at its own end event: but one a refresh found going
-    // ends here, unless it is the user's (see `refreshOwed`).
+    // ends here, unless it is the user's (see `refreshOwed`), and so does
+    // one whose end a wheel's shift took for its own (see `shifted`).
     else if (
       !move &&
+      !shifted?.ended &&
       (!scrolling || (hasScrollEnd && (!refreshOwed || userScroll)))
     ) {
       refreshOwed = false;
@@ -465,6 +472,8 @@ export function createDeck(
     }
     scrolling = true;
     if (userInput) userScroll = true;
+    // The user's scroll goes on from the shift: its end is to come.
+    if (shifted && Math.abs(axis().position - shifted.at) >= 1) shifted = null;
     if (move) move.stalled = false;
     if (!hasScrollEnd || move || confirm || refreshOwed) awaitQuiet();
   };
@@ -482,6 +491,12 @@ export function createDeck(
   // first. The user's scroll is never cut short: it settles at its own end.
   let relaidAt: number | null = null;
   let refreshOwed = false;
+  // Where a wheel's shift put the deck (see `onWheel`), until the user's
+  // scroll goes on from there or the deck settles. The shift's instant
+  // scroll ends with an end event of its own, mid-scroll, which must not
+  // settle the deck: an end there is taken for it (`ended`). If the user's
+  // scroll then goes no further, quiet ends it instead.
+  let shifted: { at: number; ended: boolean } | null = null;
   // The user's input, until the next quiet or settle, and whether a scroll
   // followed it, until the next settle: input that scrolls nothing, as a
   // vertical wheel over a horizontal deck, leaves a refresh owed to settle
@@ -674,6 +689,11 @@ export function createDeck(
   // ends the move then.
   const onEnd = () => {
     if (move && !arrived(move)) return;
+    if (shifted && Math.abs(axis().position - shifted.at) < 1) {
+      shifted.ended = true;
+      awaitQuiet();
+      return;
+    }
     scrollEnded();
   };
 
@@ -689,10 +709,21 @@ export function createDeck(
   // resumes to its target (below).
   // `at` reads a wheel's delta along the axis, signed the way the deck
   // runs, as it reads a point: the way the wheel scrolls the deck.
-  const onWheel = (event: WheelEvent) =>
-    takeOver(
-      Math.sign(axis().at({ clientX: event.deltaX, clientY: event.deltaY }))
+  //
+  // A wheel event along the axis on the copies shifts the deck a set onto
+  // the slides (#96): chained trackpad or wheel flicks press nothing, each
+  // goes on from the momentum of the one before, and the deck would never
+  // rest to jump off a copy. A wheel that scrolls nothing along the axis, as
+  // a vertical wheel over a horizontal deck, shifts nothing.
+  const onWheel = (event: WheelEvent) => {
+    const way = Math.sign(
+      axis().at({ clientX: event.deltaX, clientY: event.deltaY })
     );
+    takeOver(way);
+    if (way === 0) return;
+    const at = shiftOffCopies();
+    if (at !== null) shifted = { at, ended: false };
+  };
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.defaultPrevented || !SCROLL_KEYS.has(event.key)) return;
     const on = event.target;

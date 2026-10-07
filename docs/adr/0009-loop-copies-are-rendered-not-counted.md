@@ -4,7 +4,8 @@ ADR-0006 chose clone and jump for loop (the technique's name; the elements are
 _copies_, CONTEXT.md): a full set of copies on each side of the slides,
 `aria-hidden` and `inert`, and a jump of one set length onto the identical
 slide once the viewport rests on a copy's snap point, never mid-motion but for
-a press on the copies (amended for #48, below). This records how it is built
+a press on the copies (amended for #48, below) and a wheel event there
+(amended for #96, below). This records how it is built
 (#11) and what loop does with the deck's other features.
 
 **React renders the copies; the engine finds them.** `Deck.Root loop` makes
@@ -43,7 +44,8 @@ to the furthest snap point ahead that the copies reach, and a press beyond
 that is dropped: a press while the deck is already there, or heading there,
 does nothing. So when presses outrun the copies the deck passes fewer slides
 than were pressed. In exchange it never moves against a press, never jumps
-mid-motion (a press of the pointer on the copies aside, amended for #48),
+mid-motion (a press of the pointer or a wheel event on the copies aside,
+amended for #48 and #96),
 comes to rest on a copy and jumps to its slide as always, and
 `onIndexChange` reports where it rests. At rest it is always on a slide, so
 a press at rest always moves it one snap point. A step from a rest the deck
@@ -59,8 +61,9 @@ from the copy. The arrived move does not jump; the new move does at its end
 Two other rules were tried and rejected. Moving the viewport back a set
 mid-motion to make room: the instant scroll ends with a `scrollend` of its
 own, which settled the deck, and a jump mid-motion is what ADR-0006 rules out.
-(Amended for #48: a pointer pressed on the copies does move the deck back a
-set, below. A press of Next still does not.) Carrying the target: the deck
+(Amended for #48 and #96: a pointer pressed on the copies, or a wheel event
+there, does move the deck back a set, below. A press of Next still does
+not.) Carrying the target: the deck
 went to the end of the copies, jumped at rest, and went on to the target it
 carried. Every press counted, but the carried move outlived the rest it
 crossed, and fought what came after it. It could stop on a copy at the end of
@@ -118,7 +121,67 @@ jump at a settle stays.
   slides and 48 copies: a press on the slides reads no box and takes about
   0.1ms; one that shifts takes 0.3 to 0.4ms, most of it the scroll.
 
-Chained wheel and trackpad flicks press nothing, and are not covered.
+**A wheel event on the copies moves the deck onto the slides too (amended
+for #96).** Chained trackpad or wheel flicks press nothing, so the shift at
+a press never came: each flick went on from the momentum of the one before,
+the deck never rested, and it ran through the copies to an end of the
+scroll range, on a Mac with a trackpad. Measured in Chromium with chained
+synthetic trackpad gestures (CDP `synthesizeScrollGesture`), 14 flicks of
+250px scrolled to the end of the range both ways.
+
+So a wheel event along the axis, while the viewport is nearer a copy's snap
+point than any slide's, shifts it a set as a press does, with the same
+measure, the same snap points of the last settle and nothing shown or told.
+Every such event shifts, momentum's included: the shift that comes first is
+the earliest, and a flick's own events keep a set of copies ahead of it. A
+wheel that scrolls nothing along the axis, as a vertical wheel over a
+horizontal deck, shifts nothing, so it never stops a move the user did not
+take over.
+
+- Measured on a plain scroll-snap page before it was built, shifting at
+  each wheel event while on the copies, snapping off for the instant:
+  - Chromium, chained synthetic trackpad gestures: no frame moved against
+    the gesture or by more than its own step, in 6 runs each at every event
+    and at a gesture's first event only. Snapping put back mid-gesture
+    snapped nothing. Once the compositor undid a shift, by exactly a set,
+    which shows nothing, and the next event shifted again.
+  - Firefox: Playwright's wheel steps one snap point at a time, with no
+    animation, so the shift puts the deck on a snap point and nothing shows.
+    Playwright cannot turn on Firefox's smooth or momentum scrolling.
+  - Playwright's WebKit on Linux, each wheel event a smooth animation:
+    snapping put back in the same task snapped the deck at once, a jump of
+    30 to 141px with 300px slides; put back a frame later, or at the shift's
+    own `scrollend`, it snapped nothing, but the shift cut the wheel's
+    animation from 60 to 80px a frame to 15 to 25px for some 8 frames, a
+    visible brake. Without any shift, that WebKit often rests a fast wheel
+    stream off a snap point. It is not Safari.
+- The maintainer checked the same page by hand on a Mac trackpad, in
+  Safari and Chrome, on 2026-10-07, and saw no jump and no brake. The
+  maintainer decided to shift at every wheel event.
+- Snapping is put back at once, in the same task, as for a press. That was
+  the cleanest in every engine measured but Linux WebKit, where neither
+  timing was clean, and a later timing would leave the deck unsnapped for
+  a while, which a gesture's end could then rest off a snap point.
+- The shift's instant scroll ends with a `scrollend`, and in Chromium a
+  `scrollsnapchange`, of its own, mid-gesture, with the viewport where the
+  shift put it. That settled the deck mid-scroll: it measured every slide
+  and copy, and started the wait for a re-snap. Now an end event there,
+  before the user's scroll goes on, is the shift's, and is ignored. If the
+  user's scroll goes no further, quiet settles the deck instead.
+- Measured in Chromium, a mouse wheel's step (CDP `mouseWheel`) is
+  scrolled, all but the browser's snap, before the page hears its event. A
+  step back across the seam from the first slide is then already on the
+  copies, and shifts at its own event. The browser's snap to the copy then
+  went on and undid the shift, by exactly a set, which shows nothing; the
+  deck rested on the copy and jumped off it as before, in the same frame,
+  so the event log saw no jump. Its e2e check of a rest on a copy and the
+  jump off it now uses an arrow key, which shifts nothing. A real mouse
+  wheel's smooth scroll in Chromium could not be produced headless; check
+  it by hand.
+- Every wheel event runs it, so like a press it reads no layout box off the
+  copies. Measured in Chromium with 24 slides and 48 copies: a wheel event
+  on the slides reads no box and takes under 0.1ms, the timer's
+  resolution; one that shifts reads three boxes and takes 0.4 to 0.6ms.
 
 **A refused move comes back the short way.** A controlled deck whose parent
 keeps `index` returns to it whichever way is shorter, across the seam when
@@ -172,9 +235,12 @@ flash at the seam in desktop Safari or on iOS, would reopen it. Firefox and
 WebKit now run the e2e suite through Playwright, with mouse flicks (the
 engine's scripted scroll) and wheel steps (the browser's own snapping)
 across the seam both ways. Touch and momentum flicks across the seam are
-out of reach of Playwright's desktop browsers and still untested; check
-them by hand on a phone and a trackpad. Open too (#48): the shift at a press
-is measured only in Chromium. On an iPhone, check that a touch on the copies
+out of reach of Playwright's desktop browsers; check touch by hand on a
+phone. Trackpad flicks with the shift at a wheel event (#96) were checked
+by hand in Safari and Chrome on a Mac, on the probe page; Firefox's
+trackpad momentum, and the mouse wheel in Chrome and Safari, are still to
+check. Open too (#48): the shift at a press is measured only in Chromium.
+On an iPhone, check that a touch on the copies
 mid-momentum shifts with no jump under the finger, that putting snapping
 back with the finger down does not snap the deck, and that quick chained
 swipes loop on in both directions.

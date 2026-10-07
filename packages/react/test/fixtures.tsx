@@ -315,12 +315,13 @@ export const wheelOver = (el: Element, dx: number): Promise<unknown> => {
  * gesture, and one that comes before the first frame with `el`, as when a
  * busy main thread holds that frame back, finds nothing there to scroll. It
  * scrolls nothing, though `el` hears its wheel events (#90). With
- * `drawn: true`, as for a deck already moving, it starts at once.
+ * `drawn: true`, as for a deck already moving, it starts at once. Positive
+ * `dx` scrolls on: right, or down with `axis: 'y'`.
  */
 export async function gestureScroll(
   el: Element,
   dx: number,
-  { drawn = false }: { drawn?: boolean } = {}
+  { drawn = false, axis = 'x' }: { drawn?: boolean; axis?: 'x' | 'y' } = {}
 ) {
   if (!drawn) {
     // The second frame's callbacks run once the first frame is drawn.
@@ -330,8 +331,8 @@ export async function gestureScroll(
   const box = el.getBoundingClientRect();
   await cdp().send('Input.synthesizeScrollGesture', {
     ...toPage(box.left + box.width / 2, box.top + box.height / 2),
-    xDistance: -dx,
-    yDistance: 0,
+    xDistance: axis === 'x' ? -dx : 0,
+    yDistance: axis === 'y' ? -dx : 0,
     gestureSourceType: 'mouse'
   });
 }
