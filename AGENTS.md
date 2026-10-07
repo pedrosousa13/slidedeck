@@ -88,7 +88,7 @@ reaches npm, if the repository is private or no credential can publish.
 After the first publish, on npmjs.com add a trusted publisher to each
 package: GitHub Actions, `pedrosousa13` / `slidedeck` / `release.yml`, no
 environment. Then delete the `NPM_TOKEN` secret; later releases publish over
-OIDC. Not done yet: #79.
+OIDC. Done on 2026-10-07 (#79): releases now publish over OIDC only.
 
 ## Agent skills
 
