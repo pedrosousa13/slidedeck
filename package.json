@@ -16,6 +16,7 @@
     "build": "turbo run build",
     "test:e2e": "playwright test",
     "test:packages": "node scripts/verify-packaging.mjs",
+    "test:next": "node scripts/next-rsc.mjs",
     "size": "node scripts/bundle-size.mjs",
     "compare": "node scripts/compare-libraries.mjs",
     "compare:check": "node scripts/compare-libraries.mjs --check",

@@ -591,8 +591,15 @@ own component, Dots and Counter render empty until hydration. `useDeck()`
 reports a `count` of `null` on the server, so a counter built on it renders
 its total at hydration.
 
-The package has no `'use client'` directive: in a React Server Components
-framework, render the deck from a client component.
+Every entry, `@slidedeck/react` and its effects, starts with `'use client'`,
+so a React Server Components framework such as the Next.js App Router renders
+the deck straight from a server component, `effect={fade}` and the theme
+included. Dots and Counter render empty there until hydration: `Deck.Root`
+cannot see through a server component's `Deck.Viewport` to count its slides.
+Function props, such as `onIndexChange` and `onFocalChange`, and a `ref` to
+the handle cannot cross from a server component: render the deck from your own
+client component to use them. An effect of your own crosses only from a module
+that starts with `'use client'`.
 
 ## Accessibility
 

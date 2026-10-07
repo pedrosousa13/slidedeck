@@ -24,6 +24,8 @@ const STEPS = [
   // The README's comparison table against a fresh measurement.
   'compare:check',
   'test:packages',
+  // A Next.js server component renders a deck from the packed tarballs.
+  'test:next',
   // A report, never a failure: see scripts/bundle-size.mjs.
   'size',
   'test:e2e'

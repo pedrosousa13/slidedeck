@@ -33,7 +33,12 @@ export default defineConfig({
       fileName: (_format, name) => `${name}.js`
     },
     rollupOptions: {
-      external: ['@slidedeck/core', 'react', 'react/jsx-runtime', 'react-dom']
+      external: ['@slidedeck/core', 'react', 'react/jsx-runtime', 'react-dom'],
+      // Every module is client code, effects included: a server component
+      // passes `fade` to `Deck.Viewport` as a client reference. The bundler
+      // drops a directive written in the source, so the banner writes it as
+      // the first statement of every chunk.
+      output: { banner: "'use client';" }
     },
     sourcemap: true,
     emptyOutDir: false

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Packs every publishable package and checks the tarball -- what npm would
-// actually ship -- with publint and attw.
+// actually ship -- with publint and attw, and that each React module starts
+// with `'use client'`.
 
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
@@ -10,6 +11,12 @@ import { fileURLToPath, URL } from 'node:url';
 import { publishablePackages } from './workspace-packages.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+
+// Packages whose every module a React Server Components bundler must treat as
+// client code: the directive lets a server component render the deck. Not
+// @slidedeck/core, which is framework-free.
+const CLIENT_PACKAGES = new Set(['@slidedeck/react']);
+const USE_CLIENT = /^(['"])use client\1;?\n/;
 
 /** @param {string[]} args */
 const pnpm = (args) =>
@@ -66,6 +73,19 @@ for (const { manifest, path } of packages) {
   try {
     pnpm(['--filter', name, 'pack', '--pack-destination', destination]);
     const tarball = join(destination, readdirSync(destination)[0]);
+
+    if (CLIENT_PACKAGES.has(name)) {
+      // Every module, entry or shared chunk, as the tarball ships it.
+      execFileSync('tar', ['-xzf', tarball, '-C', destination]);
+      const dist = join(destination, 'package/dist');
+      for (const file of readdirSync(dist).filter((f) => f.endsWith('.js'))) {
+        if (!USE_CLIENT.test(readFileSync(join(dist, file), 'utf8'))) {
+          failures.push(
+            `${name}'s dist/${file} does not start with 'use client'`
+          );
+        }
+      }
+    }
 
     console.log(`\n--- publint: ${name} ---`);
     if (!passes(['exec', 'publint', 'run', '--strict', tarball])) {

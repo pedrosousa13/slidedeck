@@ -1,0 +1,12 @@
+{
+  "name": "@slidedeck/next-rsc",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Private fixture: a Next.js App Router server component renders a deck from the packed @slidedeck tarballs. Run by scripts/next-rsc.mjs, which puts the tarballs in node_modules. Never published.",
+  "type": "module",
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}

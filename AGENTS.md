@@ -12,9 +12,15 @@ It runs every gate in order and stops at the first failure: `format:check`,
 `lint`, `typecheck`, `test` (vitest in browser mode), `test:scripts` (the
 scripts' own tests), `build`, `docs:check` (the package README's code blocks
 type-check), `compare:check` (the README's comparison table is fresh),
-`test:packages` (publint and attw on the packed tarballs), `size` and
+`test:packages` (publint and attw on the packed tarballs, and the React
+entries' `'use client'`), `test:next` (a Next.js server component renders a
+deck from the packed tarballs), `size` and
 `test:e2e` (Playwright with axe against storybook, in Chromium, Firefox and
 WebKit). The list lives in `scripts/verify.mjs`.
+
+On its first run, `test:next` installs Next.js into `tests/next-rsc` from
+that fixture's own lockfile, so it needs the network once; later runs install
+from the pnpm store.
 
 CI (`.github/workflows/ci.yml`) runs the same `pnpm verify` on every pull
 request and every push to `main`, so there is no second list to drift from
