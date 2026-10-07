@@ -1,6 +1,6 @@
 {
   "name": "@slidedeck/react",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Headless, composable React 19 carousel primitives built on native scroll snap.",
   "license": "MIT",
   "repository": {
