@@ -61,3 +61,6 @@ share one or the deck snaps in pages. Where Root cannot see the Viewport's
 slides (a Viewport inside a custom component, or one child component that
 renders several slides), the server count is a guess: Dots and Counter render
 empty, or count the slides Root can see, and correct at hydration.
+(Amended for #92: a Viewport rendered from a React server component reaches
+Root as a client reference, which Root cannot see through, so Dots and Counter
+render empty until hydration.)

@@ -9,6 +9,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/node_modules/**',
       '**/storybook-static/**',
+      '**/.next/**',
       'playwright-report/**',
       'test-results/**',
       // Gitignored, but flat config does not read .gitignore, so without this
@@ -23,6 +24,12 @@ export default tseslint.config(
   {
     files: ['**/*.{js,mjs,ts}'],
     languageOptions: { globals: globals.node }
+  },
+  {
+    // The Next.js server components fixture, tests/next-rsc, is plain JSX.
+    files: ['tests/next-rsc/**/*.jsx'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: reactHooks.configs.recommended.rules
   },
   {
     files: ['**/*.{ts,tsx}'],

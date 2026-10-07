@@ -1,0 +1,6 @@
+# Its own workspace root, outside the repo's: Next.js is heavy, so the repo's
+# `pnpm install` never installs it. scripts/next-rsc.mjs installs it on demand
+# from this directory's lockfile.
+packages: []
+# The repo's 24-hour hold on new versions, as in the root pnpm-workspace.yaml.
+minimumReleaseAge: 1440
