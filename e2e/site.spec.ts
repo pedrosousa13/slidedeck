@@ -166,19 +166,23 @@ test('the layout is outside every island, so it ships no JavaScript', async ({
   ).toHaveCount(0);
 });
 
-test('the page ships JavaScript for its two decks and nothing else', async ({
+test('the page ships JavaScript for its two decks and the search, nothing else', async ({
   page
 }) => {
   await page.goto('/');
-  const islands = page.locator('fw-island');
-  await expect(islands).toHaveCount(2);
-  // Each island is one deck, and every deck is in one.
-  for (const island of await islands.all()) {
+  await expect(page.locator('main fw-island')).toHaveCount(2);
+  // Each island in the page is one deck, and every deck is in one.
+  for (const island of await page.locator('main fw-island').all()) {
     await expect(island.getByRole('region')).toHaveCount(1);
   }
   await expect(
     page.locator('[aria-roledescription="carousel"]:not(fw-island *)')
   ).toHaveCount(0);
+  // The only other island is the site's search, in the nav bar.
+  await expect(page.locator('fw-island:not(main *)')).toHaveCount(1);
+  await expect(
+    page.getByRole('banner').locator('fw-island[data-fw-component="search"]')
+  ).toHaveCount(1);
   // The hero, the stats, the quickstart and the comparison are plain HTML.
   await expect(page.locator('fw-island h1, fw-island pre')).toHaveCount(0);
 });
@@ -335,7 +339,7 @@ test.describe('the hero', () => {
     ).toBeVisible();
     await expect(
       page.getByRole('link', { name: 'Get started' })
-    ).toHaveAttribute('href', /packages\/react#quickstart$/);
+    ).toHaveAttribute('href', '/docs/quickstart/');
     await expect(
       page.getByRole('main').getByRole('link', { name: /View on GitHub/ })
     ).toHaveAttribute('href', 'https://github.com/pedrosousa13/slidedeck');
@@ -492,6 +496,25 @@ test.describe('the quickstart', () => {
     await expect(code.locator('span[style*="color"]').first()).toBeAttached();
     await expect(section.getByText('pnpm add @slidedeck/react')).toBeVisible();
   });
+});
+
+test('links to the docs pages, and each one is there', async ({ page }) => {
+  await page.goto('/');
+  const main = page.getByRole('main');
+  for (const [name, href] of [
+    ['Get started', '/docs/quickstart/'],
+    ['Read the docs ›', '/docs/'],
+    ['How it is measured ›', '/docs/compare/']
+  ] as const) {
+    const link = main.getByRole('link', { name, exact: true });
+    await expect(link).toHaveAttribute('href', href);
+    expect((await page.request.get(href)).status()).toBe(200);
+  }
+  // Every other link on the page leaves the site for GitHub, never for the
+  // README a docs page now holds.
+  for (const link of await main.getByRole('link').all()) {
+    expect(await link.getAttribute('href')).not.toMatch(/packages\/react#/);
+  }
 });
 
 test.describe('the comparison', () => {

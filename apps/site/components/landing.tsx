@@ -6,7 +6,6 @@ import { install, libraries, quickstart, size, version } from '../lib/facts.ts';
 import { SLIDEDECK } from '../lib/readme.ts';
 
 const REPO = 'https://github.com/pedrosousa13/slidedeck';
-const README = `${REPO}/tree/main/packages/react`;
 
 /** A README cell's text, its `code spans` as <code>. */
 function Cell({ text }: { text: string }) {
@@ -27,7 +26,7 @@ export default function Landing() {
           min+gzip.
         </p>
         <div className="landing-actions">
-          <a className="landing-button" href={`${README}#quickstart`}>
+          <a className="landing-button" href="/docs/quickstart/">
             Get started
           </a>
           <a href={REPO}>View on GitHub ›</a>
@@ -76,7 +75,7 @@ export default function Landing() {
             stylesheet is needed. Style it with plain CSS when you want to.
           </p>
           <code className="landing-install">{install}</code>
-          <a href={`${README}#readme`}>Read the docs ›</a>
+          <a href="/docs/">Read the docs ›</a>
         </div>
         <div
           className="landing-code"
@@ -107,9 +106,7 @@ export default function Landing() {
         <p className="landing-note">
           Min+gzip of the same basic deck in each, React external, measured by{' '}
           <code>pnpm compare</code>.{' '}
-          <a href={`${README}#comparison-with-embla-and-keen`}>
-            How it is measured ›
-          </a>
+          <a href="/docs/compare/">How it is measured ›</a>
         </p>
       </section>
     </>
