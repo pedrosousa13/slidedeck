@@ -1,5 +1,6 @@
 ---
 label: Introduction
+description: 'Documentation for slidedeck, a headless carousel for React 19 built on native CSS scroll snap, composed from primitives that need no stylesheet.'
 ---
 
 # slidedeck

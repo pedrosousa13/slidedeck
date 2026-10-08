@@ -1,5 +1,6 @@
 ---
 components: [example-loop]
+description: 'The loop prop runs a slidedeck deck past its last slide to the first with no visible jump, using inert copies of the slides on either side.'
 ---
 
 # Loop

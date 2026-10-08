@@ -1,5 +1,6 @@
 ---
 label: Compare
+description: 'How slidedeck compares with Embla and Keen Slider: native scrolling against transforms, accessibility out of the box, API shape and min+gzip size.'
 ---
 
 # Comparison with Embla and Keen

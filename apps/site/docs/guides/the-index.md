@@ -1,6 +1,7 @@
 ---
 label: The index
 components: [example-controlled]
+description: 'Read and set which snap point a slidedeck deck rests at: uncontrolled with defaultIndex, controlled with index and onIndexChange, or moved with its handle.'
 ---
 
 # The index: controlled, uncontrolled and the handle

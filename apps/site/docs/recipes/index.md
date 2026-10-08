@@ -1,5 +1,6 @@
 ---
 label: Overview
+description: 'Recipes for common slidedeck setups that take CSS or a little code of your own rather than an option: centred ends, custom controls, curves, video and more.'
 ---
 
 # Recipes

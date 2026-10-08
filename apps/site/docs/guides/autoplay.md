@@ -1,5 +1,6 @@
 ---
 components: [example-autoplay]
+description: 'Autoplay moves a slidedeck deck one snap point at an interval. It pauses on hover and in a hidden tab, stops on focus, and Deck.AutoplayToggle stops it.'
 ---
 
 # Autoplay

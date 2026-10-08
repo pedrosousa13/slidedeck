@@ -1,5 +1,6 @@
 ---
 components: [example-curve-size]
+description: 'Turn a curve radius in pixels into slides for --deck-curve-radius, and work out how much room the arc needs inside the viewport so it is not clipped.'
 ---
 
 # Size a curve

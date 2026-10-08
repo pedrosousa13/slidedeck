@@ -1,5 +1,6 @@
 ---
 components: [example-pages]
+description: 'Snap a slidedeck deck a page at a time: make the first slide of each group a snap point, and Next moves a page while Dots and Counter count pages.'
 ---
 
 # Pages
