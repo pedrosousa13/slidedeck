@@ -4,7 +4,7 @@
 // build.
 import { readFileSync } from 'node:fs';
 import { createMarkdownRenderer } from '@pagedeck/markdown-loader';
-import { comparison, fence } from './readme.ts';
+import { comparison, fence, slidedeckRow } from './readme.ts';
 
 const read = (file: string) =>
   readFileSync(
@@ -14,11 +14,11 @@ const read = (file: string) =>
 
 const readme = read('README.md');
 
-/** The README's comparison, slidedeck's row first. */
+/** The README's comparison, in its order. */
 export const libraries = comparison(readme);
 
 /** Slidedeck's min+gzip size, as the comparison measures it. */
-export const size = libraries[0]!.size;
+export const size = slidedeckRow(libraries).size;
 
 /** The released version, as "1.0". */
 export const version = (

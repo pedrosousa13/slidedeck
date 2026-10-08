@@ -13,6 +13,9 @@ export interface Library {
   api: string;
 }
 
+/** Slidedeck's package, as the comparison names it. */
+export const SLIDEDECK = '@slidedeck/react';
+
 const START = '<!-- comparison:start -->';
 const END = '<!-- comparison:end -->';
 // The columns `pnpm compare` writes (scripts/compare-libraries.mjs), in order.
@@ -53,9 +56,14 @@ export function comparison(readme: string): Library[] {
     );
   }
   return rows.map((row) => {
-    const [library, version, size, nativeScroll, accessibility, api] = cells(
-      row
-    ) as [string, string, string, string, string, string];
+    const found = cells(row);
+    if (found.length !== COLUMNS.length) {
+      throw new Error(
+        `The README's comparison row "${row.trim()}" has ${String(found.length)} cells, not ${String(COLUMNS.length)}.`
+      );
+    }
+    const [library, version, size, nativeScroll, accessibility, api] =
+      found as [string, string, string, string, string, string];
     return {
       library: library.replace(/^`|`$/g, ''),
       version,
@@ -65,6 +73,15 @@ export function comparison(readme: string): Library[] {
       api
     };
   });
+}
+
+/** Slidedeck's own row of the comparison. */
+export function slidedeckRow(libraries: readonly Library[]): Library {
+  const row = libraries.find((library) => library.library === SLIDEDECK);
+  if (row === undefined) {
+    throw new Error(`The README's comparison has no row for ${SLIDEDECK}.`);
+  }
+  return row;
 }
 
 /** The first code block under the README's `## heading`, without its fence. */

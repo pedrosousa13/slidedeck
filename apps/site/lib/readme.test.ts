@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { comparison, fence } from './readme.ts';
+import { comparison, fence, SLIDEDECK, slidedeckRow } from './readme.ts';
 
 const table = [
   '| Library    | Version   | Min+gzip | Native scroll | Accessibility out of the box | API shape |',
@@ -67,6 +67,23 @@ test('comparison refuses a table whose columns moved', () => {
   assert.throws(
     () => comparison(readme(table.replace('Min+gzip', 'Size'))),
     /Min\+gzip/
+  );
+});
+
+test('comparison refuses a row whose cells do not match the header', () => {
+  const short = table.replace('| A hook    |', '|');
+  assert.throws(() => comparison(readme(short)), /b-lib.*5 cells.*6/);
+});
+
+test("slidedeckRow finds slidedeck's row by its name, wherever it is", () => {
+  const rows = comparison(readme(table.replace('`b-lib`', `\`${SLIDEDECK}\``)));
+  assert.equal(slidedeckRow(rows).size, '3.50 KB');
+});
+
+test("slidedeckRow refuses a comparison without slidedeck's row", () => {
+  assert.throws(
+    () => slidedeckRow(comparison(readme(table))),
+    /@slidedeck\/react/
   );
 });
 

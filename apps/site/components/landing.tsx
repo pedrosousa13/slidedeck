@@ -3,6 +3,7 @@
 import CurveDeck from './curve-deck.tsx';
 import FeatureDeck from './feature-deck.tsx';
 import { install, libraries, quickstart, size, version } from '../lib/facts.ts';
+import { SLIDEDECK } from '../lib/readme.ts';
 
 const REPO = 'https://github.com/pedrosousa13/slidedeck';
 const README = `${REPO}/tree/main/packages/react`;
@@ -91,7 +92,7 @@ export default function Landing() {
               <h3>
                 <code>{row.library}</code>
                 {/* Slidedeck's row is this repo's build, with no version. */}
-                {/^\d/.test(row.version) && ` ${row.version}`}
+                {row.library !== SLIDEDECK && ` ${row.version}`}
               </h3>
               <strong>{row.size}</strong>
               <p>
