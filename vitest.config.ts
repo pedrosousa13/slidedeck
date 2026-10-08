@@ -7,6 +7,7 @@ import { defineConfig } from 'vitest/config';
 type MouseStep =
   | ['move', x: number, y: number, steps?: number]
   | ['down' | 'up']
+  | ['wheel', dx: number, dy: number]
   | ['wait', ms: number];
 
 /**
@@ -17,6 +18,8 @@ const mouse: BrowserCommand<[MouseStep[]]> = async ({ page }, steps) => {
   for (const step of steps) {
     if (step[0] === 'move') {
       await page.mouse.move(step[1], step[2], { steps: step[3] ?? 1 });
+    } else if (step[0] === 'wheel') {
+      await page.mouse.wheel(step[1], step[2]);
     } else if (step[0] === 'wait') {
       await new Promise((resolve) => setTimeout(resolve, step[1]));
     } else {
@@ -76,7 +79,10 @@ export default defineConfig({
         { browser: 'chromium' },
         // Only the tests of what WebKit alone did (#123): the others drive
         // input through CDP, which is Chromium's alone.
-        { browser: 'webkit', include: ['packages/react/test/webkit.test.tsx'] }
+        {
+          browser: 'webkit',
+          include: ['packages/react/test/settle-without-frames.test.tsx']
+        }
       ],
       commands: { mouse },
       // Touch-enabled so a test can swipe with real CDP touch events, and

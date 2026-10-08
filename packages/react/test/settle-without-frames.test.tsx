@@ -11,8 +11,10 @@ import {
 } from './fixtures';
 import { mouse } from './mouse';
 
-// What made a deck come to rest short of where it was going in WebKit
-// (#123). These run in WebKit as well as Chromium (vitest.config.ts).
+// A deck comes to rest where it was going, though the browser renders no
+// frame for a while, or scrolls the viewport back during a mouse drag, as
+// Playwright's WebKit did under load (#123). These run in WebKit as well as
+// Chromium (vitest.config.ts).
 
 const renderDeck = (props: Parameters<typeof TestDeck>[0] = {}) => {
   const onIndexChange = vi.fn();
