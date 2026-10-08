@@ -157,8 +157,8 @@ test('search works on the first focus and keystroke, typed before it hydrates', 
 }) => {
   // Fails today: pagedeck's search island keeps its query in React state and
   // never reads what was typed into the field before it hydrated, so it
-  // searches nothing (#122). The fix belongs in @pagedeck/search; drop this
-  // line when it lands, and the test holds it there.
+  // searches nothing (pagedeck#94). Remove test.fail() when pagedeck#94 is
+  // fixed, and the test holds the fix there.
   test.fail();
   // Hold back the search's JavaScript until the reader has typed, as on a
   // slow phone, where the field is on screen long before it hydrates.
