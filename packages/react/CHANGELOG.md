@@ -1,5 +1,13 @@
 # @slidedeck/react
 
+## 1.0.1
+
+### Patch Changes
+
+- 166c6b8: The documentation moved to https://slidedeck.pages.dev/docs/, where each guide, reference page and recipe shows its feature in a live deck. The package README keeps the install steps, the quickstart and the comparison with Embla and Keen, and links to the site. Both packages' `homepage` is now the site. No code changed.
+- Updated dependencies [166c6b8]
+  - @slidedeck/core@1.0.1
+
 ## 1.0.0
 
 ### Major Changes
