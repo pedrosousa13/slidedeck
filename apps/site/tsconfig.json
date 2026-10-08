@@ -3,9 +3,10 @@
   "compilerOptions": {
     "composite": true,
     "noEmit": true,
-    // pagedeck.config.ts imports lib/docs.ts by its file name, as Node runs it.
+    // pagedeck.config.ts imports lib/docs.ts by its file name, as Node runs
+    // it, and lib/readme.test.ts runs under plain node: both need the extension.
     "allowImportingTsExtensions": true,
-    "types": ["node"],
+    "types": ["node", "vite/client"],
     "tsBuildInfoFile": "../../node_modules/.cache/tsbuildinfo/site.tsbuildinfo"
   },
   "references": [{ "path": "../../packages/react" }],

@@ -43,7 +43,11 @@ export default defineConfig({
       search: { path: '@pagedeck/search/island', hydrate: 'idle' },
       header: './components/site-header.tsx',
       footer: './components/site-footer.tsx',
-      deck: './components/placeholder-deck.tsx'
+      landing: './components/landing.tsx',
+      // The landing page's decks: registered, so each is an island where the
+      // landing page renders it.
+      'feature-deck': './components/feature-deck.tsx',
+      'curve-deck': './components/curve-deck.tsx'
     },
     // Around pagedeck's <main>, not in the layout, so the nav bar and the
     // footer are the page's banner and contentinfo landmarks.

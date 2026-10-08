@@ -1,8 +1,4 @@
 ---
-components: [deck]
+title: 'slidedeck: a React carousel built on native scroll snap'
+components: [landing]
 ---
-
-# slidedeck
-
-A placeholder page while the site is built. The deck below is
-`@slidedeck/react`, from this workspace.
