@@ -212,3 +212,31 @@ test.describe('at 1440px wide', () => {
     ).toBe('static');
   });
 });
+
+// The nav bar is sticky, so a heading a link scrolls to must land below it.
+for (const [width, height] of [
+  [1440, 900],
+  [390, 844]
+] as const) {
+  test.describe(`at ${String(width)}px wide`, () => {
+    test.use({ viewport: { width, height } });
+
+    test('a table of contents link lands its heading below the nav bar', async ({
+      page
+    }) => {
+      await page.goto('/docs/guides/the-index/');
+      const toc = page.getByRole('navigation', { name: 'On this page' });
+      const link = toc.getByRole('link').first();
+      const target = (await link.getAttribute('href'))!;
+      await link.click();
+      await expect(page).toHaveURL(new RegExp(`${target}$`));
+      const heading = page.locator(target);
+      await expect
+        .poll(async () => (await heading.boundingBox())!.y)
+        .toBeLessThan(height / 2);
+      const nav = (await page.getByRole('banner').boundingBox())!;
+      const top = (await heading.boundingBox())!.y;
+      expect(top).toBeGreaterThanOrEqual(nav.y + nav.height);
+    });
+  });
+}

@@ -9,6 +9,15 @@
   --docs-measure: 760px;
   --radius-tile: 28px;
   --radius-code: 18px;
+  /* The row the search takes under the links on a narrow screen. */
+  --search-row: 48px;
+  /* How tall the sticky nav bar is: one row, or two below 768px. */
+  --nav-bar: var(--nav-height);
+}
+
+/* A link to a heading scrolls it clear of the sticky nav bar. */
+html {
+  scroll-padding-top: calc(var(--nav-bar) + 16px);
 }
 
 /* Search, the island at the end of the nav bar. */
@@ -103,8 +112,12 @@
 /* Below 768px the links fill the bar, so the search takes a row of its own
    under them, as wide as the page. */
 @media (max-width: 767px) {
+  :root {
+    --nav-bar: calc(var(--nav-height) + var(--search-row));
+  }
+
   .site-header:has(.fw-search) {
-    padding-bottom: 48px;
+    padding-bottom: var(--search-row);
   }
 
   .site-header .fw-search {
