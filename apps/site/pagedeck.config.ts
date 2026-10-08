@@ -96,11 +96,10 @@ export default defineConfig({
     sitemap: { pattern: 'suffix' },
     robots: { allow: ['/'] },
     favicon: { src: './icons/favicon.ico' },
-    // public/apple-touch-icon.png: the address iOS asks for unprompted.
+    // public/: the examples' photos at /photos/, and apple-touch-icon.png,
+    // the address iOS asks for unprompted.
     passthrough: { root: './public' },
     css: ['./styles/site.css', './styles/docs.css'],
-    // The examples' photos, served at /photos/.
-    passthrough: { root: './public' },
     search: defineSearch(),
     routing: { headers: [{ prefix: '/', set: [...SECURITY_HEADERS] }] },
     adapter: cloudflarePages()
