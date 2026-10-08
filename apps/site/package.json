@@ -1,5 +1,5 @@
 {
-  "name": "site",
+  "name": "@slidedeck/site",
   "version": "0.0.0",
   "private": true,
   "type": "module",
