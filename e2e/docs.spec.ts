@@ -152,6 +152,35 @@ test('search finds a page by a word from its body', async ({ page }) => {
   await expect(page).toHaveURL(/\/docs\/guides\/loop\/$/);
 });
 
+test('search works on the first focus and keystroke, typed before it hydrates', async ({
+  page
+}) => {
+  // Fails today: pagedeck's search island keeps its query in React state and
+  // never reads what was typed into the field before it hydrated, so it
+  // searches nothing (#122). The fix belongs in @pagedeck/search; drop this
+  // line when it lands, and the test holds it there.
+  test.fail();
+  // Hold back the search's JavaScript until the reader has typed, as on a
+  // slow phone, where the field is on screen long before it hydrates.
+  let release!: () => void;
+  const typed = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/assets/fw-core-*.js', async (route) => {
+    await typed;
+    await route.continue();
+  });
+  // Not to the load event, nor to DOMContentLoaded: both wait for the held
+  // script.
+  await page.goto('/docs/', { waitUntil: 'commit' });
+  const search = page.getByRole('combobox', { name: 'Search the docs' });
+  await search.click();
+  await search.pressSequentially('seam');
+  await expect(search).toHaveValue('seam');
+  release();
+  await expect(page.getByRole('option', { name: 'Loop' })).toBeVisible();
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue('seam');
+});
+
 test.describe('in the dark scheme', () => {
   test.use({ colorScheme: 'dark' });
 
