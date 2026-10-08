@@ -6,11 +6,11 @@ interface Props {
   children?: ReactNode;
 }
 
-// pagedeck hoists the <title> and <meta> into the document's <head>.
+// pagedeck hoists the <meta> into the document's <head>. The title is
+// build.head's, from lib/seo.ts.
 export default function Layout({ title, html, children }: Props) {
   return (
     <>
-      <title>{title}</title>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       {/* A page with no body, as the landing page, is its components alone. */}
       {html.trim() === '' ? (

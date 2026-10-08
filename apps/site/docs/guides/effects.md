@@ -1,6 +1,7 @@
 ---
 label: Effects
 components: [example-fade, example-curve]
+description: "slidedeck's two effects: fade crossfades slides in one place, curve fans them along an arc. Each is its own import, so a deck without one ships none of it."
 ---
 
 # Effects: fade and curve

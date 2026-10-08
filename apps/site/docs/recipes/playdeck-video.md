@@ -1,5 +1,6 @@
 ---
 label: Playdeck video
+description: 'A social-style feed of videos with slidedeck and playdeck: the video in the focal slide plays muted, the others pause, and it works with loop.'
 ---
 
 # Play a playdeck video in the focal slide

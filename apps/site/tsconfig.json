@@ -10,5 +10,5 @@
     "tsBuildInfoFile": "../../node_modules/.cache/tsbuildinfo/site.tsbuildinfo"
   },
   "references": [{ "path": "../../packages/react" }],
-  "include": ["pagedeck.config.ts", "components/**/*", "lib/**/*"]
+  "include": ["pagedeck.config.ts", "components/**/*", "lib/**/*", "icons/**/*"]
 }

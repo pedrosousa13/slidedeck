@@ -60,7 +60,6 @@ export default function DocsPage({
   const [intro, rest] = splitIntro(prose(html));
   return (
     <>
-      <title>{`${title} · slidedeck`}</title>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <div className="docs">
         <nav className="docs-sidebar" aria-label="Documentation" {...UNINDEXED}>

@@ -1,5 +1,6 @@
 ---
 components: [example-custom-controls]
+description: "Build Previous, Next, a button per page and a counter from your own design system's components with Deck.useDeck(), behaving as the built-in controls do."
 ---
 
 # Custom controls and a counter

@@ -1,3 +1,7 @@
+---
+description: 'What a slidedeck carousel does for accessibility with no extra work: a labelled region, slides labelled n of m, native buttons, a live region, reduced motion.'
+---
+
 # Accessibility
 
 What a deck does with no extra work:

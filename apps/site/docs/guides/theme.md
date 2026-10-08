@@ -1,5 +1,6 @@
 ---
 components: [example-theme]
+description: "An optional stylesheet that gives slidedeck's Prev, Next, Dots, Counter and autoplay toggle a plain look, with every value a custom property you can set."
 ---
 
 # Theme

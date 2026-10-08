@@ -1,5 +1,6 @@
 ---
 components: [example-vertical, example-right-to-left]
+description: 'Scroll a slidedeck deck along the block axis with orientation="vertical", and how a deck follows a right-to-left writing direction, a change of dir included.'
 ---
 
 # Vertical and right-to-left

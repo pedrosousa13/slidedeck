@@ -1,5 +1,6 @@
 ---
 components: [example-centred-ends]
+description: 'Let the first and last slides of a centred slidedeck deck reach the middle of the viewport by padding each end by half its width less half a slide.'
 ---
 
 # Centre the first and last slide

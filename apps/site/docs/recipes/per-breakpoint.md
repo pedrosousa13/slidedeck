@@ -1,6 +1,7 @@
 ---
 label: Per breakpoint
 components: [example-per-breakpoint]
+description: "Switch a slidedeck deck's effect, loop or autoplay at a breakpoint: read the media query in your component and pass the props it picks, with CSS in step."
 ---
 
 # Change `effect`, `loop` or `autoplay` per breakpoint

@@ -1,5 +1,6 @@
 ---
 components: [example-layout]
+description: 'Slides per view, gap, alignment and breakpoints are plain CSS in slidedeck, not props. The zero-specificity defaults, and how to bring the scrollbar back.'
 ---
 
 # Layout is CSS

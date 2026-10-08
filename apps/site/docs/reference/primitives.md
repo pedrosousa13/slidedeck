@@ -1,5 +1,6 @@
 ---
 components: [example-primitives]
+description: "Reference for slidedeck's primitives, Deck.Root, Viewport, Slide, Prev, Next, Dots, Counter and AutoplayToggle: the element each renders and its props."
 ---
 
 # Primitives

@@ -1,5 +1,6 @@
 ---
 components: [example-middle-centred, example-middle-by-progress]
+description: 'Two ways to highlight the middle of several slides in view in a slidedeck deck: centre the slides and style data-focal, or style by scroll progress.'
 ---
 
 # Highlight the middle slide in view

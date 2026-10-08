@@ -1,5 +1,6 @@
 ---
 components: [example-drag]
+description: 'A mouse can drag a slidedeck deck; on release it projects the flick to a snap point. Touch, pen and trackpad scroll natively. Turn it off with drag={false}.'
 ---
 
 # Drag

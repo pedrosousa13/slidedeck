@@ -1,3 +1,7 @@
+---
+description: 'How slidedeck renders on the server: at defaultIndex with no layout shift, progress in the server HTML, and Deck.Root as a React Server Component.'
+---
+
 # Server rendering
 
 The primitives render on the server. Server HTML rests at `defaultIndex`

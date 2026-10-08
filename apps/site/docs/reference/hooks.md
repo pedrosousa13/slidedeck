@@ -1,5 +1,6 @@
 ---
 components: [example-hooks]
+description: "Reference for slidedeck's hooks: Deck.useDeck() gives your own controls the deck's index, count and moves, and Deck.useSlide() tells a slide about itself."
 ---
 
 # Hooks

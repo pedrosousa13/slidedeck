@@ -1,5 +1,6 @@
 ---
 components: [example-focal-slide]
+description: 'The focal slide is the one at the snap alignment point. How slidedeck marks it with data-focal, reports it with onFocalChange, and moves it on click.'
 ---
 
 # Focal slide

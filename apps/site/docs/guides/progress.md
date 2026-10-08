@@ -1,5 +1,6 @@
 ---
 components: [example-progress]
+description: 'The continuous state slidedeck writes to the DOM for CSS to read as the deck scrolls: --deck-slide-progress, data-focal, data-in-view and the other attributes.'
 ---
 
 # Progress and data attributes
