@@ -107,8 +107,9 @@ export const progressOf = (
     Number(slide.style.getPropertyValue('--deck-slide-progress'))
   );
 
-/** CDP takes coordinates in the top page; vitest scales the test iframe. */
-function toPage(x: number, y: number) {
+/** CDP and Playwright take coordinates in the top page; vitest scales the
+ * test iframe. */
+export function toPage(x: number, y: number) {
   const frame = window.frameElement!.getBoundingClientRect();
   const scale = frame.width / window.innerWidth;
   return { x: frame.x + x * scale, y: frame.y + y * scale };

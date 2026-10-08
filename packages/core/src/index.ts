@@ -257,6 +257,7 @@ export function createDeck(
     along.scrollTo(at + shift, 'instant');
     style.scrollSnapType = snap;
     // Positions kept from before the shift move with it.
+    if (drag === 'dragging') dragAt += shift;
     if (taken) taken.at += shift;
     if (resnapFrom !== null) resnapFrom += shift;
     return at + shift;
@@ -394,6 +395,31 @@ export function createDeck(
   let last = 0;
   // How far the pointer has dragged the deck forward, in scroll pixels.
   let travel = 0;
+  // Where the drag has put the deck, as the browser clamped it. The drag
+  // goes on, and is released, from here, not from where the viewport is:
+  // measured in Playwright's WebKit under load (#123), the browser's own
+  // handling of the mouse press can scroll the viewport back between the
+  // drag's moves, and the deck came to rest where the drag began. But it
+  // never fights the user (ADR-0006): where the user scrolls the deck by
+  // other means mid-drag, a wheel or a key, or a new layout moves it, the
+  // drag goes on from where the viewport is (see `followViewport`).
+  let dragAt = 0;
+  // Until when the drag reads where it is from the viewport, or null: it
+  // reads it at least once after `followViewport`.
+  let follow: number | null = null;
+  // For `ms`: the user's wheel or key scrolls for a while after its event;
+  // a new layout's scroll is done by the drag's next move or its release.
+  const followViewport = (ms: number) => {
+    if (drag !== 'dragging') return;
+    follow = Math.max(follow ?? 0, performance.now() + ms);
+  };
+  const dragPosition = () => {
+    if (follow !== null) {
+      dragAt = dragAxis.position;
+      if (performance.now() > follow) follow = null;
+    }
+    return dragAt;
+  };
   let samples: { t: number; travel: number }[] = [];
   // A move asked for while the pointer held the deck.
   let deferred: { index: number; across: boolean } | null = null;
@@ -427,15 +453,45 @@ export function createDeck(
   // its target ends only at a second quiet with no scroll between: the
   // first can come just after a long task held the main thread, before the
   // browser has gone on with the scroll, or sent its scroll events.
+  //
+  // A quiet that would find a scroll stopped, a move's short of its target
+  // or the one a re-snap waits on, waits for a frame to render with no
+  // scroll event first (#123). Measured in Playwright's WebKit under load,
+  // no frame renders for 300ms and more while the main thread is idle and
+  // timers run, and a scroll in flight goes nowhere until frames come back.
+  // Quiet then took the move for stalled and re-snapped it short of its
+  // target, or took a keyboard scroll's early `scrollend` for its end and
+  // re-snapped the deck back. A hidden document renders no frame, so there
+  // quiet decides at once, and a move in a background tab still settles.
   const hasScrollEnd = 'onscrollend' in window;
   let quiet: ReturnType<typeof setTimeout> | undefined;
-  const stopQuiet = () => clearTimeout(quiet);
+  let quietFrame = 0;
+  const stopQuiet = () => {
+    clearTimeout(quiet);
+    cancelAnimationFrame(quietFrame);
+    quietFrame = 0;
+  };
   const awaitQuiet = () => {
     stopQuiet();
     quiet = setTimeout(onQuiet, SCROLL_END_DEBOUNCE_MS);
   };
   const onQuiet = () => {
-    if (move && !move.stalled && !arrived(move)) {
+    const short = move !== null && !arrived(move);
+    if (
+      (!short && confirm !== 'waiting') ||
+      viewport.ownerDocument.visibilityState === 'hidden'
+    ) {
+      quieted(false);
+      return;
+    }
+    // A scroll event before the frame awaits quiet again, which cancels it.
+    quietFrame = requestAnimationFrame(() => {
+      quietFrame = 0;
+      quieted(short);
+    });
+  };
+  const quieted = (short: boolean) => {
+    if (short && move && !move.stalled) {
       move.stalled = true;
       awaitQuiet();
       return;
@@ -721,6 +777,7 @@ export function createDeck(
     );
     takeOver(way);
     if (way === 0) return;
+    followViewport(USER_SCROLL_MS);
     const at = shiftOffCopies();
     if (at !== null) shifted = { at, ended: false };
   };
@@ -737,6 +794,7 @@ export function createDeck(
       return;
     }
     takeOver();
+    followViewport(USER_SCROLL_MS);
   };
   const onPointerCancel = (event: PointerEvent) => {
     if (event.pointerType !== 'mouse') {
@@ -805,6 +863,7 @@ export function createDeck(
   };
 
   const refresh = () => {
+    followViewport(0);
     // Loop's copies or an effect's snap targets came or went, as when `loop`
     // or an effect changes on a mounted deck: the snap points moved under
     // the viewport, and where the browser puts it then is no snap point of
@@ -943,7 +1002,10 @@ export function createDeck(
   // horizontal deck out the other way. Chromium keeps a deck at rest on its
   // snap target; Firefox and WebKit put it back at its new start.
   const onDir = (records: MutationRecord[]) => {
-    if (records.some(({ target }) => target.contains(viewport))) keepPlace();
+    if (records.some(({ target }) => target.contains(viewport))) {
+      followViewport(0);
+      keepPlace();
+    }
   };
   const dirs = new MutationObserver(onDir);
   dirs.observe(viewport.ownerDocument.documentElement, {
@@ -1029,13 +1091,16 @@ export function createDeck(
       viewport.setPointerCapture(pointer);
       // Before the drag first moves the deck (see `shiftOffCopies`).
       shiftOffCopies();
+      dragAt = dragAxis.position;
+      follow = null;
     }
     // The deck follows the pointer: a pointer moving toward the deck's start
     // drags it forward.
     const at = dragAxis.at(event);
     const delta = last - at;
     last = at;
-    dragAxis.position += delta;
+    dragAxis.position = dragPosition() + delta;
+    dragAt = dragAxis.position;
     travel += delta;
     samples.push({ t: event.timeStamp, travel });
     if (samples.length > MAX_SAMPLES) samples.shift();
@@ -1062,7 +1127,8 @@ export function createDeck(
       { length: geometry.points.length + 2 * reach },
       (_, i) => positionOf(geometry, i - reach)
     );
-    const position = dragAxis.position;
+    const position = dragPosition();
+    follow = null;
     const velocity = releaseVelocity(samples, event.timeStamp);
     let next = nearest(points, position + velocity * MOMENTUM_MS);
     // A flick always moves at least one snap point the way it was thrown.
@@ -1251,6 +1317,9 @@ export function createDeck(
 }
 
 const SCROLL_END_DEBOUNCE_MS = 100;
+/** How long a drag follows the viewport after the user's wheel or key
+ * mid-drag: as long as the browser's smooth scroll for it can run. */
+const USER_SCROLL_MS = 500;
 /** Safari's `Touch`, which says whether a stylus made it. */
 type StylusTouch = Touch & { touchType?: 'direct' | 'stylus' };
 /** A pen the browser panned lets go this long after the pan began, if its

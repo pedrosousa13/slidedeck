@@ -27,7 +27,8 @@ request and every push to `main`, so there is no second list to drift from
 it. It does not replace running it locally; it catches the time you forgot.
 
 Both browser suites drive Playwright's Chromium, and the e2e suite also
-drives its Firefox and WebKit. Install them once with
+drives its Firefox and WebKit, and vitest its WebKit for the tests of what
+WebKit alone does. Install them once with
 `pnpm exec playwright install chromium firefox webkit`. On Linux, Firefox and
 WebKit also need system libraries: run `pnpm exec playwright install-deps
 firefox webkit` once, or install with `--with-deps`.

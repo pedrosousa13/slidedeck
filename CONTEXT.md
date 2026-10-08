@@ -142,7 +142,10 @@ _Avoid_: snap, finish
 **Quiet**:
 No scroll event for 100ms: how slidedeck tells a scroll has ended where the
 browser sends no end event, and how a move ends when its end event never
-comes.
+comes. Where it would find a scroll stopped, a move short of its target or
+a deck waiting to re-snap, quiet also waits for a frame to render with no
+scroll event, as a browser can pause rendering while timers run; in a
+hidden document, which renders none, it does not wait.
 _Avoid_: debounce, idle
 
 ### Outputs
