@@ -1,3 +1,7 @@
+---
+components: [example-theme]
+---
+
 # Theme
 
 An optional stylesheet gives the controls (Prev, Next, Dots, Counter and

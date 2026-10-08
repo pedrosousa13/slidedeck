@@ -4,6 +4,25 @@
  * search field's placeholder, which site.css has no token dark enough for.
  */
 
+/* slidedeck's optional theme, for the Theme page's example only. In a layer,
+   so site.css's unlayered deck-control rules still win everywhere; the next
+   layer reverts the theme outside the example, and `.example-theme` below
+   reverts site.css's rules inside it, back to the theme. */
+@import '@slidedeck/react/theme.css' layer(deck-theme);
+
+@layer deck-theme-off {
+  :is(
+    [data-slidedeck-prev],
+    [data-slidedeck-next],
+    [data-slidedeck-autoplay-toggle],
+    [data-slidedeck-dots],
+    [data-slidedeck-dots] > button,
+    [data-slidedeck-counter]
+  ):not(.example-theme *) {
+    all: revert;
+  }
+}
+
 :root {
   --docs-sidebar: 220px;
   --docs-measure: 760px;
@@ -683,4 +702,41 @@ html {
   .docs-prose pre {
     padding: 20px;
   }
+}
+
+/* Theme: the controls wear theme.css, not site.css's pills. `revert-layer`,
+   from unlayered CSS, rolls each property back to the layers: to the
+   theme's value, or the browser's where it sets none. The last selector in
+   the list only lifts the rule above site.css's most specific deck rule. */
+.example-theme
+  :is(
+    [data-slidedeck-prev],
+    [data-slidedeck-next],
+    [data-slidedeck-autoplay-toggle],
+    [data-slidedeck-dots],
+    [data-slidedeck-dots] > button,
+    [data-slidedeck-counter],
+    [data-slidedeck-dots] [data-index][aria-current='true']
+  ),
+.example-theme
+  :is(
+    [data-slidedeck-autoplay-toggle],
+    [data-slidedeck-dots] > button,
+    [data-slidedeck-dots] [data-index][aria-current='true']
+  )::before {
+  all: revert-layer;
+}
+
+/* The page's own values for a few of the theme's tokens, from the site's,
+   so the example follows the colour scheme. */
+.example-theme {
+  --deck-accent: var(--accent);
+  --deck-control-radius: 999px;
+  --deck-control-padding: 0.5rem 1rem;
+  --deck-control-background: var(--ground);
+  --deck-control-hover-background: var(--tile);
+  --deck-control-color: var(--text);
+  --deck-control-border: 1px solid var(--secondary);
+  --deck-dot-color: var(--secondary);
+  --deck-dot-hover-color: var(--text);
 }

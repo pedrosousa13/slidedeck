@@ -305,3 +305,41 @@ for (const scheme of ['light', 'dark'] as const) {
     });
   });
 }
+
+test("the Theme page's example wears theme.css with its own --deck-* values", async ({
+  page
+}) => {
+  await openHydrated(page, '/docs/guides/theme/');
+  const deck = page
+    .getByRole('figure', { name: 'Example' })
+    .getByRole('region', { name: 'Themed slides' });
+  const next = deck.getByRole('button', { name: 'Next', exact: true });
+  // The theme's 1px border, with the example's --deck-control-radius.
+  await expect(next).toHaveCSS('border-top-width', '1px');
+  await expect(next).toHaveCSS('border-top-left-radius', '999px');
+  // The current dot in the example's --deck-accent.
+  const accent = await deck.evaluate((root) =>
+    getComputedStyle(root).getPropertyValue('--deck-accent').trim()
+  );
+  expect(accent).not.toBe('');
+  const current = deck.locator('[data-slidedeck-dots] [aria-current="true"]');
+  const [dot, wanted] = await current.evaluate((button, colour) => {
+    const probe = document.createElement('span');
+    probe.style.color = colour;
+    document.body.append(probe);
+    const wanted = getComputedStyle(probe).color;
+    probe.remove();
+    return [getComputedStyle(button).backgroundColor, wanted];
+  }, accent);
+  expect(dot).toBe(wanted);
+});
+
+test('theme.css stays inside the Theme example', async ({ page }) => {
+  await openHydrated(page, '/docs/quickstart/');
+  const deck = page.getByRole('region', { name: 'Featured products' });
+  await expect(
+    deck.getByRole('button', { name: 'Next', exact: true })
+  ).toHaveCSS('border-top-width', '0px');
+  const dots = deck.locator('[data-slidedeck-dots]');
+  await expect(dots).toHaveCSS('column-gap', 'normal');
+});
