@@ -70,6 +70,8 @@ export default defineConfig({
       after: [{ component: 'footer' }]
     }),
     css: ['./styles/site.css', './styles/docs.css'],
+    // The examples' photos, served at /photos/.
+    passthrough: { root: './public' },
     search: defineSearch(),
     routing: { headers: [{ prefix: '/', set: [...SECURITY_HEADERS] }] },
     adapter: cloudflarePages()
