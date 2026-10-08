@@ -10,6 +10,8 @@ import {
   everyDocsPage,
   exampleComponents
 } from './lib/docs.ts';
+import { headOf, pageMetaOf, SITE_ORIGIN, socialInputsOf } from './lib/seo.ts';
+import { socialCard } from './lib/social-card.ts';
 
 const pages = defineCollection({
   name: 'pages',
@@ -43,6 +45,7 @@ export default defineConfig({
       search: { path: '@pagedeck/search/island', hydrate: 'idle' },
       header: './components/site-header.tsx',
       footer: './components/site-footer.tsx',
+      'page-meta': './components/page-meta.tsx',
       landing: './components/landing.tsx',
       // The landing page's decks: registered, so each is an island where the
       // landing page renders it.
@@ -60,8 +63,9 @@ export default defineConfig({
     },
     // Around pagedeck's <main>, not in the layout, so the nav bar and the
     // footer are the page's banner and contentinfo landmarks.
-    chrome: () => ({
+    chrome: (page) => ({
       before: [
+        { component: 'page-meta', props: pageMetaOf(page) },
         {
           component: 'header',
           children: [
@@ -78,6 +82,22 @@ export default defineConfig({
       ],
       after: [{ component: 'footer' }]
     }),
+    // Each page's title, description, share card and structured data, from
+    // the page itself: lib/seo.ts.
+    head: (page, store) => headOf(page, store, pages),
+    socialImages: {
+      adapter: socialCard(SITE_ORIGIN),
+      inputs: (page, store) => socialInputsOf(page, store, pages)
+    },
+    // Canonicals and the sitemap name the production origin on every deploy.
+    // Cloudflare sends `x-robots-tag: noindex` on preview deploys, so they
+    // stay out of the index whatever these files say.
+    origin: SITE_ORIGIN,
+    sitemap: { pattern: 'suffix' },
+    robots: { allow: ['/'] },
+    favicon: { src: './icons/favicon.ico' },
+    // public/apple-touch-icon.png: the address iOS asks for unprompted.
+    passthrough: { root: './public' },
     css: ['./styles/site.css', './styles/docs.css'],
     // The examples' photos, served at /photos/.
     passthrough: { root: './public' },
