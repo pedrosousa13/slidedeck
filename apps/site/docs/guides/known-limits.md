@@ -16,6 +16,12 @@
 - **Server HTML can only start at a slide.** With several slides per snap
   point, or pages, the first paint at a `defaultIndex` may correct after
   hydration, and Dots and Counter recount.
+- **The first paint estimates progress from the slide's index.** Server HTML
+  gives each slide its distance in slides from the starting slide. With
+  slides of different sizes, pages that start past the first, or a start the
+  scroll range keeps from the focal position, as at the end of a centred deck
+  with no padding, an effect or CSS on progress can move slightly at
+  hydration, when the engine measures.
 - **A controlled index counts pages**, so a breakpoint that changes the page
   size points the same index at different slides.
 - **A long task can let Chromium undo a wheel.** When a long task holds the

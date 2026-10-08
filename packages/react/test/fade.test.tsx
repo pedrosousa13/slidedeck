@@ -12,6 +12,8 @@ import {
   mouseDrag,
   nextFrame,
   pagesOf,
+  progressOf,
+  serverThenHydrated,
   setReducedMotion,
   viewportOf,
   WIDTH
@@ -248,6 +250,37 @@ describe('fade', () => {
     expect(offsets()).toEqual(STACKED);
     expect(inert()).toEqual([true, true, false, true]);
   });
+});
+
+// Server HTML gives each slide its starting progress, so fade shows the
+// starting slide before any script runs and hydration changes nothing (#125).
+describe('fade in server HTML', () => {
+  const painted = (viewport: HTMLElement) =>
+    slidesOf(viewport).map((slide) => getComputedStyle(slide).opacity);
+
+  test.each<{ name: string; props: FadeDeckProps; progress: number[] }>([
+    {
+      name: 'at defaultIndex 2',
+      props: { defaultIndex: 2 },
+      progress: [-2, -1, 0, 1]
+    },
+    {
+      name: 'looping, at defaultIndex 1',
+      props: { loop: true, defaultIndex: 1 },
+      // The slides, then the copies after them, then those before.
+      progress: [-1, 0, 1, 2, 3, 4, 5, 6, -5, -4, -3, -2]
+    }
+  ])(
+    'gives each slide its progress and hydrates without changing it, $name',
+    async ({ props, progress }) => {
+      const { viewport, server, serverProgress, hydrated } =
+        await serverThenHydrated(<FadeDeck {...props} />, painted);
+
+      expect(serverProgress).toEqual(progress);
+      expect(progressOf(viewport)).toEqual(serverProgress);
+      expect(hydrated).toEqual(server);
+    }
+  );
 });
 
 describe('fade under reduced motion', () => {

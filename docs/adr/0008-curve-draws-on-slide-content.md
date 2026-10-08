@@ -42,3 +42,6 @@ slide, so it neither divides by zero nor flips the arc.
 The dropped content overflows the viewport across the axis, where the viewport
 clips it (`overflow: hidden` across the axis, as `clip` cannot pair with
 `auto`), so the arc is never drawn outside the deck.
+
+Server HTML carries each slide's starting progress, so a curve deck draws
+its arc before hydration (amended for #125; see ADR-0011).

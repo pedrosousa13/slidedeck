@@ -5,6 +5,13 @@ before any script runs where the browser supports `scroll-initial-target`;
 elsewhere a layout effect moves there before the first paint. Either way there
 is no layout shift with one slide per snap point.
 
+Each slide carries its starting `--deck-slide-progress` in the server HTML:
+its distance in slides from the slide the deck starts at, a loop's copy by
+its own place. Fade, curve and your own CSS on progress then paint from the
+server HTML as they do once hydrated. With equal-size slides, one per snap
+point, the engine's first measurement gives the same values, so hydration
+changes nothing.
+
 The server cannot measure, so it renders Prev and Next, and Dots and Counter
 with one page per slide. Hydration corrects them where that is wrong: it
 removes the controls when every slide fits, and recounts Dots and Counter when

@@ -105,6 +105,29 @@ const failures = expected
 if (html.includes('aria-label="Go to page 4"')) {
   failures.push('the server HTML has more dots than slides');
 }
+// Each slide carries its progress as the deck starts, its distance from the
+// starting slide, so an effect, or CSS on progress, draws from the first
+// paint: in document order, the slides, then a loop's copies after them,
+// then those before (#125).
+const fade = html.indexOf('data-slidedeck-effect="fade"');
+const curve = html.indexOf('data-slidedeck-effect="curve"');
+/**
+ * @param {string} effect
+ * @param {string} part the server HTML from the effect's viewport on
+ * @param {string} expected
+ */
+const checkProgress = (effect, part, expected) => {
+  const found = [...part.matchAll(/--deck-slide-progress:(-?[\d.]+)/g)]
+    .map(([, progress]) => progress)
+    .join();
+  if (found !== expected) {
+    failures.push(
+      `the ${effect} deck's slides have progress ${found || 'none'}, not ${expected}`
+    );
+  }
+};
+checkProgress('fade', html.slice(fade, curve), '0,1,2,3,4,5,-3,-2,-1');
+checkProgress('curve', html.slice(curve), '-1,0,1');
 if (failures.length > 0) {
   for (const failure of failures) console.error(`FAIL: ${failure}`);
   process.exit(1);

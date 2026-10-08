@@ -19,10 +19,11 @@ export default function Page() {
         <Deck.Dots />
         <Deck.Counter />
       </Deck.Root>
-      <Deck.Root aria-label="Curved">
+      <Deck.Root aria-label="Curved" defaultIndex={1}>
         <Deck.Viewport effect={curve}>
           <Deck.Slide>Curved one</Deck.Slide>
           <Deck.Slide>Curved two</Deck.Slide>
+          <Deck.Slide>Curved three</Deck.Slide>
         </Deck.Viewport>
       </Deck.Root>
     </main>

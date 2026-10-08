@@ -588,12 +588,21 @@ html {
   }
 }
 
-/* Progress: smaller with distance from the focal slide. */
+/* Progress: smaller with distance from the focal slide. Two and a half
+   slides to the deck's width, each centred, the first and last too, as in the
+   centred-ends recipe: the first slide then rests at progress 0, as the
+   server HTML starts it. */
+.example-progress {
+  container-type: inline-size;
+  --slide-width: calc((100cqi - 2 * 16px) / 2.5);
+}
 .example-progress [data-slidedeck-viewport] {
   gap: 16px;
+  /* Half the viewport less half a slide, at each end. */
+  padding-inline: calc(50% - var(--slide-width) / 2);
 }
 .example-progress [data-slidedeck-slide] {
-  width: calc((100% - 2 * 16px) / 2.5);
+  width: var(--slide-width);
   scroll-snap-align: center;
   /* abs() spelled with max() for older browsers. */
   scale: calc(

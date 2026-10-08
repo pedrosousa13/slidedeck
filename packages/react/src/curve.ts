@@ -1,9 +1,10 @@
 import type { Effect } from './index.js';
 
 // Slides of the curve deck, the progress of each, from
-// `--deck-slide-progress`, or before the engine has written it, as in server
-// HTML, 0: flat. The curve is drawn on a slide's content, its children: the
-// slide box stays in place.
+// `--deck-slide-progress`, which Deck.Slide gives each slide from the first
+// render, server HTML included, and the engine writes once it measures; where
+// it is unset, 0: flat. The curve is drawn on a slide's content, its
+// children: the slide box stays in place.
 const slide = '[data-slidedeck-effect=curve]>[data-slidedeck-slide]';
 const content = `${slide}>*`;
 const p = 'var(--slidedeck-curve-progress)';

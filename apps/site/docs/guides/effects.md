@@ -61,5 +61,8 @@ To turn a radius in pixels into slides and leave the arc room in the
 viewport, see [size a curve](/docs/recipes/size-a-curve/).
 
 Both effects' styles are zero-specificity rules on `--deck-slide-progress`, so
-your CSS overrides any of them. To use an effect on some screens only, see
+your CSS overrides any of them. Server HTML already carries each slide's
+starting progress, so an effect draws from the first paint, before any script
+runs (see [server rendering](/docs/guides/server-rendering/)). To use an
+effect on some screens only, see
 [change `effect`, `loop` or `autoplay` per breakpoint](/docs/recipes/per-breakpoint/).
