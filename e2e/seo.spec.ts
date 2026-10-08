@@ -121,11 +121,13 @@ test.describe('every built page', () => {
       expect.soft(one('og:url'), path).toBe(`${ORIGIN}${path}`);
       expect.soft(one('og:type'), path).not.toBe('');
       expect.soft(one('twitter:card'), path).toBe('summary_large_image');
-      const image = new URL(one('og:image'), ORIGIN);
-      expect.soft(image.origin, `${path} og:image`).toBe(ORIGIN);
+      // Absolute: a scraper does not resolve a relative og:image.
+      const image = one('og:image');
       expect
-        .soft(existsSync(`${OUT}${image.pathname.slice(1)}`), image.pathname)
-        .toBe(true);
+        .soft(image, `${path} og:image`)
+        .toMatch(new RegExp(`^${ORIGIN.replaceAll('.', '\\.')}/`));
+      const file = image.slice(ORIGIN.length + 1);
+      expect.soft(existsSync(`${OUT}${file}`), `${path} ${image}`).toBe(true);
     }
   });
 

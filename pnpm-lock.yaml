@@ -87,23 +87,23 @@ importers:
         specifier: 5.3.0
         version: 5.3.0
       '@pagedeck/adapter-cloudflare-pages':
-        specifier: 0.2.0
-        version: 0.2.0(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
+        specifier: 0.2.2
+        version: 0.2.2(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
       '@pagedeck/content':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.2.2
+        version: 0.2.2
       '@pagedeck/core':
-        specifier: 0.2.0
-        version: 0.2.0(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
+        specifier: 0.2.2
+        version: 0.2.2(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
       '@pagedeck/islands':
-        specifier: 0.2.0
-        version: 0.2.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)
+        specifier: 0.2.2
+        version: 0.2.2(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)
       '@pagedeck/markdown-loader':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.2.2
+        version: 0.2.2
       '@pagedeck/search':
-        specifier: 0.2.0
-        version: 0.2.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
+        specifier: 0.2.2
+        version: 0.2.2(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
       '@resvg/resvg-js':
         specifier: 2.6.2
         version: 2.6.2
@@ -1280,33 +1280,33 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@pagedeck/adapter-cloudflare-pages@0.2.0':
-    resolution: {integrity: sha512-S69pQEalomRm8XsMqryXS5s3d+6KIZ9Fi/Ds6V/SfqxZu8uAPv5psuC5MICDQgrVu8dCMn4oReBz7VIC8drMtQ==}
+  '@pagedeck/adapter-cloudflare-pages@0.2.2':
+    resolution: {integrity: sha512-Pf+4UArAX7pruuoxyuy0QMS5FUb8fMgmWqS+NoqyYDSdoEwfWaUU2B2A/yeEKw9QGuBCuiwRpOTcFxCATo5f2w==}
     engines: {node: ^22.18.0 || >=23.7.0}
 
-  '@pagedeck/content@0.2.0':
-    resolution: {integrity: sha512-XLbhrOnFsYgovvGECHNA/H7Dzk0veNFX11yK+V3P00JZvK+i6FZhVd7m8oVRzjOVIf7C/ZgqXRrXKHqObPY06g==}
+  '@pagedeck/content@0.2.2':
+    resolution: {integrity: sha512-ciiIcBV0f8UyNT8XexIKlMVbTp7BkLzYebUsYJmZjh1I6FJCb76X+1Q61NaYcc8cam8v/n9fpiYJ2Qx3rMRuCw==}
     engines: {node: ^22.13.0 || >=23.4.0}
 
-  '@pagedeck/core@0.2.0':
-    resolution: {integrity: sha512-qXcB0xAqlYPGJQ9YngjbjoeqH/QZH0QBPzNyBaalQ74HPTPVQySiSDkpQUosV//nN1voWU9Y6onG73Quz7OzzQ==}
+  '@pagedeck/core@0.2.2':
+    resolution: {integrity: sha512-Yytr6qxQM8259bQwCXwEulTQWhIV1neKqqn7A1nzrFAsC6NrEAB72sunuTWf0d6/L74pYxOEYuuhXyNR68hysw==}
     engines: {node: ^22.18.0 || >=23.7.0}
     hasBin: true
 
-  '@pagedeck/edge@0.2.0':
-    resolution: {integrity: sha512-oPalDfWy1v2iJFw6skZ/T+2tZfEYDX6zhEG0HIJ12Dm2qSEu0/m+36TjyHqEW/2sBj4PdnbhT9vJ0N/1IQB+GA==}
+  '@pagedeck/edge@0.2.2':
+    resolution: {integrity: sha512-71efb5pybrQqXTpt8Xh9UQ5w8Xwx/FtvgTFuhKHxWMIFArd2X7zWZejuA9Zkd5q3Lek4wYRvZ1EPH0GiM56R8g==}
     engines: {node: ^22.18.0 || >=23.7.0}
 
-  '@pagedeck/islands@0.2.0':
-    resolution: {integrity: sha512-xZH+UdOWsI3E6oaO2V5hrccj65wlIKgLuLAfFathBkLrjNrZfSoHV0YTkl99Rf/yOJD6s6qk/vM59y2A6Kx0sw==}
+  '@pagedeck/islands@0.2.2':
+    resolution: {integrity: sha512-jxQU7spQ60B+KXzfjlpIGKWxhNU3oogu71wwP223ZUpr9rMzHNjX1xLo0eSuHCCkjKl6VsQGxdQ563YCXZCm3w==}
     engines: {node: '>=22.0.0'}
 
-  '@pagedeck/markdown-loader@0.2.0':
-    resolution: {integrity: sha512-fmc+/viUk9pyuh9KtK64RnBN1TfCb7APrrjjRCgLDl+4KYN5naTPe864lsQhALx8VjijKYuXQv4S0Rcn3Zl60w==}
+  '@pagedeck/markdown-loader@0.2.2':
+    resolution: {integrity: sha512-SV1BWThYUCJjYjH+FtcqecaiMPZXo4A3ZP3uC1/dFTBGiBDDdB1+ly5tK/Gpe9GeMXLzz5giCgWajoEhQDe3Bg==}
     engines: {node: ^22.13.0 || >=23.4.0}
 
-  '@pagedeck/search@0.2.0':
-    resolution: {integrity: sha512-YS3A814ECPTUuZJScwjmklh6ZU3r7ZbjcD9a764J00kAEaZSrIL1oRGkcH30crSFJpweElsS/Hnpj5ISBGtSRA==}
+  '@pagedeck/search@0.2.2':
+    resolution: {integrity: sha512-BxH5rQYD6N16OfQ7XFAElqKXlcqHoSHRnMMsva8F+YAIKY/Mz5Tck0DlFGlJoJkNvkphpm3JXFcf3tfh27QnmA==}
     engines: {node: ^22.18.0 || >=23.7.0}
 
   '@playdeck/core@1.3.0':
@@ -4296,10 +4296,10 @@ snapshots:
   '@oxc-resolver/binding-win32-x64-msvc@11.21.2':
     optional: true
 
-  '@pagedeck/adapter-cloudflare-pages@0.2.0(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)':
+  '@pagedeck/adapter-cloudflare-pages@0.2.2(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)':
     dependencies:
-      '@pagedeck/core': 0.2.0(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
-      '@pagedeck/edge': 0.2.0(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
+      '@pagedeck/core': 0.2.2(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
+      '@pagedeck/edge': 0.2.2(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
     transitivePeerDependencies:
       - '@babel/template'
       - '@types/node'
@@ -4317,15 +4317,15 @@ snapshots:
       - tsx
       - yaml
 
-  '@pagedeck/content@0.2.0':
+  '@pagedeck/content@0.2.2':
     dependencies:
       '@standard-schema/spec': 1.1.0
 
-  '@pagedeck/core@0.2.0(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)':
+  '@pagedeck/core@0.2.2(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)':
     dependencies:
       '@babel/core': 7.29.7
-      '@pagedeck/content': 0.2.0
-      '@pagedeck/islands': 0.2.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)
+      '@pagedeck/content': 0.2.2
+      '@pagedeck/islands': 0.2.2(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)
       babel-plugin-react-compiler: 1.0.0
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
@@ -4348,9 +4348,9 @@ snapshots:
       - tsx
       - yaml
 
-  '@pagedeck/edge@0.2.0(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)':
+  '@pagedeck/edge@0.2.2(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)':
     dependencies:
-      '@pagedeck/core': 0.2.0(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
+      '@pagedeck/core': 0.2.2(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
     transitivePeerDependencies:
       - '@babel/template'
       - '@types/node'
@@ -4368,7 +4368,7 @@ snapshots:
       - tsx
       - yaml
 
-  '@pagedeck/islands@0.2.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)':
+  '@pagedeck/islands@0.2.2(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)':
     dependencies:
       jotai: 2.20.2(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)(react@19.3.0)
       react: 19.3.0
@@ -4378,16 +4378,16 @@ snapshots:
       - '@babel/template'
       - '@types/react'
 
-  '@pagedeck/markdown-loader@0.2.0':
+  '@pagedeck/markdown-loader@0.2.2':
     dependencies:
-      '@pagedeck/content': 0.2.0
+      '@pagedeck/content': 0.2.2
       marked: 18.1.0
       shiki: 4.5.0
 
-  '@pagedeck/search@0.2.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)':
+  '@pagedeck/search@0.2.2(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)':
     dependencies:
-      '@pagedeck/core': 0.2.0(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
-      '@pagedeck/islands': 0.2.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)
+      '@pagedeck/core': 0.2.2(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
+      '@pagedeck/islands': 0.2.2(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)
       react: 19.3.0
     transitivePeerDependencies:
       - '@babel/core'
