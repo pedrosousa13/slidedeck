@@ -492,7 +492,7 @@
   scroll-snap-align: center;
 }
 
-.curve-card {
+.curve-deck .curve-card {
   box-sizing: border-box;
   display: flex;
   align-items: flex-end;
@@ -506,11 +506,11 @@
   text-align: start;
 }
 
-[data-slidedeck-slide]:nth-child(even) > .curve-card {
+.curve-deck .curve-card-even {
   background-color: var(--card-alt, var(--rule));
 }
 
-[data-slidedeck-slide]:nth-child(5) > .curve-card {
+.curve-deck .curve-card-accent {
   background-color: var(--accent);
   color: var(--on-accent);
 }
@@ -520,7 +520,7 @@
     width: 220px;
   }
 
-  .curve-card {
+  .curve-deck .curve-card {
     height: 300px;
   }
 }

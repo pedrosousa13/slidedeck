@@ -443,6 +443,42 @@ test.describe('the curve gallery', () => {
     await page.keyboard.press('ArrowLeft');
     await expect(deck).toHaveAttribute('data-index', '8');
   });
+
+  // A loop's copies are slides too, so a colour picked by position would
+  // differ between a card and its copy, and change across the seam.
+  test('every card keeps its colour across the seam, in a copy too', async ({
+    page
+  }) => {
+    await openAllHydrated(page);
+    const deck = page.getByRole('region', { name: CURVE });
+    await deck.getByRole('button', { name: 'Go to page 9' }).click();
+    await expect(deck).toHaveAttribute('data-index', '8');
+    await deck.locator('[data-slidedeck-viewport]').focus();
+
+    // On past the last card, across the seam to the first.
+    await page.keyboard.press('ArrowRight');
+    await expect(deck).toHaveAttribute('data-index', '0');
+
+    const colours = await deck
+      .locator('[data-slidedeck-slide] > *')
+      .evaluateAll((cards) =>
+        cards.map((card) => ({
+          n: Number(card.textContent),
+          copy: card.parentElement!.hasAttribute('data-slidedeck-copy'),
+          background: getComputedStyle(card).backgroundColor
+        }))
+      );
+    // Every original and both of its copies.
+    expect(colours).toHaveLength(27);
+    const of = (n: number) =>
+      colours.find((card) => card.n === n && !card.copy)!.background;
+    for (const card of colours) expect(card.background).toBe(of(card.n));
+    // The accent on card 5 only, and the others alternating.
+    const accent = of(5);
+    for (const n of [1, 3, 7, 9]) expect(of(n)).toBe(of(1));
+    for (const n of [2, 4, 6, 8]) expect(of(n)).toBe(of(2));
+    expect(new Set([of(1), of(2), accent]).size).toBe(3);
+  });
 });
 
 test.describe('the quickstart', () => {
@@ -533,35 +569,38 @@ for (const [name, start] of [
 test.describe('on a touch screen', () => {
   test.use({ hasTouch: true });
 
-  test('a swipe moves the feature deck', async ({ page, browserName }) => {
-    test.skip(browserName !== 'chromium', 'CDP touch events are Chromium’s');
-    await openHydrated(page);
-    const deck = page.getByRole('region', { name: FEATURES });
-    const from = await stopAutoplay(page);
-    const box = (await deck
-      .locator('[data-slidedeck-viewport]')
-      .boundingBox())!;
-    const y = box.y + box.height / 2;
-    const cdp = await page.context().newCDPSession(page);
-    const at = (x: number) => [{ x, y, id: 1 }];
-    const startX = box.x + box.width * 0.75;
-    await cdp.send('Input.dispatchTouchEvent', {
-      type: 'touchStart',
-      touchPoints: at(startX)
-    });
-    for (let step = 1; step <= 6; step++) {
+  for (const name of [FEATURES, CURVE]) {
+    test(`a swipe moves the ${name} deck`, async ({ page, browserName }) => {
+      test.skip(browserName !== 'chromium', 'CDP touch events are Chromium’s');
+      await openAllHydrated(page);
+      const deck = page.getByRole('region', { name });
+      const from = name === FEATURES ? await stopAutoplay(page) : 4;
+      await deck.scrollIntoViewIfNeeded();
+      const box = (await deck
+        .locator('[data-slidedeck-viewport]')
+        .boundingBox())!;
+      const y = box.y + box.height / 2;
+      const cdp = await page.context().newCDPSession(page);
+      const at = (x: number) => [{ x, y, id: 1 }];
+      const startX = box.x + box.width * 0.75;
       await cdp.send('Input.dispatchTouchEvent', {
-        type: 'touchMove',
-        touchPoints: at(startX - (box.width * 0.4 * step) / 6)
+        type: 'touchStart',
+        touchPoints: at(startX)
       });
-    }
-    await cdp.send('Input.dispatchTouchEvent', {
-      type: 'touchEnd',
-      touchPoints: []
-    });
+      for (let step = 1; step <= 6; step++) {
+        await cdp.send('Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: at(startX - (box.width * 0.4 * step) / 6)
+        });
+      }
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchEnd',
+        touchPoints: []
+      });
 
-    await expect(deck).not.toHaveAttribute('data-index', String(from));
-  });
+      await expect(deck).not.toHaveAttribute('data-index', String(from));
+    });
+  }
 });
 
 test.describe('under reduced motion', () => {
