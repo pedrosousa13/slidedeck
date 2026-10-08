@@ -240,3 +240,68 @@ for (const [width, height] of [
     });
   });
 }
+
+/** WCAG contrast of two opaque `rgb()` colours. */
+function contrast(a: number[], b: number[]) {
+  const luminance = ([r, g, b]: number[]) => {
+    const [R, G, B] = [r!, g!, b!].map((c) => {
+      const s = c / 255;
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * R! + 0.7152 * G! + 0.0722 * B!;
+  };
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+
+for (const scheme of ['light', 'dark'] as const) {
+  test.describe(`in the ${scheme} scheme`, () => {
+    test.use({ colorScheme: scheme });
+
+    test('the empty search field shows what it is for, at 4.5:1', async ({
+      page
+    }) => {
+      await page.goto('/docs/');
+      const search = page.getByRole('combobox', { name: 'Search the docs' });
+      const hint = page.getByText('Search the docs', { exact: true });
+      const box = (await hint.boundingBox())!;
+      const field = (await search.boundingBox())!;
+      expect(box.width).toBeGreaterThan(40);
+      expect(box.x).toBeGreaterThanOrEqual(field.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(field.x + field.width);
+      // The hint's colour against the field, laid over the nav bar and the
+      // page, as they composite.
+      const [text, ...layers] = await page.evaluate(() => {
+        const rgba = (value: string) =>
+          (value.match(/[\d.]+/g) ?? []).map(Number);
+        const hint = [...document.querySelectorAll('.fw-search *')].find(
+          (el) => el.textContent === 'Search the docs'
+        )!;
+        return [
+          rgba(getComputedStyle(hint).color),
+          rgba(
+            getComputedStyle(document.querySelector('.fw-search__input')!)
+              .backgroundColor
+          ),
+          rgba(
+            getComputedStyle(document.querySelector('.site-header')!)
+              .backgroundColor
+          ),
+          rgba(getComputedStyle(document.body).backgroundColor)
+        ];
+      });
+      const ground = layers
+        .reverse()
+        .reduce((under, [r, g, b, a = 1]) =>
+          [r!, g!, b!].map((c, i) => c * a + under[i]! * (1 - a))
+        );
+      expect(contrast(text!, ground)).toBeGreaterThanOrEqual(4.5);
+
+      await search.fill('loop');
+      await expect
+        .poll(async () => (await hint.boundingBox())?.width ?? 0)
+        .toBeLessThan(2);
+      await expect(search).toBeFocused();
+    });
+  });
+}

@@ -1,7 +1,7 @@
 /*
  * The docs, under /docs/, and the search in the nav bar. Colours, type and
- * radii come from the tokens in site.css; this file adds none of its own
- * colours, so the dark scheme needs nothing here.
+ * radii come from the tokens in site.css; the one colour of its own is the
+ * search field's placeholder, which site.css has no token dark enough for.
  */
 
 :root {
@@ -13,6 +13,14 @@
   --search-row: 48px;
   /* How tall the sticky nav bar is: one row, or two below 768px. */
   --nav-bar: var(--nav-height);
+  /* The search field's placeholder: 4.5:1 on the field in each scheme. */
+  --field-hint: #636366;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --field-hint: var(--secondary);
+  }
 }
 
 /* A link to a heading scrolls it clear of the sticky nav bar. */
@@ -42,15 +50,33 @@ html {
   pointer-events: none;
 }
 
-/* The label stays the input's accessible name; the magnifier shows what the
-   field is for. */
+/* The label, the input's accessible name, shows in the empty field as its
+   placeholder: the island takes no placeholder of its own. While the field
+   has focus or holds text, the label is only visually hidden, so the name
+   stays. */
 .site-header .fw-search__label {
   position: absolute;
+  top: 50%;
+  left: 28px;
+  translate: 0 -50%;
+  color: var(--field-hint);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.site-header .fw-search:focus-within .fw-search__label,
+.site-header
+  .fw-search:has(.fw-search__input:not([value='']))
+  .fw-search__label {
+  top: auto;
+  left: auto;
   width: 1px;
   height: 1px;
   overflow: hidden;
+  translate: none;
   clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 .site-header .fw-search__input {
@@ -136,6 +162,11 @@ html {
 
   .site-header .fw-search::before {
     top: 16px;
+  }
+
+  .site-header .fw-search__label {
+    top: 16px;
+    font-size: 16px;
   }
 
   .site-header .fw-search__results,
