@@ -1,7 +1,10 @@
 // The landing page at /. A server component: it ships no JavaScript of its
-// own. Its two decks are islands, each a 'use client' module of its own.
+// own. Its decks are islands, each a 'use client' module of its own: two of
+// the Examples page's in its teaser.
 import CurveDeck from './curve-deck.tsx';
 import FeatureDeck from './feature-deck.tsx';
+import GalleryDeck from './showcase/gallery-deck.tsx';
+import StoriesDeck from './showcase/stories-deck.tsx';
 import { install, libraries, quickstart, size, version } from '../lib/facts.ts';
 import { SLIDEDECK } from '../lib/readme.ts';
 
@@ -81,6 +84,23 @@ export default function Landing() {
           className="landing-code"
           dangerouslySetInnerHTML={{ __html: quickstart }}
         />
+      </section>
+
+      <section className="landing-examples" aria-labelledby="examples">
+        <h2 id="examples">Built with slidedeck.</h2>
+        <p>
+          A product gallery and a stack of stories, two of the examples. Each is
+          a few components and plain CSS.
+        </p>
+        <div className="landing-examples-grid">
+          <div className="example-frame">
+            <GalleryDeck />
+          </div>
+          <div className="example-frame">
+            <StoriesDeck />
+          </div>
+        </div>
+        <a href="/examples/">See all examples ›</a>
       </section>
 
       <section className="landing-band" aria-labelledby="compare">

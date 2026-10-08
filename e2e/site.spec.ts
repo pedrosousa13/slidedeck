@@ -147,6 +147,10 @@ test('the nav bar links the site', async ({ page }) => {
     'GitHub',
     'Install'
   ]);
+  await expect(nav.getByRole('link', { name: 'Examples' })).toHaveAttribute(
+    'href',
+    '/examples/'
+  );
 });
 
 test('the footer names the license and the stack', async ({ page }) => {
@@ -166,11 +170,11 @@ test('the layout is outside every island, so it ships no JavaScript', async ({
   ).toHaveCount(0);
 });
 
-test('the page ships JavaScript for its two decks and the search, nothing else', async ({
+test('the page ships JavaScript for its four decks and the search, nothing else', async ({
   page
 }) => {
   await page.goto('/');
-  await expect(page.locator('main fw-island')).toHaveCount(2);
+  await expect(page.locator('main fw-island')).toHaveCount(4);
   // Each island in the page is one deck, and every deck is in one.
   for (const island of await page.locator('main fw-island').all()) {
     await expect(island.getByRole('region')).toHaveCount(1);
@@ -515,6 +519,38 @@ test('links to the docs pages, and each one is there', async ({ page }) => {
   for (const link of await main.getByRole('link').all()) {
     expect(await link.getAttribute('href')).not.toMatch(/packages\/react#/);
   }
+});
+
+test.describe('the examples teaser', () => {
+  test('shows two of the examples and links to them all', async ({ page }) => {
+    await page.goto('/');
+    const teaser = page.getByRole('region', { name: /Built with slidedeck/ });
+    await expect(
+      teaser.locator('[aria-roledescription="carousel"]')
+    ).toHaveCount(2);
+    await expect(
+      teaser.getByRole('region', { name: 'Product photos' })
+    ).toHaveCount(1);
+    await expect(
+      teaser.getByRole('region', { name: 'Travel stories' })
+    ).toHaveCount(1);
+    const all = teaser.getByRole('link', { name: 'See all examples ›' });
+    await expect(all).toHaveAttribute('href', '/examples/');
+    expect((await page.request.get('/examples/')).status()).toBe(200);
+  });
+
+  test('loads its photos lazily, each with its size', async ({ page }) => {
+    await page.goto('/');
+    const images = page
+      .getByRole('region', { name: /Built with slidedeck/ })
+      .locator('img');
+    expect(await images.count()).toBeGreaterThan(0);
+    for (const image of await images.all()) {
+      await expect(image).toHaveAttribute('loading', 'lazy');
+      await expect(image).toHaveAttribute('width', /^\d+$/);
+      await expect(image).toHaveAttribute('height', /^\d+$/);
+    }
+  });
 });
 
 test.describe('the comparison', () => {

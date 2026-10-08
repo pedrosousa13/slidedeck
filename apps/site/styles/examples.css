@@ -1,0 +1,590 @@
+/*
+ * The Examples page, /examples/, and its decks, two of which the landing
+ * page's teaser shows too. Colours are site.css's tokens, so both schemes
+ * follow; the photos' captions are white on a dark scrim in both. Each
+ * example is styled through slidedeck's data attributes and its own classes,
+ * never by a slide's position: a loop's copies are slides too (ADR-0009).
+ * Every rule and token is scoped to the page's or a deck's own classes, so
+ * nothing reaches the rest of a page that shows one of the decks.
+ */
+
+/* Captions over a photo: white on a scrim dark enough for 4.5:1. */
+.hero-deck,
+.stories-deck {
+  --ex-scrim: linear-gradient(
+    to top,
+    rgb(0 0 0 / 0.8),
+    rgb(0 0 0 / 0.45) 60%,
+    transparent
+  );
+}
+
+/* The page. */
+
+.examples-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: var(--section-padding) var(--gutter) 40px;
+  text-align: center;
+}
+
+.examples-intro h1 {
+  margin: 0;
+  font-size: clamp(48px, 7vw, 80px);
+  line-height: 1.04;
+}
+
+.examples-intro p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--secondary);
+  font-size: clamp(19px, 2vw, 24px);
+  line-height: 1.38;
+}
+
+.example,
+.examples-credits {
+  box-sizing: border-box;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 56px var(--gutter);
+}
+
+.example-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 760px;
+  margin-bottom: 28px;
+}
+
+.example-text h2,
+.examples-credits h2 {
+  margin: 0;
+  font-size: clamp(28px, 3.4vw, 40px);
+  letter-spacing: -0.015em;
+}
+
+.example-text p,
+.examples-credits p {
+  margin: 0;
+  color: var(--secondary);
+  font-size: 19px;
+  line-height: 1.42;
+}
+
+.example-text code {
+  color: var(--text);
+  font-size: 0.85em;
+}
+
+.example-text a {
+  text-decoration: none;
+}
+
+.example-text a:hover {
+  text-decoration: underline;
+}
+
+/* The large rounded frame each example sits in. */
+.example-frame {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: clamp(16px, 4vw, 48px);
+  border-radius: 32px;
+  background-color: var(--tile);
+}
+
+/* An example that bleeds to the page's edges: its words stay in the
+   column, its deck spans the page. */
+.example-bleed {
+  max-width: none;
+  padding-inline: 0;
+}
+
+.example-bleed .example-text {
+  box-sizing: border-box;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.example-bleed .example-text > * {
+  max-width: 760px;
+}
+
+.example-bleed .example-frame {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.examples-credits {
+  padding-bottom: var(--section-padding);
+}
+
+.examples-credits ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px 24px;
+  margin: 24px 0 0;
+  padding: 0;
+  color: var(--secondary);
+  font-size: 15px;
+  list-style: none;
+}
+
+/* Product gallery: one photo at a time, thumbnails under it. */
+
+/* Wide enough to show the product, short enough to fit a laptop's screen. */
+.gallery-deck {
+  max-width: 960px;
+  margin-inline: auto;
+}
+
+.gallery-deck [data-slidedeck-viewport] {
+  gap: 16px;
+}
+
+.gallery-slide {
+  margin: 0;
+}
+
+.gallery-slide img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 20px;
+  background-color: var(--control);
+}
+
+.gallery-slide figcaption {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 16px 4px 0;
+}
+
+.gallery-slide h3,
+.gallery-slide p {
+  margin: 0;
+  font-size: 21px;
+}
+
+.gallery-slide p {
+  color: var(--secondary);
+}
+
+/* The row is there before the thumbnails are, so they do not shift the page
+   when the deck is measured. */
+.gallery-thumbs {
+  flex: 0 0 100%;
+  min-height: 52px;
+}
+
+.gallery-thumbs [role='group'] {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.gallery-thumbs button {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: none;
+  cursor: pointer;
+}
+
+.gallery-thumbs img {
+  display: block;
+  width: 72px;
+  height: 48px;
+  border-radius: 9px;
+}
+
+.gallery-thumbs button[aria-current='true'] {
+  border-color: var(--text);
+}
+
+/* Hero banner: a wide photo, its words over a scrim at the foot. */
+
+.hero-slide {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  /* A height, not an aspect ratio with a minimum: that minimum would widen
+     the slide past a phone's viewport. */
+  height: clamp(420px, 45vw, 640px);
+  overflow: hidden;
+  background-color: var(--control);
+}
+
+.hero-slide img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-copy {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  /* The words line up with the page's column above. */
+  padding: 96px max(var(--gutter), calc((100% - 1200px) / 2 + var(--gutter)))
+    clamp(24px, 5vw, 56px);
+  background: var(--ex-scrim);
+  color: #ffffff;
+}
+
+.hero-copy h3 {
+  max-width: 720px;
+  margin: 6px 0 10px;
+  font-size: clamp(32px, 5vw, 64px);
+  letter-spacing: -0.02em;
+}
+
+.hero-copy p {
+  margin: 0;
+  font-size: clamp(17px, 1.8vw, 21px);
+}
+
+.hero-copy .hero-eyebrow {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* Testimonials: centred cards, the first and last too (recipe "Centre the
+   first and last slide"), their neighbours in view. */
+
+.testimonials-deck {
+  --slide-width: min(420px, 78vw);
+  /* A card on the frame. */
+  --ex-card: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .testimonials-deck {
+    --ex-card: #2c2c2e;
+  }
+}
+
+.testimonials-deck [data-slidedeck-viewport] {
+  box-sizing: border-box;
+  gap: 16px;
+  padding-inline: calc(50% - var(--slide-width) / 2);
+}
+
+.testimonials-deck [data-slidedeck-slide] {
+  width: var(--slide-width);
+  scroll-snap-align: center;
+}
+
+.testimonial {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 28px;
+  height: 100%;
+  margin: 0;
+  padding: 32px;
+  border-radius: 24px;
+  background-color: var(--ex-card);
+}
+
+.testimonial blockquote {
+  margin: 0;
+}
+
+.testimonial blockquote p {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.testimonial figcaption {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+}
+
+.testimonial figcaption > span:last-child {
+  display: flex;
+  flex-direction: column;
+  color: var(--secondary);
+}
+
+.testimonial strong {
+  color: var(--text);
+}
+
+.testimonial-avatar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-pill);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* 4.5:1 or better for the white initials. */
+.testimonial-avatar[data-tone='blue'] {
+  background-color: #0058b0;
+}
+.testimonial-avatar[data-tone='orange'] {
+  background-color: #b04a00;
+}
+.testimonial-avatar[data-tone='green'] {
+  background-color: #1d7a3e;
+}
+.testimonial-avatar[data-tone='purple'] {
+  background-color: #7a3fb5;
+}
+.testimonial-avatar[data-tone='teal'] {
+  background-color: #0f6e70;
+}
+
+/* Stories: a vertical deck in a phone-shaped frame. */
+
+.stories-deck {
+  max-width: 340px;
+  margin-inline: auto;
+}
+
+.stories-deck [data-slidedeck-viewport] {
+  aspect-ratio: 9 / 16;
+  border-radius: 36px;
+  background-color: #000000;
+}
+
+.stories-deck [data-slidedeck-slide] {
+  min-height: 0;
+}
+
+.story {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+  margin: 0;
+}
+
+.story img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.story figcaption {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 72px 24px 28px;
+  background: var(--ex-scrim);
+  color: #ffffff;
+}
+
+.story h3 {
+  margin: 0 0 4px;
+  font-size: 21px;
+}
+
+.story p {
+  margin: 0;
+  font-size: 17px;
+}
+
+.stories-deck [data-slidedeck-counter] {
+  min-width: 48px;
+  color: var(--secondary);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* Right to left: cards that start at the right. */
+
+.rtl-deck [data-slidedeck-viewport] {
+  gap: 16px;
+}
+
+.rtl-deck [data-slidedeck-slide] {
+  width: min(280px, 72vw);
+}
+
+.place {
+  margin: 0;
+}
+
+.place img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 20px;
+  background-color: var(--control);
+}
+
+.place figcaption {
+  padding: 14px 4px 0;
+}
+
+.place h3 {
+  margin: 0 0 4px;
+  font-size: 21px;
+}
+
+.place p {
+  margin: 0;
+  color: var(--secondary);
+}
+
+/* Cover flow: album squares on an arc of radius 5 slides: wide and shallow.
+   Room below for the arc's drop and turn while it moves, for the slides two
+   away (README, "Size a curve"): the faint ends may clip. */
+
+.cover-flow-deck [data-slidedeck-viewport] {
+  --deck-curve-radius: 5;
+  gap: 20px;
+  padding-block: 12px 150px;
+}
+
+.cover-flow-deck [data-slidedeck-slide] {
+  width: 260px;
+  scroll-snap-align: center;
+}
+
+.album {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+  height: 260px;
+  padding: 20px;
+  border-radius: 16px;
+  color: #ffffff;
+  text-align: start;
+}
+
+.album strong {
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+
+.album span {
+  font-size: 15px;
+}
+
+/* Each cover by its album: white text on a colour of 4.5:1 or better at its
+   foot, where the words are. */
+.album[data-album='tide'] {
+  background-image: linear-gradient(160deg, #3a86c8, #1e6091 45%, #0b2545);
+}
+.album[data-album='moons'] {
+  background-image:
+    radial-gradient(circle at 70% 30%, #f4d35e 0 16%, transparent 17%),
+    linear-gradient(160deg, #3d348b, #1b1340);
+}
+.album[data-album='north'] {
+  background-image: linear-gradient(#7fa7b8 0 42%, #24414e 42%);
+}
+.album[data-album='orbit'] {
+  background-image:
+    radial-gradient(
+      circle at 50% 38%,
+      transparent 0 22%,
+      #ff7b54 23% 26%,
+      transparent 27%
+    ),
+    linear-gradient(135deg, #2b2d42, #11121c);
+}
+.album[data-album='glass'] {
+  background-image: linear-gradient(
+    135deg,
+    #1f7a70 0 33%,
+    #165c55 33% 66%,
+    #0e3f3a 66%
+  );
+}
+.album[data-album='swim'] {
+  background-image: linear-gradient(#415a77, #1b263b 55%, #0d1b2a);
+}
+.album[data-album='field'] {
+  background-image: repeating-linear-gradient(
+    90deg,
+    #606c38 0 18px,
+    #4a5429 18px 36px
+  );
+}
+
+/* A phone: the testimonials' Previous, dots and Next stay on one row down to
+   375px, as the site's controls row does, with a shorter current dot. */
+@media (max-width: 400px) {
+  .testimonials-deck {
+    gap: 6px;
+  }
+
+  .testimonials-deck [data-slidedeck-prev],
+  .testimonials-deck [data-slidedeck-next] {
+    padding: 0 10px;
+  }
+
+  .testimonials-deck [data-slidedeck-dots] [data-index][aria-current='true'] {
+    width: 40px;
+  }
+}
+
+/* A phone: smaller covers and photos, the arc's room to match. */
+@media (max-width: 600px) {
+  .example {
+    padding-block: 40px;
+  }
+
+  .cover-flow-deck [data-slidedeck-viewport] {
+    padding-block: 12px 116px;
+  }
+
+  .cover-flow-deck [data-slidedeck-slide] {
+    width: 200px;
+  }
+
+  .album {
+    height: 200px;
+  }
+
+  .gallery-thumbs {
+    min-height: 40px;
+  }
+
+  .gallery-thumbs [role='group'] {
+    gap: 6px;
+  }
+
+  .gallery-thumbs img {
+    width: 54px;
+    height: 36px;
+  }
+
+  .testimonial {
+    padding: 24px;
+  }
+
+  .testimonial blockquote p {
+    font-size: 19px;
+  }
+}
