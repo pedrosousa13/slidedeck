@@ -81,6 +81,8 @@ body {
   font-family: var(--font-sans);
   font-size: 17px;
   line-height: 1.47;
+  /* A long word breaks rather than widening the page. */
+  overflow-wrap: break-word;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -126,8 +128,11 @@ pre {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  /* Wraps rather than overflows when the fallback font is wide: the bar is
+     48px high while it fits on one line. */
+  flex-wrap: wrap;
   max-width: 1024px;
-  height: calc(var(--nav-height) - 1px);
+  min-height: calc(var(--nav-height) - 1px);
   margin: 0 auto;
   padding: 0 var(--gutter);
 }
@@ -142,7 +147,10 @@ pre {
 
 .site-header nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
   gap: 4px;
   font-size: 12px;
 }

@@ -87,6 +87,24 @@ test('the layout is outside every island, so it ships no JavaScript', async ({
   ).toHaveCount(0);
 });
 
+/**
+ * Checks the page does not scroll sideways and every nav link lies within
+ * the viewport's width.
+ */
+async function expectNoSidewaysScroll(page: Page) {
+  const { scroll, client } = await page.evaluate(() => ({
+    scroll: document.documentElement.scrollWidth,
+    client: document.documentElement.clientWidth
+  }));
+  expect(scroll).toBe(client);
+  for (const link of await page.getByRole('banner').getByRole('link').all()) {
+    const box = await link.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(client);
+  }
+}
+
 test.describe('at 320px wide', () => {
   test.use({ viewport: { width: 320, height: 640 } });
 
@@ -94,17 +112,22 @@ test.describe('at 320px wide', () => {
     page
   }) => {
     await openHydrated(page);
-    const { scroll, client } = await page.evaluate(() => ({
-      scroll: document.documentElement.scrollWidth,
-      client: document.documentElement.clientWidth
-    }));
-    expect(scroll).toBe(client);
-    for (const link of await page.getByRole('banner').getByRole('link').all()) {
-      const box = await link.boundingBox();
-      expect(box).not.toBeNull();
-      expect(box!.x).toBeGreaterThanOrEqual(0);
-      expect(box!.x + box!.width).toBeLessThanOrEqual(320);
-    }
+    await expectNoSidewaysScroll(page);
+  });
+
+  // The system stack falls back to whatever a machine has: CI's Linux
+  // runner draws it wider than SF or Helvetica. DejaVu Sans where it is
+  // installed, and letter-spacing everywhere, so the text is wide on any
+  // machine.
+  test('a wide fallback font does not make the page scroll sideways', async ({
+    page
+  }) => {
+    await openHydrated(page);
+    await page.addStyleTag({
+      content:
+        "* { font-family: 'DejaVu Sans', Verdana, sans-serif !important; letter-spacing: 0.08em !important; }"
+    });
+    await expectNoSidewaysScroll(page);
   });
 });
 
