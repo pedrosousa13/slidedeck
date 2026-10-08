@@ -82,6 +82,7 @@ export default defineConfig({
       ],
       after: [{ component: 'footer' }]
     }),
+    css: ['./styles/site.css', './styles/docs.css'],
     // Each page's title, description, share card and structured data, from
     // the page itself: lib/seo.ts.
     head: (page, store) => headOf(page, store, pages),
@@ -99,7 +100,6 @@ export default defineConfig({
     // public/: the examples' photos at /photos/, and apple-touch-icon.png,
     // the address iOS asks for unprompted.
     passthrough: { root: './public' },
-    css: ['./styles/site.css', './styles/docs.css'],
     search: defineSearch(),
     routing: { headers: [{ prefix: '/', set: [...SECURITY_HEADERS] }] },
     adapter: cloudflarePages()

@@ -45,11 +45,11 @@ function describe(
   const description = entry.frontmatter['description'];
   return {
     name: entry.title,
-    title: !isDocs
-      ? entry.title
-      : found.path === 'index'
+    title: isDocs
+      ? found.path === 'index'
         ? 'slidedeck docs'
-        : `${entry.title} · slidedeck docs`,
+        : `${entry.title} · slidedeck docs`
+      : entry.title,
     description: typeof description === 'string' ? description : undefined
   };
 }

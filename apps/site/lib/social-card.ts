@@ -127,9 +127,9 @@ export function socialCard(origin: string): SocialImageAdapter {
         card(headline, eyebrow, host) as Parameters<typeof satori>[0],
         { width: WIDTH, height: HEIGHT, fonts: FONTS, embedFont: true }
       );
-      const bytes = new Resvg(svg, {
-        font: { loadSystemFonts: false, defaultFontFamily: 'Inter' }
-      })
+      // satori drew the text as paths (embedFont), so resvg needs no font;
+      // the build machine's own stay out of the card.
+      const bytes = new Resvg(svg, { font: { loadSystemFonts: false } })
         .render()
         .asPng();
       return { bytes, width: WIDTH, height: HEIGHT };
