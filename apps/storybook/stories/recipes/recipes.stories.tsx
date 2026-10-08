@@ -1,7 +1,7 @@
 import * as Deck from '@slidedeck/react';
 import { curve } from '@slidedeck/react/curve';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-// Each recipe's CSS is a file the README quotes byte for byte, inlined into
+// Each recipe's CSS is a file its docs page quotes byte for byte, inlined into
 // its story's <style> so it applies to that story alone.
 import centredEnds from './centred-ends.css?inline';
 import curveSize from './curve-size.css?inline';
