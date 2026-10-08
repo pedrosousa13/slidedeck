@@ -11,6 +11,9 @@ export default tseslint.config(
       '**/storybook-static/**',
       '**/.next/**',
       'playwright-report/**',
+      // The site's build output and build reports, gitignored in apps/site.
+      'apps/site/site/**',
+      'apps/site/.pagedeck/**',
       'test-results/**',
       // Gitignored, but flat config does not read .gitignore, so without this
       // the scratch files a session writes are linted as project source.

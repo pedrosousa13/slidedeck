@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "types": ["node"],
+    "tsBuildInfoFile": "../../node_modules/.cache/tsbuildinfo/site.tsbuildinfo"
+  },
+  "references": [{ "path": "../../packages/react" }],
+  "include": ["pagedeck.config.ts", "components/**/*"]
+}

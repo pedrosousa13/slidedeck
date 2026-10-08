@@ -1,0 +1,28 @@
+{
+  "name": "site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^22.18.0 || >=23.7.0"
+  },
+  "scripts": {
+    "sync": "pagedeck sync",
+    "dev": "pagedeck dev",
+    "build": "pagedeck sync && pagedeck build"
+  },
+  "dependencies": {
+    "@pagedeck/content": "0.2.0",
+    "@pagedeck/core": "0.2.0",
+    "@pagedeck/islands": "0.2.0",
+    "@pagedeck/markdown-loader": "0.2.0",
+    "@slidedeck/react": "workspace:*",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.3",
+    "@types/react": "19.3.0",
+    "vite": "8.3.1"
+  }
+}
