@@ -143,3 +143,84 @@ test('a mouse drag the browser scrolls back as it goes settles where the pointer
   await expectSettledTo(() => viewport.scrollTop, 400);
   expect(root.dataset.index).toBe('1');
 });
+
+test("the user's wheel during a mouse drag is kept, and the release goes on from both", async () => {
+  const { root, viewport } = renderDeck();
+  const box = viewport.getBoundingClientRect();
+  const y = box.top + box.height / 2;
+  const start = box.right - 20;
+
+  // Under half a slide on by the drag, then on by the wheel, with the
+  // button still down. Measured, the wheel scrolls the deck a slide on in
+  // Chromium, and some 50px in WebKit.
+  await mouse(
+    ['move', start, y],
+    ['down'],
+    ['move', start - 0.45 * WIDTH, y, 6],
+    ['wheel', WIDTH, 0],
+    ['wait', 300]
+  );
+  expect(viewport.scrollLeft).toBeGreaterThan(WIDTH / 2);
+  // The drag goes on from where the wheel took the deck, and is released
+  // from there, held still: past half a slide on, it rests on the second
+  // slide, where the drag alone, under half a slide on, rests on the first.
+  await mouse(['move', start - 0.45 * WIDTH - 10, y], ['wait', 100], ['up']);
+
+  await expectSettledTo(() => viewport.scrollLeft, WIDTH);
+  expect(root.dataset.index).toBe('1');
+});
+
+/** A vertical deck of five slides, from slide `from` on, keyed by number. */
+const Tall = ({ from = 0 }: { from?: number }) => (
+  <Deck.Root aria-label="Test deck" orientation="vertical" defaultIndex={2}>
+    <Deck.Viewport className="tall">
+      {[0, 1, 2, 3, 4].slice(from).map((i) => (
+        <Deck.Slide key={i}>Slide {i + 1}</Deck.Slide>
+      ))}
+    </Deck.Viewport>
+  </Deck.Root>
+);
+
+test('a slide removed during a mouse drag, which moves the viewport, leaves the drag releasing from where the viewport is', async () => {
+  addStyle(`.tall { width: 300px; height: 300px; }`);
+  const { rerender } = render(<Tall />);
+  const root = screen.getByRole('region', { name: 'Test deck' });
+  const viewport = viewportOf(root);
+  await expectSettledTo(() => viewport.scrollTop, 600);
+  const box = viewport.getBoundingClientRect();
+  const x = box.left + box.width / 2;
+
+  // A third of a slide on from the third slide, at 700.
+  await mouse(
+    ['move', x, box.bottom - 20],
+    ['down'],
+    ['move', x, box.bottom - 120, 6]
+  );
+  // The first slide goes. The browser keeps what shows where it is, so the
+  // viewport goes up a slide, to 400, and the engine refreshes.
+  rerender(<Tall from={1} />);
+  expect(Math.abs(viewport.scrollTop - 400)).toBeLessThan(5);
+  // Held still: from 400 the drag rests on the slide it holds, now the
+  // second, where from the drag's own 700 it would rest a slide on.
+  await mouse(['wait', 100], ['up']);
+
+  await expectSettledTo(() => viewport.scrollTop, 300);
+  expect(root.dataset.index).toBe('1');
+  expect(root.querySelector('[data-focal]')?.textContent).toBe('Slide 3');
+});
+
+test('in a hidden document, where no frame renders, a stopped move still settles at quiet', async () => {
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  const { root, viewport, onIndexChange } = renderDeck();
+
+  screen.getByRole('button', { name: 'Go to page 5' }).click();
+  await scrollPast(viewport, WIDTH);
+  // No frame renders again in this test, as in a hidden tab.
+  renderNoFrame(viewport);
+
+  // At quiet, as before #123: the deck rests on a snap point and says so.
+  await expect.poll(() => onIndexChange.mock.calls.length).toBe(1);
+  const [[index]] = onIndexChange.mock.calls as [[number]];
+  await expectSettledTo(() => viewport.scrollLeft, index * WIDTH);
+  expect(root.dataset.index).toBe(String(index));
+});

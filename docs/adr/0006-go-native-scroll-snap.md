@@ -42,6 +42,24 @@ that would also stop a press focusing a control in a slide, so the drag no
 longer reads its position back from the viewport but once per move, after
 its own write, as the browser clamped it.
 
+It still never fights the user. Mid-drag, the drag honours these scrolls it
+did not make, and goes on, and is released, from where the viewport is:
+
+- the user's wheel along the axis, and a key that scrolls, as `onKeyDown`
+  counts one: for 500ms after each such event, as long as the browser's
+  smooth scroll for it runs, the drag reads where it is from the viewport;
+- a new layout: a refresh, as the engine makes for a resize, a slide added
+  or removed, or a change of orientation, and a change of `dir`. Measured
+  in Chromium and WebKit, a slide removed before the one held moves the
+  viewport by its size, to keep what shows in place. The drag reads where
+  it is from the viewport once, at its next move or its release.
+
+Every other scroll mid-drag is the browser's own, and the drag's next move
+undoes it: WebKit's scroll back after the press, above, and a focus scroll,
+as of a control the press itself focused. Neither can be told from the
+other by an event, and both are the press's, not the user's input. Within
+the 500ms after a wheel or key, WebKit's scroll back is honoured too.
+
 **A move's lifecycle (amended for #41).** A _move_ is a scroll the engine
 started: a step, a `scrollTo`, a drag's release. The engine is _idle_ or
 _moving_ to a target snap point; `startMove` and `endMove` own that state
@@ -82,8 +100,11 @@ event cannot say which move it ends. The events, and what each does:
   on, short of its target, which stopped the browser's scroll there; and
   an arrow key's scroll, whose `scrollend` WebKit sent part way, was
   re-snapped back where it began. A scroll event before the frame waits
-  for quiet again. The cost: where no frame renders at all, as in a hidden
-  tab, such a move does not end, nor a re-snap come, until one does.
+  for quiet again. In a hidden document, which renders no frame, quiet
+  decides at once, as before, so a move started in a background tab, as
+  autoplay's, still settles and reports. The cost: a browser that stops
+  rendering frames in a visible document holds such a move, or re-snap,
+  until it renders one.
 - _A new layout and a scroll with no end event_ (amended for #87): a
   scroll whose end event never came left a stale scrolling flag. Measured
   in Chromium: the scroll a shorter scroll range makes, as when slides are
@@ -211,8 +232,9 @@ back, and the deck undoes the new move. The cost of the model: a move whose
 scroll sends no scroll event for two quiets in a row, each with a frame
 after it, ends short of its target. That needs two long tasks with a frame
 but no scroll between them, or a browser that pauses the scroll while it
-renders; neither was measured. A browser that renders no frame, as in a
-hidden tab, holds the move until it does (amended for #123). The
+renders; neither was measured. A visible document that renders no frame
+holds the move until it does; a hidden one ends it at quiet as before
+(amended for #123). The
 deck then settles where the viewport is, and settles again at the scroll's
 own end, if one comes, with one more `onIndexChange`.
 
