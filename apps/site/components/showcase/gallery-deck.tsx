@@ -35,30 +35,40 @@ const ITEMS: Product[] = [
   }
 ];
 
-/** A thumbnail per photo in place of dots: the custom controls recipe, with
- * an image in each page button. It reads the deck only when it settles. */
-function Thumbnails() {
-  const { index, fits, scrollTo } = Deck.useDeck();
-  if (fits) return null;
+/** A thumbnail per page in place of dots: the custom controls recipe, with
+ * an image in each page button. None until the deck is measured, as
+ * `count` is null on the server, so no button is in the HTML before it can
+ * work. It reads the deck only when it settles. */
+function Thumbnails({ eager }: { eager: boolean }) {
+  const { index, count, fits, scrollTo } = Deck.useDeck();
+  // Space for the row either way, so it does not shift the page in.
   return (
-    <div role="group" aria-label="Choose page" className="gallery-thumbs">
-      {ITEMS.map((item, page) => (
-        <button
-          key={item.name}
-          type="button"
-          aria-label={`Go to page ${String(page + 1)}`}
-          aria-current={page === index ? 'true' : undefined}
-          onClick={() => scrollTo(page)}
-        >
-          <img
-            src={item.thumb.src}
-            width={item.thumb.width}
-            height={item.thumb.height}
-            alt=""
-            loading="lazy"
-          />
-        </button>
-      ))}
+    <div className="gallery-thumbs">
+      {!fits && count !== null && (
+        <div role="group" aria-label="Choose page">
+          {Array.from({ length: count }, (_, page) => {
+            const item = ITEMS[page];
+            return (
+              <button
+                key={item.name}
+                type="button"
+                aria-label={`Show ${item.name}`}
+                aria-current={page === index ? 'true' : undefined}
+                onClick={() => scrollTo(page)}
+              >
+                {/* Eager where the gallery is above the fold. */}
+                <img
+                  src={item.thumb.src}
+                  width={item.thumb.width}
+                  height={item.thumb.height}
+                  alt=""
+                  loading={eager ? 'eager' : 'lazy'}
+                />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -87,7 +97,7 @@ export default function GalleryDeck({ eager = false }: { eager?: boolean }) {
           </Deck.Slide>
         ))}
       </Deck.Viewport>
-      <Thumbnails />
+      <Thumbnails eager={eager} />
     </Deck.Root>
   );
 }
