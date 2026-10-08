@@ -1,3 +1,4 @@
+import { cloudflarePages } from '@pagedeck/adapter-cloudflare-pages';
 import { defineCollection } from '@pagedeck/content';
 import { defineMarkdownLoader } from '@pagedeck/markdown-loader';
 import { defineConfig, fromCollection, SECURITY_HEADERS } from '@pagedeck/core';
@@ -20,6 +21,7 @@ export default defineConfig({
       layout: './components/layout.tsx',
       deck: './components/placeholder-deck.tsx'
     },
-    routing: { headers: [{ prefix: '/', set: [...SECURITY_HEADERS] }] }
+    routing: { headers: [{ prefix: '/', set: [...SECURITY_HEADERS] }] },
+    adapter: cloudflarePages()
   }
 });

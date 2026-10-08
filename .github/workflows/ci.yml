@@ -46,3 +46,83 @@ jobs:
         timeout-minutes: 15
       # The one gate, the same command a developer runs locally.
       - run: pnpm verify
+      # The site `pnpm verify` built, for `deploy-site` to upload as it is.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: site
+          path: apps/site/site
+          if-no-files-found: error
+          retention-days: 1
+
+  # Uploads the site to Cloudflare Pages (project `slidedeck`): production from
+  # a push to `main`, a preview at https://pr-<number>.slidedeck.pages.dev from
+  # a pull request. A job here rather than its own workflow, so it waits on the
+  # `pnpm verify` above and uploads the build that run checked, with no second
+  # verify. See AGENTS.md, "Site".
+  #
+  # A fork, and a pull request from one, get no secrets: the job is skipped,
+  # which passes, rather than run and fail.
+  deploy-site:
+    needs: verify
+    if: >-
+      github.repository == 'pedrosousa13/slidedeck' &&
+      (github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write # the preview comment
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: corepack enable
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      # For the pinned wrangler only: this job builds nothing, and
+      # `--ignore-scripts` keeps every dependency's lifecycle script out of the
+      # job that holds the Cloudflare token.
+      - run: pnpm install --frozen-lockfile --ignore-scripts --filter @slidedeck/site
+      - uses: actions/download-artifact@v8
+        with:
+          name: site
+          path: apps/site/site
+
+      # Fails before anything is uploaded when a secret is missing, and says
+      # which, rather than leaving it to wrangler's error.
+      - name: Check the Cloudflare secrets are set
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=""
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing. Nothing was deployed. See AGENTS.md, Site."
+            exit 1
+          fi
+
+      # `main` is the Pages project's production branch; any other is a preview.
+      - name: Deploy to Cloudflare Pages
+        working-directory: apps/site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+          BRANCH: ${{ github.event_name == 'push' && 'main' || format('pr-{0}', github.event.pull_request.number) }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm exec wrangler pages deploy site --project-name slidedeck --branch "$BRANCH" --commit-hash "$COMMIT"
+
+      # Prints the URLs and, on a pull request, writes them into its one
+      # preview comment.
+      - name: Report the deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/site-preview.mjs

@@ -96,6 +96,29 @@ package: GitHub Actions, `pedrosousa13` / `slidedeck` / `release.yml`, no
 environment. Then delete the `NPM_TOKEN` secret; later releases publish over
 OIDC. Done on 2026-10-07 (#79): releases now publish over OIDC only.
 
+## Site
+
+The site is `apps/site`, a pagedeck site. `pnpm build` writes it to
+`apps/site/site/`, with the `_headers` and `_redirects` that
+`@pagedeck/adapter-cloudflare-pages` compiles from its routing, security
+headers included.
+
+**It deploys from CI**, in the `deploy-site` job of `ci.yml`, after `verify`
+passes. The job uploads the `apps/site/site/` that `verify` built, with the
+pinned `wrangler` in `apps/site`, to the Cloudflare Pages project `slidedeck`,
+a Direct Upload project:
+
+- a push to `main` deploys production, https://slidedeck.pages.dev.
+- a pull request from this repository deploys a preview at
+  `https://pr-<number>.slidedeck.pages.dev`, and keeps one comment on the
+  pull request with that URL and the URL of the latest deployment.
+- a pull request from a fork gets no secrets, so the job is skipped, and CI
+  passes without a deploy.
+
+It needs two repository secrets: `CLOUDFLARE_API_TOKEN`, a token with Account
+· Cloudflare Pages · Edit, and `CLOUDFLARE_ACCOUNT_ID`. The job fails loudly,
+before it uploads anything, if either is missing.
+
 ## Agent skills
 
 ### Issue tracker
