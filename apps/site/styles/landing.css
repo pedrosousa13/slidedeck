@@ -340,7 +340,8 @@
   .landing-hero,
   .landing-band,
   .landing-curve,
-  .landing-quickstart {
+  .landing-quickstart,
+  .landing-examples {
     padding-block: 72px;
   }
 }
@@ -586,6 +587,55 @@
   background-color: var(--tile) !important;
   font-size: 15px;
   line-height: 1.75;
+}
+
+/* The examples teaser: two of the Examples page's decks, in its frames
+   (examples.css). */
+
+.landing-examples {
+  box-sizing: border-box;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--section-padding) var(--gutter);
+  text-align: center;
+}
+
+.landing-examples h2 {
+  margin: 0;
+  font-size: clamp(32px, 4vw, 48px);
+  letter-spacing: -0.02em;
+}
+
+.landing-examples > p {
+  max-width: 600px;
+  margin: 16px auto 40px;
+  color: var(--secondary);
+  font-size: 19px;
+  line-height: 1.45;
+}
+
+.landing-examples-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 32px;
+  text-align: start;
+}
+
+.landing-examples > a {
+  font-size: 17px;
+  text-decoration: none;
+}
+
+.landing-examples > a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 800px) {
+  .landing-examples-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* The comparison. */
