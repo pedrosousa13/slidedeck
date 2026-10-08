@@ -2,7 +2,8 @@
 
 import * as Deck from '@slidedeck/react';
 
-// The Quickstart's deck, as its code block has it.
+// The deck the Quickstart's code block builds, written out again here: no
+// check holds the two to each other.
 export default function Quickstart() {
   return (
     <Deck.Root aria-label="Featured products">
