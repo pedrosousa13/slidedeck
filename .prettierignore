@@ -10,3 +10,6 @@ pnpm-lock.yaml
 docs/agents/
 # Throwaway prototype measurement output (#3); gitignored in the prototype.
 prototypes/scroll-snap/measure-results/
+# The site's build output and build reports, gitignored in apps/site.
+apps/site/site/
+apps/site/.pagedeck/

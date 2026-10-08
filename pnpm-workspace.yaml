@@ -12,5 +12,10 @@ packages:
 # advisory yet, so only time separates us from it. A frozen-lockfile install
 # replays resolutions that already happened and is unaffected.
 minimumReleaseAge: 1440
+# pagedeck is the maintainer's own framework, released by its own workflow
+# and developed alongside apps/site, so by the maintainer's decision its
+# releases skip the 24-hour hold.
+minimumReleaseAgeExclude:
+  - '@pagedeck/*'
 allowBuilds:
   esbuild@0.28.2: true
