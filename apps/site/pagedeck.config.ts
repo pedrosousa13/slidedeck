@@ -84,9 +84,11 @@ export default defineConfig({
     }),
     css: ['./styles/site.css', './styles/docs.css'],
     // Every page's stylesheets inline in its HTML, so none blocks the first
-    // paint (#122). Not the Examples page: its photos, not its CSS, decide
-    // its LCP, and painting earlier only starts them sooner.
-    criticalCss: { '/**': true, '/examples/': false },
+    // paint (#122). Every page, not only the landing page as pagedeck's
+    // critical-css.md suggests: the docs and example pages are entry points
+    // from search, and PageSpeed and real first visits load them cold. The
+    // measured cost is about 5-8 KB gzip per page, and no shared sheet cache.
+    criticalCss: { '/**': true },
     // Each page's title, description, share card and structured data, from
     // the page itself: lib/seo.ts.
     head: (page, store) => headOf(page, store, pages),
