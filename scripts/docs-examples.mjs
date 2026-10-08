@@ -28,7 +28,10 @@ const SITE_DOCS = 'apps/site/docs';
 // code does.
 const OUT = 'apps/storybook/node_modules/.cache/docs-examples';
 
-const FENCE = /^```(\w*)\s*$/;
+// A fence of three or more backticks or tildes, indented or not, and the
+// first word of its info string: `tsx` in ```tsx title="a.tsx"`.
+const FENCE = /^( *)(`{3,}|~{3,})\s*([^\s`]*)/;
+const CLOSE = /^ *(`{3,}|~{3,})\s*$/;
 const MARKER = /^<!-- example: (\S+) -->$/;
 const LANGUAGES = new Set(['ts', 'tsx']);
 
@@ -63,13 +66,28 @@ export const extractExamples = (markdown) => {
     }
     const fence = FENCE.exec(text);
     if (!fence) continue;
-    const language = fence[1] ?? '';
-    const close = lines.findIndex((l, j) => j > i && FENCE.test(l));
+    const indent = fence[1]?.length ?? 0;
+    const opening = fence[2] ?? '```';
+    const language = fence[3] ?? '';
+    // Closed by a fence of the same character, at least as long.
+    const close = lines.findIndex((l, j) => {
+      const closing = j > i ? CLOSE.exec(l)?.[1] : undefined;
+      return (
+        closing !== undefined &&
+        closing[0] === opening[0] &&
+        closing.length >= opening.length
+      );
+    });
     if (close === -1) {
       throw new Error(`The code block on line ${i + 1} is never closed.`);
     }
     if (LANGUAGES.has(language) || (file !== undefined && language === 'css')) {
-      const code = lines.slice(i + 1, close).join('\n') + '\n';
+      // Each line loses as much of the fence's indent as it has.
+      const code =
+        lines
+          .slice(i + 1, close)
+          .map((l) => l.replace(new RegExp(`^ {0,${indent}}`), ''))
+          .join('\n') + '\n';
       examples.push({ line: i + 2, language, code, file });
     }
     file = undefined;

@@ -106,3 +106,43 @@ test('the checked files are the README and every page of the site docs', () => {
     'apps/site/docs/index.md'
   ]);
 });
+
+test('a fence with more after its language is checked as that language', () => {
+  const markdown = ['```tsx title="a.tsx"', 'export {};', '```'].join('\n');
+  assert.deepEqual(extractExamples(markdown), [
+    { line: 2, language: 'tsx', code: 'export {};\n', file: undefined }
+  ]);
+});
+
+test('an indented fence, as in a list, is checked without its indent', () => {
+  const markdown = [
+    '- A step:',
+    '',
+    '  ```ts',
+    '  const a = 1;',
+    '    const b = 2;',
+    '  ```'
+  ].join('\n');
+  assert.deepEqual(extractExamples(markdown), [
+    {
+      line: 4,
+      language: 'ts',
+      code: 'const a = 1;\n  const b = 2;\n',
+      file: undefined
+    }
+  ]);
+});
+
+test('a tilde fence is checked as a backtick one is', () => {
+  const markdown = ['~~~tsx', 'export {};', '~~~'].join('\n');
+  assert.deepEqual(extractExamples(markdown), [
+    { line: 2, language: 'tsx', code: 'export {};\n', file: undefined }
+  ]);
+});
+
+test('a longer fence holds a shorter one as code', () => {
+  const markdown = ['````tsx', '```', 'export {};', '````'].join('\n');
+  assert.deepEqual(extractExamples(markdown), [
+    { line: 2, language: 'tsx', code: '```\nexport {};\n', file: undefined }
+  ]);
+});
