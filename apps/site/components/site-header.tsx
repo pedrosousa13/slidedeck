@@ -1,11 +1,9 @@
-// The package README, until the site has its own docs (#110) and examples
-// (#109): pagedeck refuses a link to a page the build does not emit.
-const README =
-  'https://github.com/pedrosousa13/slidedeck/tree/main/packages/react';
+import type { ReactNode } from 'react';
 
 // The nav bar, rendered as build.chrome before the page's <main>. No
-// 'use client': it ships no JavaScript.
-export default function SiteHeader() {
+// 'use client': it ships no JavaScript. Its children, the search island,
+// sit at the end of the nav.
+export default function SiteHeader({ children }: { children?: ReactNode }) {
   return (
     <header className="site-header">
       <div className="site-header-inner">
@@ -13,12 +11,13 @@ export default function SiteHeader() {
           slidedeck
         </a>
         <nav aria-label="Site">
-          <a href={`${README}#readme`}>Docs</a>
-          <a href={`${README}#recipes`}>Examples</a>
+          <a href="/docs/">Docs</a>
+          <a href="/docs/recipes/">Examples</a>
           <a href="https://github.com/pedrosousa13/slidedeck">GitHub</a>
-          <a className="site-install" href={`${README}#install`}>
+          <a className="site-install" href="/docs/install/">
             Install
           </a>
+          {children}
         </nav>
       </div>
     </header>

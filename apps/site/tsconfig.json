@@ -3,9 +3,11 @@
   "compilerOptions": {
     "composite": true,
     "noEmit": true,
+    // pagedeck.config.ts imports lib/docs.ts by its file name, as Node runs it.
+    "allowImportingTsExtensions": true,
     "types": ["node"],
     "tsBuildInfoFile": "../../node_modules/.cache/tsbuildinfo/site.tsbuildinfo"
   },
   "references": [{ "path": "../../packages/react" }],
-  "include": ["pagedeck.config.ts", "components/**/*"]
+  "include": ["pagedeck.config.ts", "components/**/*", "lib/**/*"]
 }

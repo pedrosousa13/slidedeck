@@ -2,6 +2,14 @@ import { cloudflarePages } from '@pagedeck/adapter-cloudflare-pages';
 import { defineCollection } from '@pagedeck/content';
 import { defineMarkdownLoader } from '@pagedeck/markdown-loader';
 import { defineConfig, fromCollection, SECURITY_HEADERS } from '@pagedeck/core';
+import { defineSearch } from '@pagedeck/search';
+import {
+  docs,
+  docsContent,
+  docsRoute,
+  everyDocsPage,
+  exampleComponents
+} from './lib/docs.ts';
 
 const pages = defineCollection({
   name: 'pages',
@@ -17,11 +25,22 @@ const pages = defineCollection({
 });
 
 export default defineConfig({
-  collections: [pages],
+  collections: [pages, docs],
   build: {
-    pages: [fromCollection(pages, { layout: 'layout' })],
+    pages: [
+      fromCollection(pages, { layout: 'layout' }),
+      fromCollection(docs, {
+        route: docsRoute,
+        sharedDependsOn: everyDocsPage
+      })
+    ],
+    // The docs pages: pages with no layout.
+    content: docsContent,
     components: {
       layout: './components/layout.tsx',
+      'docs-page': './components/docs-page.tsx',
+      ...exampleComponents,
+      search: { path: '@pagedeck/search/island', hydrate: 'idle' },
       header: './components/site-header.tsx',
       footer: './components/site-footer.tsx',
       deck: './components/placeholder-deck.tsx'
@@ -29,10 +48,25 @@ export default defineConfig({
     // Around pagedeck's <main>, not in the layout, so the nav bar and the
     // footer are the page's banner and contentinfo landmarks.
     chrome: () => ({
-      before: [{ component: 'header' }],
+      before: [
+        {
+          component: 'header',
+          children: [
+            {
+              component: 'search',
+              props: {
+                locale: 'en',
+                label: 'Search the docs',
+                emptyLabel: 'No page matches'
+              }
+            }
+          ]
+        }
+      ],
       after: [{ component: 'footer' }]
     }),
-    css: ['./styles/site.css'],
+    css: ['./styles/site.css', './styles/docs.css'],
+    search: defineSearch(),
     routing: { headers: [{ prefix: '/', set: [...SECURITY_HEADERS] }] },
     adapter: cloudflarePages()
   }

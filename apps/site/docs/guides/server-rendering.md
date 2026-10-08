@@ -1,0 +1,34 @@
+# Server rendering
+
+The primitives render on the server. Server HTML rests at `defaultIndex`
+before any script runs where the browser supports `scroll-initial-target`;
+elsewhere a layout effect moves there before the first paint. Either way there
+is no layout shift with one slide per snap point.
+
+The server cannot measure, so it renders Prev and Next, and Dots and Counter
+with one page per slide. Hydration corrects them where that is wrong: it
+removes the controls when every slide fits, and recounts Dots and Counter when
+several slides share a snap point or the deck snaps in pages. Where `Deck.Root`
+cannot see the slides ahead of time, as when `Deck.Viewport` sits inside your
+own component, Dots and Counter render empty until hydration. `useDeck()`
+reports a `count` of `null` on the server, so a counter built on it renders
+its total at hydration.
+
+A React Server Components framework such as the Next.js App Router renders
+the deck straight from a server component, `effect={fade}` and the theme
+included. The client entries, `@slidedeck/react` and its effects, start with
+`'use client'`. Under the `react-server` export condition, which these
+frameworks resolve for a server component, `@slidedeck/react` resolves to a
+server entry instead. Its `Deck.Root` is a server component that counts the
+slides, so Dots and Counter count a page per slide there too. Every other
+export is the client entry's own. A framework that does not resolve
+`react-server` gets the client entry, and Dots and Counter render empty until
+hydration.
+
+In a server file, `Deck.Root` is a server component, not a client reference.
+Render it there as an element. Passing it as a value to a client component,
+as in `as={Deck.Root}`, fails: import it in your client component instead.
+Function props, such as `onIndexChange` and `onFocalChange`, and a `ref` to
+the handle cannot cross from a server component: render the deck from your own
+client component to use them. An effect of your own crosses only from a module
+that starts with `'use client'`.

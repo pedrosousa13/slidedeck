@@ -1,0 +1,642 @@
+/*
+ * The docs, under /docs/, and the search in the nav bar. Colours, type and
+ * radii come from the tokens in site.css; this file adds none of its own
+ * colours, so the dark scheme needs nothing here.
+ */
+
+:root {
+  --docs-sidebar: 220px;
+  --docs-measure: 760px;
+  --radius-tile: 28px;
+  --radius-code: 18px;
+}
+
+/* Search, the island at the end of the nav bar. */
+
+.site-header .fw-search {
+  position: relative;
+  margin-left: 12px;
+}
+
+/* A magnifier in the field, drawn in the secondary text colour. */
+.site-header .fw-search::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  width: 12px;
+  height: 12px;
+  translate: 0 -50%;
+  background-color: var(--secondary);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Ccircle cx='5' cy='5' r='3.9' fill='none' stroke='black' stroke-width='1.6'/%3E%3Cpath d='M8 8l3.2 3.2' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  pointer-events: none;
+}
+
+/* The label stays the input's accessible name; the magnifier shows what the
+   field is for. */
+.site-header .fw-search__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.site-header .fw-search__input {
+  box-sizing: border-box;
+  width: 180px;
+  height: 28px;
+  padding: 0 12px 0 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background-color: var(--control);
+  color: var(--control-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.site-header .fw-search__input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.site-header .fw-search__results,
+.site-header .fw-search__empty {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 320px;
+  max-width: calc(100vw - 2 * var(--gutter));
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background-color: var(--ground);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.12);
+  font-size: 14px;
+}
+
+.site-header .fw-search__empty {
+  padding: 12px 14px;
+  color: var(--secondary);
+}
+
+.site-header .fw-search__result {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.site-header .fw-search__result:hover,
+.site-header .fw-search__result[aria-selected='true'] {
+  background-color: var(--tile);
+}
+
+/* Below 768px the links fill the bar, so the search takes a row of its own
+   under them, as wide as the page. */
+@media (max-width: 767px) {
+  .site-header:has(.fw-search) {
+    padding-bottom: 48px;
+  }
+
+  .site-header .fw-search {
+    position: absolute;
+    right: var(--gutter);
+    bottom: 10px;
+    left: var(--gutter);
+    margin: 0;
+  }
+
+  .site-header .fw-search__input {
+    width: 100%;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .site-header .fw-search::before {
+    top: 16px;
+  }
+
+  .site-header .fw-search__results,
+  .site-header .fw-search__empty {
+    left: 0;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* The page: a sidebar, then the article. */
+
+.docs {
+  display: grid;
+  grid-template-columns: var(--docs-sidebar) minmax(0, 1fr);
+  gap: 64px;
+  box-sizing: border-box;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 64px var(--gutter) var(--section-padding);
+}
+
+.docs-sidebar {
+  font-size: 14px;
+}
+
+.docs-sidebar section + section {
+  margin-top: 28px;
+}
+
+.docs-sidebar h2 {
+  margin: 0 0 8px;
+  padding: 0 10px;
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.docs-sidebar ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.docs-sidebar a {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--text);
+  line-height: 1.3;
+  text-decoration: none;
+}
+
+.docs-sidebar a:hover {
+  text-decoration: underline;
+}
+
+.docs-sidebar a[aria-current='page'] {
+  background-color: var(--tile);
+  font-weight: 600;
+}
+
+.docs-article {
+  min-width: 0;
+  max-width: var(--docs-measure);
+}
+
+.docs-article h1 {
+  margin: 0 0 32px;
+  font-size: clamp(36px, 5vw, 48px);
+}
+
+/* On this page: a quiet tile under the title. */
+.docs-toc {
+  margin: 0 0 40px;
+  padding: 20px 24px;
+  border-radius: var(--radius-code);
+  background-color: var(--tile);
+  font-size: 15px;
+}
+
+.docs-toc p {
+  margin: 0 0 8px;
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.docs-toc ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.docs-toc a {
+  display: inline-block;
+  padding: 4px 0;
+  text-decoration: none;
+}
+
+.docs-toc a:hover {
+  text-decoration: underline;
+}
+
+/* The page's own text, from markdown. */
+
+.docs-prose {
+  line-height: 1.6;
+}
+
+.docs-prose > :first-child {
+  margin-top: 0;
+}
+
+.docs-prose h2 {
+  margin: 64px 0 16px;
+  font-size: 28px;
+  letter-spacing: -0.01em;
+}
+
+.docs-prose h3 {
+  margin: 40px 0 12px;
+  font-size: 21px;
+}
+
+.docs-prose p,
+.docs-prose ul,
+.docs-prose ol {
+  margin: 0 0 20px;
+}
+
+.docs-prose li + li {
+  margin-top: 6px;
+}
+
+.docs-prose :not(pre) > code {
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+  background-color: var(--tile);
+  font-size: 0.88em;
+}
+
+/* Code: a tile, in the highlighter's colours for the scheme. The tile, not
+   the theme, gives the background, in both schemes. */
+.docs-prose pre {
+  box-sizing: border-box;
+  margin: 0 0 24px;
+  padding: 24px 28px;
+  overflow-x: auto;
+  border-radius: var(--radius-code);
+  background-color: var(--tile) !important;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.docs-prose pre span {
+  background-color: transparent !important;
+}
+
+/* The light theme's comment grey is 4.5:1 on white but not on the tile, so
+   comments take the secondary text colour, which clears it in both schemes. */
+.docs-prose pre span[style*='color:#6E7781'] {
+  color: var(--secondary) !important;
+}
+
+.docs-table {
+  margin: 0 0 24px;
+  overflow-x: auto;
+}
+
+.docs-table table {
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.docs-table th,
+.docs-table td {
+  padding: 10px 14px 10px 0;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+.docs-table th {
+  font-weight: 600;
+}
+
+/* Previous and next. */
+
+.docs-pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 72px;
+  padding-top: 32px;
+  border-top: 1px solid var(--rule);
+}
+
+.docs-pager a {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 17px;
+  text-decoration: none;
+}
+
+.docs-pager a:hover {
+  text-decoration: underline;
+}
+
+.docs-pager a[rel='next'] {
+  margin-left: auto;
+  text-align: right;
+}
+
+.docs-pager span {
+  color: var(--secondary);
+  font-size: 12px;
+}
+
+/* A phone or a narrow window: the sidebar stacks above the article, two
+   columns of links, and scrolls away with the page. */
+@media (max-width: 900px) {
+  .docs {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+    padding-top: 32px;
+  }
+
+  .docs-sidebar {
+    columns: 2;
+    column-gap: 16px;
+    padding: 16px 6px;
+    border-radius: var(--radius-code);
+    background-color: var(--tile);
+  }
+
+  .docs-sidebar section {
+    break-inside: avoid;
+    margin-bottom: 16px;
+  }
+
+  .docs-sidebar section + section {
+    margin-top: 0;
+  }
+
+  .docs-sidebar a[aria-current='page'] {
+    background-color: var(--ground);
+  }
+}
+
+/* A live example: a framed block after the page's intro. */
+
+.docs-example {
+  margin: 8px 0 40px;
+  padding: 28px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-tile);
+}
+
+.docs-example figcaption {
+  margin: 0 0 20px;
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Border-box, so a recipe's padding stays inside the deck's width. */
+.docs-example [data-slidedeck-viewport] {
+  box-sizing: border-box;
+  border-radius: 20px;
+}
+
+/* A second deck in one example, as on Effects, sits apart from the first. */
+.docs-example fw-island + fw-island > [aria-roledescription='carousel'] {
+  margin-top: 40px;
+}
+
+.docs-example [data-slidedeck-slide] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 200px;
+  border-radius: 20px;
+  background-color: var(--tile);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.docs-example [data-slidedeck-counter] {
+  color: var(--secondary);
+  font-size: 14px;
+}
+
+/* An example's own controls, built on Deck.useDeck(): the deck controls'
+   pills. */
+.docs-controls {
+  display: flex;
+  flex: 0 0 100%;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 14px;
+}
+
+.docs-controls [role='group'] {
+  display: flex;
+  gap: 4px;
+}
+
+.docs-controls button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background-color: var(--control);
+  color: var(--control-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.docs-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.docs-controls button[aria-current='true'] {
+  background-color: var(--text);
+  color: var(--ground);
+}
+
+/* Each example's CSS: the page's own, on a class of the example's deck in
+   place of `.products` or `.showcase`. */
+
+/* Layout is CSS, Drag, and right-to-left: two and a half in view, centred. */
+.example-layout [data-slidedeck-viewport] {
+  gap: 16px;
+}
+.example-layout [data-slidedeck-slide] {
+  width: calc((100% - 2 * 16px) / 2.5);
+  scroll-snap-align: center;
+}
+
+/* Focal slide: three in view, centred; the focal one outlined. */
+.example-focal [data-slidedeck-viewport] {
+  gap: 16px;
+}
+.example-focal [data-slidedeck-slide] {
+  width: calc((100% - 2 * 16px) / 3);
+  scroll-snap-align: center;
+  cursor: pointer;
+}
+.example-focal [data-slidedeck-slide][data-focal] {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+/* Loop: part of each neighbour in view, so the seam shows. */
+.example-loop [data-slidedeck-viewport] {
+  gap: 16px;
+}
+.example-loop [data-slidedeck-slide] {
+  width: 70%;
+  scroll-snap-align: center;
+}
+
+/* Vertical: the viewport's height, which each slide fills. */
+.example-vertical [data-slidedeck-viewport] {
+  height: 240px;
+}
+.example-vertical [data-slidedeck-slide] {
+  min-height: 0;
+}
+
+/* Pages: three slides to a page from 640px. */
+.example-pages [data-slidedeck-viewport] {
+  gap: 16px;
+}
+@media (min-width: 640px) {
+  .example-pages [data-slidedeck-slide] {
+    width: calc((100% - 2 * 16px) / 3);
+  }
+  .example-pages [data-slidedeck-slide]:nth-child(3n + 1) {
+    scroll-snap-align: start;
+  }
+  .example-pages [data-slidedeck-slide]:not(:nth-child(3n + 1)) {
+    scroll-snap-align: none;
+  }
+}
+
+/* Progress: smaller with distance from the focal slide. */
+.example-progress [data-slidedeck-viewport] {
+  gap: 16px;
+}
+.example-progress [data-slidedeck-slide] {
+  width: calc((100% - 2 * 16px) / 2.5);
+  scroll-snap-align: center;
+  /* abs() spelled with max() for older browsers. */
+  scale: calc(
+    1 -
+      min(
+        max(var(--deck-slide-progress, 0), -1 * var(--deck-slide-progress, 0)),
+        1
+      ) *
+      0.2
+  );
+  transform-origin: center;
+}
+
+/* Curve: cards on an arc of 3 slides, with room for the slides that are not
+   faded out at rest. */
+.example-curve [data-slidedeck-viewport],
+.example-curve-size [data-slidedeck-viewport] {
+  --deck-curve-radius: 3;
+  gap: 16px;
+  padding-inline: calc(50% - 80px);
+}
+.example-curve [data-slidedeck-viewport] {
+  padding-block: 7px 150px;
+}
+.example-curve [data-slidedeck-slide],
+.example-curve-size [data-slidedeck-slide] {
+  width: 160px;
+  min-height: 0;
+  background: none;
+  scroll-snap-align: center;
+}
+.example-curve .card,
+.example-curve-size .card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 200px;
+  border-radius: 20px;
+  background-color: var(--tile);
+}
+
+/* Size a curve: the recipe's room, for a slide about to fade out. */
+.example-curve-size [data-slidedeck-viewport] {
+  padding-block: 7px 460px;
+}
+
+/* Centre the first and last slide. */
+.example-centred-ends {
+  --slide-width: 280px;
+}
+.example-centred-ends [data-slidedeck-viewport] {
+  gap: 16px;
+  padding-inline: calc(50% - var(--slide-width) / 2);
+}
+.example-centred-ends [data-slidedeck-slide] {
+  width: var(--slide-width);
+  scroll-snap-align: center;
+}
+
+/* Highlight the middle slide in view: centred. */
+.example-middle-centred [data-slidedeck-viewport],
+.example-middle-by-progress [data-slidedeck-viewport] {
+  gap: 16px;
+}
+.example-middle-centred [data-slidedeck-slide] {
+  width: calc((100% - 2 * 16px) / 3);
+  scroll-snap-align: center;
+}
+.example-middle-centred [data-slidedeck-slide][data-focal] {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+/* Highlight the middle slide in view: by progress. */
+.example-middle-by-progress [data-slidedeck-slide] {
+  width: calc((100% - 2 * 16px) / 3);
+  --from-middle: min(
+    max(var(--deck-slide-progress, 0) - 1, 1 - var(--deck-slide-progress, 0)),
+    1
+  );
+  outline: 3px solid
+    color-mix(
+      in srgb,
+      var(--accent) calc((1 - var(--from-middle)) * 100%),
+      transparent
+    );
+  outline-offset: -3px;
+}
+
+/* Per breakpoint: three in view from 768px; below it, fade. */
+@media (min-width: 768px) {
+  .example-per-breakpoint [data-slidedeck-viewport] {
+    gap: 16px;
+  }
+  .example-per-breakpoint [data-slidedeck-slide] {
+    width: calc((100% - 2 * 16px) / 3);
+  }
+}
+
+@media (max-width: 400px) {
+  .docs-example {
+    padding: 20px 16px;
+  }
+
+  .docs-prose pre {
+    padding: 20px;
+  }
+}
