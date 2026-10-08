@@ -47,7 +47,16 @@ export default defineConfig({
       // The landing page's decks: registered, so each is an island where the
       // landing page renders it.
       'feature-deck': './components/feature-deck.tsx',
-      'curve-deck': './components/curve-deck.tsx'
+      'curve-deck': './components/curve-deck.tsx',
+      // The Examples page, and its decks: each an island where a page renders
+      // it, the landing page's teaser too.
+      examples: './components/examples-page.tsx',
+      'gallery-deck': './components/showcase/gallery-deck.tsx',
+      'hero-deck': './components/showcase/hero-deck.tsx',
+      'testimonials-deck': './components/showcase/testimonials-deck.tsx',
+      'stories-deck': './components/showcase/stories-deck.tsx',
+      'rtl-deck': './components/showcase/rtl-deck.tsx',
+      'cover-flow-deck': './components/showcase/cover-flow-deck.tsx'
     },
     // Around pagedeck's <main>, not in the layout, so the nav bar and the
     // footer are the page's banner and contentinfo landmarks.

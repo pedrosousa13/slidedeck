@@ -12,7 +12,7 @@ export default function SiteHeader({ children }: { children?: ReactNode }) {
         </a>
         <nav aria-label="Site">
           <a href="/docs/">Docs</a>
-          <a href="/docs/recipes/">Examples</a>
+          <a href="/examples/">Examples</a>
           <a href="https://github.com/pedrosousa13/slidedeck">GitHub</a>
           <a className="site-install" href="/docs/install/">
             Install

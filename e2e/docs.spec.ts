@@ -102,7 +102,7 @@ test('the nav bar links the docs', async ({ page }) => {
   );
   await expect(nav.getByRole('link', { name: 'Examples' })).toHaveAttribute(
     'href',
-    '/docs/recipes/'
+    '/examples/'
   );
 });
 
