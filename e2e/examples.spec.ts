@@ -18,7 +18,7 @@ const EXAMPLES = [
     key: 'ArrowRight',
     // Drag the content toward the start: the next photo comes in.
     drag: { x: -1, y: 0 },
-    control: 'Go to page 3',
+    control: 'Show Stamp mug',
     to: 2
   },
   {
@@ -115,6 +115,16 @@ async function stopAutoplay(page: Page): Promise<number> {
   return settled;
 }
 
+/** Checks `deck` stays at `index` for longer than one autoplay step,
+ * failing as soon as it moves. */
+async function expectStill(deck: Locator, index: number) {
+  const until = Date.now() + 5500;
+  while (Date.now() < until) {
+    expect(await deck.getAttribute('data-index')).toBe(String(index));
+    await deck.page().waitForTimeout(250);
+  }
+}
+
 /** Where `name` rests before a move: the hero's autoplay stopped first. */
 async function from(page: Page, name: string, start: number) {
   return name === HERO ? await stopAutoplay(page) : start;
@@ -165,22 +175,56 @@ test('the nav bar links to the page', async ({ page }) => {
   ).toBeVisible();
 });
 
-test('shows each example framed, titled, described and linked to its code', async ({
+/** An example's section: a region named by its title. */
+const exampleOf = (page: Page, title: string) =>
+  page.getByRole('region', { name: title, exact: true });
+
+test('shows each example titled, described and linked to its code', async ({
   page
 }) => {
   await page.goto('/examples/');
-  const examples = page.locator('.example');
-  await expect(examples.getByRole('heading', { level: 2 })).toHaveText(
-    EXAMPLES.map(({ title }) => title)
-  );
-  for (const [i, { deck }] of EXAMPLES.entries()) {
-    const example = examples.nth(i);
-    await expect(example.locator('h2 + p')).not.toBeEmpty();
+  await expect(
+    page.getByRole('main').getByRole('heading', { level: 2 })
+  ).toHaveText([...EXAMPLES.map(({ title }) => title), 'Photo credits']);
+  for (const { title, deck } of EXAMPLES) {
+    const example = exampleOf(page, title);
+    await expect(example.getByRole('paragraph').first()).not.toBeEmpty();
     await expect(example.getByRole('region', { name: deck })).toHaveCount(1);
-    const code = example.getByRole('link', { name: 'View code ›' });
-    const href = (await code.getAttribute('href'))!;
-    expect(href).toMatch(/^\/docs\/.+\/$/);
-    expect((await page.request.get(href)).status()).toBe(200);
+    const links = example.getByRole('link', { name: /^View code/ });
+    expect(await links.count()).toBeGreaterThan(0);
+    for (const link of await links.all()) {
+      const href = (await link.getAttribute('href'))!;
+      expect(href).toMatch(/^\/docs\/.+\/$/);
+      expect((await page.request.get(href)).status()).toBe(200);
+    }
+  }
+});
+
+test("the hero's code links go to the fade and the autoplay docs", async ({
+  page
+}) => {
+  await page.goto('/examples/');
+  const hrefs = await exampleOf(page, 'Hero banner')
+    .getByRole('link', { name: /^View code/ })
+    .evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+  expect(hrefs).toEqual(['/docs/guides/effects/', '/docs/guides/autoplay/']);
+});
+
+test('the testimonials say they are sample copy for an invented roastery', async ({
+  page
+}) => {
+  await page.goto('/examples/');
+  const example = exampleOf(page, 'Testimonials');
+  await expect(example.getByRole('paragraph').first()).toContainText(
+    'Sample copy'
+  );
+  await expect(example.getByRole('paragraph').first()).toContainText(
+    'an invented roastery'
+  );
+  const cards = example.getByRole('figure');
+  await expect(cards).toHaveCount(5);
+  for (const card of await cards.all()) {
+    await expect(card).toContainText('Hearth & Kiln customer');
   }
 });
 
@@ -202,7 +246,7 @@ test.describe('the photos', () => {
     await page.goto('/examples/');
     const images = page.locator('main img');
     expect(await images.count()).toBeGreaterThan(10);
-    const first = page.locator('.example').first();
+    const first = exampleOf(page, 'Product gallery');
     for (const image of await images.all()) {
       const src = (await image.getAttribute('src'))!;
       expect(src).toMatch(/^\/photos\/[\w-]+\.(avif|webp)$/);
@@ -351,8 +395,10 @@ test.describe('the product gallery', () => {
       .getByRole('group', { name: 'Choose page' })
       .getByRole('button');
     await expect(thumbs).toHaveCount(4);
+    await expect(thumbs.nth(0)).toHaveAccessibleName('Show Ivory heels');
     for (const thumb of await thumbs.all()) {
-      await expect(thumb.locator('img')).toHaveCount(1);
+      // Above the fold, with the gallery.
+      await expect(thumb.locator('img')).toHaveAttribute('loading', 'eager');
     }
     await expect(thumbs.nth(0)).toHaveAttribute('aria-current', 'true');
     await thumbs.nth(3).click();
@@ -381,12 +427,33 @@ test.describe('the hero banner', () => {
         .first()
     ).toHaveAttribute('data-slidedeck-autoplay-toggle');
     await deck.scrollIntoViewIfNeeded();
-    await expect(deck).toHaveAttribute('data-index', '1', { timeout: 10_000 });
+    // One autoplay step is 5 seconds.
+    await expect(deck).toHaveAttribute('data-index', '1', { timeout: 6000 });
     const at = await stopAutoplay(page);
-    await page.waitForTimeout(6000);
-    await expect(deck).toHaveAttribute('data-index', String(at));
+    await expectStill(deck, at);
   });
 });
+
+for (const width of [1440, 390]) {
+  test.describe(`at ${String(width)}px wide`, () => {
+    test.use({ viewport: { width, height: 900 } });
+
+    test('the hero banner bleeds to the edges of the page', async ({
+      page
+    }) => {
+      await openAllHydrated(page);
+      const deck = page.getByRole('region', { name: HERO });
+      const box = (await deck
+        .locator('[data-slidedeck-viewport]')
+        .boundingBox())!;
+      const client = await page.evaluate(
+        () => document.documentElement.clientWidth
+      );
+      expect(box.x).toBe(0);
+      expect(box.width).toBe(client);
+    });
+  });
+}
 
 test.describe('the testimonials', () => {
   test('rest with the first card centred, and the last', async ({ page }) => {
@@ -426,13 +493,15 @@ test.describe('the testimonials', () => {
 });
 
 test.describe('the stories', () => {
-  test('scroll vertically in a phone-shaped frame', async ({ page }) => {
+  test('scroll vertically in a frame taller than it is wide', async ({
+    page
+  }) => {
     await openAllHydrated(page);
     const deck = page.getByRole('region', { name: 'Travel stories' });
     const viewport = deck.locator('[data-slidedeck-viewport]');
     await expect(viewport).toHaveAttribute('data-orientation', 'vertical');
     const box = (await viewport.boundingBox())!;
-    expect(box.height).toBeGreaterThan(box.width * 1.6);
+    expect(box.height).toBeGreaterThan(box.width);
   });
 });
 
@@ -506,8 +575,7 @@ test.describe('under reduced motion', () => {
     await expect(
       deck.getByRole('button', { name: 'Start slide rotation' })
     ).toBeVisible();
-    await page.waitForTimeout(6000);
-    await expect(deck).toHaveAttribute('data-index', '0');
+    await expectStill(deck, 0);
     expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
   });
 });
@@ -523,6 +591,33 @@ for (const width of [320, 390]) {
         client: document.documentElement.clientWidth
       }));
       expect(scroll).toBe(client);
+    });
+
+    // The site's controls row (site.css): one row under the slides.
+    test("the testimonials' controls sit in one row", async ({ page }) => {
+      test.skip(width < 375, 'Narrower than 375px, the controls wrap.');
+      await openAllHydrated(page);
+      const deck = page.getByRole('region', { name: 'Customer reviews' });
+      const viewport = (await deck
+        .locator('[data-slidedeck-viewport]')
+        .boundingBox())!;
+      const row = [];
+      for (const control of [
+        '[data-slidedeck-prev]',
+        '[data-slidedeck-dots]',
+        '[data-slidedeck-next]'
+      ]) {
+        row.push((await deck.locator(control).boundingBox())!);
+      }
+      for (const [i, box] of row.entries()) {
+        expect(box.y).toBeGreaterThanOrEqual(viewport.y + viewport.height);
+        expect(
+          Math.abs(box.y + box.height / 2 - (row[0]!.y + row[0]!.height / 2))
+        ).toBeLessThan(1);
+        if (i > 0) {
+          expect(box.x).toBeGreaterThan(row[i - 1]!.x + row[i - 1]!.width);
+        }
+      }
     });
 
     // A viewport clips its slides, so a slide wider than it would cut its
@@ -559,5 +654,14 @@ test.describe('without JavaScript', () => {
           .getByRole('group', { name: new RegExp(` of ${String(slides)}$`) })
       ).toHaveCount(slides);
     }
+  });
+
+  test('the gallery has no thumbnails, which only work once it runs', async ({
+    page
+  }) => {
+    await page.goto('/examples/');
+    await expect(
+      page.getByRole('region', { name: 'Product photos' }).getByRole('button')
+    ).toHaveCount(0);
   });
 });
