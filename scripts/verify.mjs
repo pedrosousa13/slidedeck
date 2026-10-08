@@ -19,7 +19,7 @@ const STEPS = [
   'test',
   'test:scripts',
   'build',
-  // The README's code blocks against the built packages.
+  // The README's and the site docs' code blocks against the built packages.
   'docs:check',
   // The README's comparison table against a fresh measurement.
   'compare:check',

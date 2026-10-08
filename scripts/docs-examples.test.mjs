@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { extractExamples } from './docs-examples.mjs';
+import { extractExamples, markdownFiles } from './docs-examples.mjs';
 
 test('extractExamples takes every ts and tsx block, with the line it starts on', () => {
   const markdown = [
@@ -84,4 +87,22 @@ test('a marker applies to the next block only', () => {
 
 test('an unclosed block is an error, not a silent skip', () => {
   assert.throws(() => extractExamples('```tsx\nconst a = 1;\n'), /line 1/);
+});
+
+test('the checked files are the README and every page of the site docs', () => {
+  const root = mkdtempSync(join(tmpdir(), 'docs-examples-'));
+  const write = (/** @type {string} */ file) => {
+    mkdirSync(join(root, file, '..'), { recursive: true });
+    writeFileSync(join(root, file), '');
+  };
+  write('packages/react/README.md');
+  write('apps/site/docs/index.md');
+  write('apps/site/docs/guides/loop.md');
+  write('apps/site/docs/guides/notes.txt');
+  write('apps/site/content/index.md');
+  assert.deepEqual(markdownFiles(root), [
+    'packages/react/README.md',
+    'apps/site/docs/guides/loop.md',
+    'apps/site/docs/index.md'
+  ]);
 });
