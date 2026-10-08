@@ -24,6 +24,7 @@
   --nav-text: #1d1d1f;
   --rule: #e5e5ea;
   --footer-rule: #d2d2d7;
+  --footer-text: #6e6e73;
   /* The dots pill and the play button. */
   --control: #e8e8ed;
   --control-text: #1d1d1f;
@@ -31,7 +32,6 @@
   --dot: #6e6e73;
   --dot-current: #1d1d1f;
 
-  --radius-tile: 28px;
   --radius-pill: 999px;
   --nav-height: 48px;
   --section-padding: 112px;
@@ -53,6 +53,8 @@
     --nav-text: #d2d2d7;
     --rule: #2c2c2e;
     --footer-rule: #2c2c2e;
+    /* 5.9:1 on the dark ground. */
+    --footer-text: #86868b;
     --control: rgb(66 66 69 / 0.72);
     --control-text: #f5f5f7;
     --dot: #86868b;
@@ -218,7 +220,7 @@ main {
   max-width: var(--measure);
   margin: 0 auto;
   padding: var(--gutter);
-  color: var(--secondary);
+  color: var(--footer-text);
   font-size: 12px;
 }
 
@@ -227,6 +229,26 @@ main {
  * round play/pause button. Plain CSS against slidedeck's data attributes, in
  * place of its optional theme.css.
  */
+
+/* The root holds the viewport and the controls; they wrap into one centred
+   row under the slides. */
+:has(> [data-slidedeck-viewport]) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+
+[data-slidedeck-viewport] {
+  flex: 0 0 100%;
+}
+
+/* First in the DOM, as the README asks, so a keyboard reaches it before the
+   slides; last in the row, as in the comps. */
+[data-slidedeck-autoplay-toggle] {
+  order: 1;
+}
 
 /* Prev and Next as pills of the same fill: a UA's own button colours do not
    all follow the scheme (WebKit keeps a light fill in dark). */
@@ -252,25 +274,26 @@ main {
 [data-slidedeck-dots] {
   display: inline-flex;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 7px;
   border-radius: var(--radius-pill);
   background-color: var(--control);
 }
 
-[data-slidedeck-dots] > button {
+[data-slidedeck-dots] [data-index] {
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  width: 18px;
+  /* A 24px target at least (WCAG 2.5.8) around an 8px dot. */
+  width: 24px;
   height: 44px;
-  padding: 0 5px;
+  padding: 0 8px;
   border: 0;
   background: transparent;
   cursor: pointer;
   transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-[data-slidedeck-dots] > button::before {
+[data-slidedeck-dots] [data-index]::before {
   content: '';
   flex: 1;
   height: 8px;
@@ -279,12 +302,13 @@ main {
   transition: background-color 0.3s;
 }
 
-[data-slidedeck-dots] > button[aria-current='true'] {
-  width: 58px;
+/* The current dot is 48px drawn, as in the comps. */
+[data-slidedeck-dots] [data-index][aria-current='true'] {
+  width: 64px;
 }
 
-[data-slidedeck-dots] > button[aria-current='true']::before,
-[data-slidedeck-dots] > button:hover::before {
+[data-slidedeck-dots] [data-index][aria-current='true']::before,
+[data-slidedeck-dots] [data-index]:hover::before {
   background-color: var(--dot-current);
 }
 
@@ -328,9 +352,22 @@ main {
   clip-path: none;
 }
 
+/* A phone: a deck's controls stay on one row down to 375px; narrower, they
+   wrap. */
+@media (max-width: 400px) {
+  :has(> [data-slidedeck-viewport]) {
+    gap: 8px;
+  }
+
+  [data-slidedeck-prev],
+  [data-slidedeck-next] {
+    padding: 0 14px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  [data-slidedeck-dots] > button,
-  [data-slidedeck-dots] > button::before {
+  [data-slidedeck-dots] [data-index],
+  [data-slidedeck-dots] [data-index]::before {
     transition: none;
   }
 }
@@ -338,14 +375,14 @@ main {
 /* Forced colours drop backgrounds, so the drawn dots and icon take system
    colours, the current dot highlighted. */
 @media (forced-colors: active) {
-  [data-slidedeck-dots] > button::before,
+  [data-slidedeck-dots] [data-index]::before,
   [data-slidedeck-autoplay-toggle]::before {
     forced-color-adjust: none;
     background-color: ButtonText;
   }
 
-  [data-slidedeck-dots] > button[aria-current='true']::before,
-  [data-slidedeck-dots] > button:hover::before {
+  [data-slidedeck-dots] [data-index][aria-current='true']::before,
+  [data-slidedeck-dots] [data-index]:hover::before {
     background-color: Highlight;
   }
 

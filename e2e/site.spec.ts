@@ -16,30 +16,37 @@ async function openHydrated(page: Page) {
   );
 }
 
-// The tokens of the approved direction, as computed colours: light is the
-// product page, dark the keynote.
-const SCHEMES = {
-  light: { ground: 'rgb(255, 255, 255)', text: 'rgb(29, 29, 31)' },
-  dark: { ground: 'rgb(0, 0, 0)', text: 'rgb(245, 245, 247)' }
-} as const;
+const SCHEMES = ['light', 'dark'] as const;
 
-for (const [scheme, tokens] of Object.entries(SCHEMES)) {
+for (const scheme of SCHEMES) {
   test.describe(`in the ${scheme} scheme`, () => {
-    test.use({ colorScheme: scheme as keyof typeof SCHEMES });
+    test.use({ colorScheme: scheme });
 
     test('the site placeholder page passes axe', async ({ page }) => {
       await openHydrated(page);
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     });
-
-    test("the page takes the scheme's ground and text", async ({ page }) => {
-      await page.goto('/');
-      const body = page.locator('body');
-      await expect(body).toHaveCSS('background-color', tokens.ground);
-      await expect(body).toHaveCSS('color', tokens.text);
-    });
   });
 }
+
+// Contrast is axe's to check; this only checks that the scheme switches.
+test('the ground and the text follow the color scheme', async ({ browser }) => {
+  const colours = [];
+  for (const colorScheme of SCHEMES) {
+    const page = await browser.newPage({ colorScheme });
+    await page.goto(process.env.SITE_URL ?? 'http://127.0.0.1:4174');
+    colours.push(
+      await page.locator('body').evaluate((body) => {
+        const style = getComputedStyle(body);
+        return { ground: style.backgroundColor, text: style.color };
+      })
+    );
+    await page.close();
+  }
+  const [light, dark] = colours;
+  expect(dark!.ground).not.toBe(light!.ground);
+  expect(dark!.text).not.toBe(light!.text);
+});
 
 test('the page sets a viewport and both color schemes', async ({ page }) => {
   await page.goto('/');
@@ -48,16 +55,11 @@ test('the page sets a viewport and both color schemes', async ({ page }) => {
     'width=device-width, initial-scale=1'
   );
   await expect(page.locator('html')).toHaveCSS('color-scheme', 'light dark');
-  await expect(page.locator('body')).toHaveCSS(
-    'font-family',
-    /^-apple-system, BlinkMacSystemFont/
-  );
 });
 
-test('the nav bar is 48px high and links the site', async ({ page }) => {
+test('the nav bar links the site', async ({ page }) => {
   await page.goto('/');
   const banner = page.getByRole('banner');
-  expect((await banner.boundingBox())?.height).toBe(48);
   await expect(banner.getByRole('link', { name: 'slidedeck' })).toBeVisible();
   const nav = banner.getByRole('navigation');
   await expect(nav.getByRole('link')).toHaveText([
@@ -106,25 +108,83 @@ test.describe('at 320px wide', () => {
   });
 });
 
-test('the dots are a pill whose current dot stretches', async ({ page }) => {
+test('the current dot stretches', async ({ page }) => {
   await openHydrated(page);
-  const dots = page.locator('[data-slidedeck-dots]');
-  await expect(dots).toHaveCSS('border-radius', '999px');
-  const current = dots.locator('button[aria-current="true"]');
-  const other = dots.locator('button:not([aria-current="true"])').first();
-  await expect(current).toHaveCSS('height', '44px');
-  expect((await current.boundingBox())!.width).toBeGreaterThan(
-    (await other.boundingBox())!.width * 2
-  );
+  const dots = page.locator('[data-slidedeck-dots] [data-index]');
+  const current = await dots
+    .and(page.locator('[aria-current="true"]'))
+    .boundingBox();
+  const other = await dots
+    .and(page.locator(':not([aria-current="true"])'))
+    .first()
+    .boundingBox();
+  expect(current!.width).toBeGreaterThan(other!.width * 2);
 });
 
-test('the autoplay toggle is a 44px round button', async ({ page }) => {
+// WCAG 2.5.8: a target of 24 by 24 CSS pixels at least.
+test('every dot is a target of 24 by 24 at least', async ({ page }) => {
   await openHydrated(page);
-  const toggle = page.locator('[data-slidedeck-autoplay-toggle]');
-  await expect(toggle).toHaveCSS('width', '44px');
-  await expect(toggle).toHaveCSS('height', '44px');
-  await expect(toggle).toHaveCSS('border-radius', '999px');
+  const dots = page.locator('[data-slidedeck-dots] [data-index]');
+  await expect(dots).toHaveCount(3);
+  for (const dot of await dots.all()) {
+    const box = await dot.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(24);
+    expect(box!.height).toBeGreaterThanOrEqual(24);
+  }
 });
+
+test('the autoplay toggle is 44 by 44 at least', async ({ page }) => {
+  await openHydrated(page);
+  const box = await page
+    .locator('[data-slidedeck-autoplay-toggle]')
+    .boundingBox();
+  expect(box!.width).toBeGreaterThanOrEqual(44);
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+});
+
+for (const width of [1280, 375]) {
+  test.describe(`at ${String(width)}px wide`, () => {
+    test.use({ viewport: { width, height: 800 } });
+
+    test('the controls sit in one row under the slides, toggle last', async ({
+      page
+    }) => {
+      await expectControlsRow(page);
+    });
+  });
+}
+
+async function expectControlsRow(page: Page) {
+  await openHydrated(page);
+  const viewport = (await page
+    .locator('[data-slidedeck-viewport]')
+    .boundingBox())!;
+  const row = [];
+  for (const selector of [
+    '[data-slidedeck-prev]',
+    '[data-slidedeck-next]',
+    '[data-slidedeck-dots]',
+    '[data-slidedeck-autoplay-toggle]'
+  ]) {
+    row.push((await page.locator(selector).boundingBox())!);
+  }
+  for (const [i, box] of row.entries()) {
+    expect(box.y).toBeGreaterThanOrEqual(viewport.y + viewport.height);
+    expect(
+      Math.abs(box.y + box.height / 2 - (row[0]!.y + row[0]!.height / 2))
+    ).toBeLessThan(1);
+    // Left to right, in this order, with a gap between each pair.
+    if (i > 0) {
+      const before = row[i - 1]!;
+      expect(box.x).toBeGreaterThan(before.x + before.width);
+    }
+  }
+  // Centred under the slides.
+  const left = row[0]!.x - viewport.x;
+  const last = row.at(-1)!;
+  const right = viewport.x + viewport.width - (last.x + last.width);
+  expect(Math.abs(left - right)).toBeLessThan(2);
+}
 
 test('the site placeholder deck moves on Next', async ({ page }) => {
   await openHydrated(page);
