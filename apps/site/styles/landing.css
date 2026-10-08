@@ -326,40 +326,6 @@
   color: var(--link);
 }
 
-/* Autoplay's start button, until slidedeck's toggle replaces it: the
-   toggle's look, stopped (site.css). */
-.feature-autoplay-start {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  border-radius: var(--radius-pill);
-  background-color: var(--control);
-  color: var(--control-text);
-  font-size: 0;
-  cursor: pointer;
-}
-
-.feature-autoplay-start::before {
-  content: '';
-  width: 12px;
-  height: 14px;
-  margin-left: 2px;
-  background-color: currentColor;
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
-}
-
-@media (forced-colors: active) {
-  .feature-autoplay-start::before {
-    forced-color-adjust: none;
-    background-color: ButtonText;
-  }
-}
-
 /* A phone: the tiles shorten and the drawings shrink to fit. */
 @media (max-width: 600px) {
   .feature-tile {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import * as Deck from '@slidedeck/react';
 // The landing page's styles, all of them: a server component's CSS import
 // reaches no page, so the page's first island carries it.
@@ -101,26 +101,10 @@ const FEATURES: Feature[] = [
   }
 ];
 
-/**
- * The feature gallery. Autoplay is off until the viewer starts it: slidedeck
- * starts a deck's `autoplay` on mount, so the deck has none, and so no
- * `Deck.AutoplayToggle`, until this start button sets it. From then on the
- * toggle stops and starts it.
- */
+/** The feature gallery, with autoplay and its toggle (README, "Autoplay"). */
 export default function FeatureDeck() {
-  const [autoplay, setAutoplay] = useState(false);
-  const toggle = useRef<HTMLButtonElement>(null);
-  // The start button is gone: focus goes to the toggle that replaced it.
-  useEffect(() => {
-    if (autoplay) toggle.current?.focus();
-  }, [autoplay]);
-
   return (
-    <Deck.Root
-      aria-label="Features"
-      className="feature-deck"
-      autoplay={autoplay ? 5000 : undefined}
-    >
+    <Deck.Root aria-label="Features" className="feature-deck" autoplay={5000}>
       <Deck.Viewport>
         {FEATURES.map((feature) => (
           <Deck.Slide key={feature.name}>
@@ -136,17 +120,7 @@ export default function FeatureDeck() {
         ))}
       </Deck.Viewport>
       {/* First among the controls, after the slides, as the README asks. */}
-      {autoplay ? (
-        <Deck.AutoplayToggle ref={toggle} />
-      ) : (
-        <button
-          type="button"
-          className="feature-autoplay-start"
-          onClick={() => setAutoplay(true)}
-        >
-          Start slide rotation
-        </button>
-      )}
+      <Deck.AutoplayToggle />
       <Deck.Dots />
     </Deck.Root>
   );

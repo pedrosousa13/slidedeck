@@ -59,6 +59,34 @@ async function openAllHydrated(page: Page) {
   await page.evaluate(() => window.scrollTo(0, 0));
 }
 
+/**
+ * Stops the feature deck's autoplay with its toggle, by keyboard so no
+ * pointer rests on the deck, and returns the index the deck settles on: a
+ * move autoplay started still ends where it was going.
+ */
+async function stopAutoplay(page: Page): Promise<number> {
+  const deck = page.getByRole('region', { name: FEATURES });
+  await deck
+    .getByRole('button', { name: 'Stop slide rotation' })
+    .press('Enter');
+  await expect(
+    deck.getByRole('button', { name: 'Start slide rotation' })
+  ).toBeVisible();
+  // At rest: the focal tile centred in the deck.
+  await expect
+    .poll(() =>
+      deck.evaluate((root) => {
+        const viewport = root.querySelector('[data-slidedeck-viewport]')!;
+        const focal = root.querySelector('[data-slidedeck-slide][data-focal]')!;
+        const a = viewport.getBoundingClientRect();
+        const b = focal.getBoundingClientRect();
+        return Math.abs(a.x + a.width / 2 - (b.x + b.width / 2));
+      })
+    )
+    .toBeLessThan(1);
+  return Number(await deck.getAttribute('data-index'));
+}
+
 const SCHEMES = ['light', 'dark'] as const;
 
 for (const scheme of SCHEMES) {
@@ -70,12 +98,11 @@ for (const scheme of SCHEMES) {
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     });
 
-    test('the landing page passes axe with autoplay on', async ({ page }) => {
+    test('the landing page passes axe with autoplay stopped', async ({
+      page
+    }) => {
       await openHydrated(page);
-      await page
-        .getByRole('region', { name: FEATURES })
-        .getByRole('button', { name: 'Start slide rotation' })
-        .click();
+      await stopAutoplay(page);
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     });
   });
@@ -241,13 +268,13 @@ test('the autoplay toggle is 44 by 44 at least, stopped and playing', async ({
 }) => {
   await openHydrated(page);
   const deck = page.getByRole('region', { name: FEATURES });
-  const start = deck.getByRole('button', { name: 'Start slide rotation' });
-  for (const button of [
-    start,
-    deck.getByRole('button', { name: 'Stop slide rotation' })
-  ]) {
-    if (button !== start) await start.click();
-    const box = await button.boundingBox();
+  const toggle = deck.locator('[data-slidedeck-autoplay-toggle]');
+  for (const playing of [true, false]) {
+    if (!playing) await stopAutoplay(page);
+    await expect(toggle).toHaveText(
+      playing ? 'Stop slide rotation' : 'Start slide rotation'
+    );
+    const box = await toggle.boundingBox();
     expect(box!.width).toBeGreaterThanOrEqual(44);
     expect(box!.height).toBeGreaterThanOrEqual(44);
   }
@@ -262,12 +289,6 @@ for (const width of [1280, 375]) {
     }) => {
       await openHydrated(page);
       const deck = page.getByRole('region', { name: FEATURES });
-      await expectControlsRow(deck, [
-        deck.getByRole('button', { name: 'Start slide rotation' }),
-        deck.locator('[data-slidedeck-dots]')
-      ]);
-      // The same once autoplay is on and slidedeck's own toggle replaces it.
-      await deck.getByRole('button', { name: 'Start slide rotation' }).click();
       await expectControlsRow(deck, [
         deck.locator('[data-slidedeck-autoplay-toggle]'),
         deck.locator('[data-slidedeck-dots]')
@@ -336,42 +357,59 @@ test.describe('the feature gallery', () => {
     ]);
   });
 
-  test('never starts autoplay by itself', async ({ page }) => {
+  // The documented behaviour (README, "Autoplay"), on this page.
+  test('autoplays, and stops on the toggle', async ({ page }) => {
     await openHydrated(page);
     const deck = page.getByRole('region', { name: FEATURES });
-    await expect(
-      deck.getByRole('button', { name: 'Start slide rotation' })
-    ).toBeVisible();
-    await expect(deck.locator('[data-slidedeck-autoplay-toggle]')).toHaveCount(
-      0
-    );
-    // Longer than one autoplay step.
-    await page.waitForTimeout(6000);
-    await expect(deck).toHaveAttribute('data-index', '0');
-  });
-
-  test('autoplays once started, and stops on the toggle', async ({ page }) => {
-    await openHydrated(page);
-    const deck = page.getByRole('region', { name: FEATURES });
-
-    await deck.getByRole('button', { name: 'Start slide rotation' }).click();
-
     const toggle = deck.getByRole('button', { name: 'Stop slide rotation' });
-    await expect(toggle).toBeFocused();
     await expect(toggle).toHaveAttribute('data-playing');
-    // The pointer that pressed it pauses autoplay while over the deck. In
-    // steps, as a hand moves: WebKit sends the deck no pointerleave for one
-    // jump straight out from where the start button was removed.
-    await page.mouse.move(0, 0, { steps: 5 });
+
     await expect(deck).toHaveAttribute('data-index', '1', { timeout: 10_000 });
 
-    await toggle.click();
+    const at = await stopAutoplay(page);
+    await expect(
+      deck.locator('[data-slidedeck-autoplay-toggle]')
+    ).not.toHaveAttribute('data-playing');
+    // Longer than one autoplay step.
+    await page.waitForTimeout(6000);
+    await expect(deck).toHaveAttribute('data-index', String(at));
+  });
+
+  test('starts with autoplay stopped under reduced motion', async ({
+    page
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openHydrated(page);
+    const deck = page.getByRole('region', { name: FEATURES });
     await expect(
       deck.getByRole('button', { name: 'Start slide rotation' })
     ).toBeVisible();
     await expect(
       deck.locator('[data-slidedeck-autoplay-toggle]')
     ).not.toHaveAttribute('data-playing');
+    await page.waitForTimeout(6000);
+    await expect(deck).toHaveAttribute('data-index', '0');
+  });
+
+  test('rests with its first tile centred, and its last', async ({ page }) => {
+    await openHydrated(page);
+    const deck = page.getByRole('region', { name: FEATURES });
+    await stopAutoplay(page);
+    const viewport = (await deck
+      .locator('[data-slidedeck-viewport]')
+      .boundingBox())!;
+    const centre = viewport.x + viewport.width / 2;
+    for (const n of [1, 6]) {
+      await deck.getByRole('button', { name: `Go to page ${n}` }).click();
+      const slide = deck.getByRole('group', { name: `${n} of 6` });
+      await expect(slide).toHaveAttribute('data-focal');
+      await expect
+        .poll(async () => {
+          const box = (await slide.boundingBox())!;
+          return Math.abs(box.x + box.width / 2 - centre);
+        })
+        .toBeLessThan(1);
+    }
   });
 });
 
@@ -461,16 +499,18 @@ for (const [name, start] of [
     test('moves on the arrow keys', async ({ page }) => {
       await openAllHydrated(page);
       const deck = page.getByRole('region', { name });
+      const from = name === FEATURES ? await stopAutoplay(page) : start;
       await deck.locator('[data-slidedeck-viewport]').focus();
 
       await page.keyboard.press('ArrowRight');
 
-      await expect(deck).toHaveAttribute('data-index', String(start + 1));
+      await expect(deck).toHaveAttribute('data-index', String(from + 1));
     });
 
     test('moves on a mouse drag', async ({ page }) => {
       await openAllHydrated(page);
       const deck = page.getByRole('region', { name });
+      const from = name === FEATURES ? await stopAutoplay(page) : start;
       await deck.scrollIntoViewIfNeeded();
       const focal = (await deck
         .locator('[data-slidedeck-slide][data-focal]')
@@ -485,7 +525,7 @@ for (const [name, start] of [
       await page.waitForTimeout(100);
       await page.mouse.up();
 
-      await expect(deck).toHaveAttribute('data-index', String(start + 1));
+      await expect(deck).toHaveAttribute('data-index', String(from + 1));
     });
   });
 }
@@ -497,6 +537,7 @@ test.describe('on a touch screen', () => {
     test.skip(browserName !== 'chromium', 'CDP touch events are Chromium’s');
     await openHydrated(page);
     const deck = page.getByRole('region', { name: FEATURES });
+    const from = await stopAutoplay(page);
     const box = (await deck
       .locator('[data-slidedeck-viewport]')
       .boundingBox())!;
@@ -519,7 +560,7 @@ test.describe('on a touch screen', () => {
       touchPoints: []
     });
 
-    await expect(deck).not.toHaveAttribute('data-index', '0');
+    await expect(deck).not.toHaveAttribute('data-index', String(from));
   });
 });
 
