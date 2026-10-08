@@ -613,6 +613,9 @@ const SlideContext = createContext<{
   stacked: boolean;
   /** The effect's inline styles for each slide. */
   style: CSSProperties | undefined;
+  /** With an effect, the slide's progress as the deck starts, until the
+   * engine measures it; undefined without one. */
+  progress: number | undefined;
   /** A loop's copy of the slide, and which side of the slides it is on. */
   copy?: 'before' | 'after';
 } | null>(null);
@@ -688,7 +691,7 @@ const viewportStyles: Record<Orientation, CSSProperties> = {
  * `loop`, a copy of every slide on each side of them; an `effect` may add a
  * snap target after them for each. */
 export function Viewport({ style, children, effect, ...props }: ViewportProps) {
-  const { viewportRef, engineRef, orientation, loop, count } =
+  const { viewportRef, engineRef, orientation, loop, count, initialIndex } =
     useDeckContext('Viewport');
   const slides = Children.toArray(children);
   // A deck whose slides all fit has nothing to loop (see createDeck).
@@ -697,13 +700,22 @@ export function Viewport({ style, children, effect, ...props }: ViewportProps) {
   const layout = effect?.layout?.(orientation, run);
   const target = layout?.target;
   const stacked = target !== undefined;
+  // With an effect, each slide starts at its distance in slides from the
+  // slide the deck starts at, a copy by its own place in the run, so server
+  // HTML draws the effect as the engine will once it measures (#125).
+  const start = clampSlide(initialIndex, slides.length);
   // Adding or removing a slide, the copies or an effect's snap targets can
   // change the snap points without resizing the viewport, which is all the
   // engine observes. Where the copies or snap targets came or went, the
-  // engine keeps the current index (ADR-0007, ADR-0009).
+  // engine keeps the current index (ADR-0007, ADR-0009). With an effect, a
+  // slide moved to a new place is given its new place's starting progress,
+  // which the engine then paints over.
+  const order = effect
+    ? slides.map((slide) => (isValidElement(slide) ? slide.key : '')).join()
+    : '';
   useLayoutEffect(() => {
     engineRef.current?.refresh();
-  }, [engineRef, slides.length, copies, stacked]);
+  }, [engineRef, slides.length, copies, stacked, order]);
   const set = (copy?: 'before' | 'after') =>
     slides.map((slide, index) => (
       // `toArray` gives every element a key derived from the consumer's,
@@ -718,6 +730,11 @@ export function Viewport({ style, children, effect, ...props }: ViewportProps) {
           // a consumer's `:nth-child()` still counts the slides from 1.
           style:
             copy === 'before' ? { ...layout?.slide, order: -1 } : layout?.slide,
+          progress: effect
+            ? index -
+              start +
+              (copy === 'after' ? slides.length : copy ? -slides.length : 0)
+            : undefined,
           copy
         }}
       >
@@ -786,9 +803,11 @@ const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;
  * For CSS to read, it carries `--deck-slide-index`, its index, from the first
  * render; once mounted, `--deck-slide-progress`, its signed distance from the
  * focal position in slides, and `data-in-view` while any of it is in view,
- * both kept up to date as the deck scrolls without a React render. Where an
- * effect stacks the slides, as fade does, every slide but the focal one is
- * inert. */
+ * both kept up to date as the deck scrolls without a React render. With an
+ * effect, `--deck-slide-progress` is there from the first render, server HTML
+ * included, as its distance in slides from the slide the deck starts at.
+ * Where an effect stacks the slides, as fade does, every slide but the focal
+ * one is inert. */
 export function Slide({ style, ...props }: ComponentProps<'div'>) {
   const deck = useDeckContext('Slide');
   const slide = use(SlideContext);
@@ -832,6 +851,12 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
         // change as the deck scrolls (`--deck-slide-progress`,
         // `data-in-view`).
         ...({ '--deck-slide-index': index } as CSSProperties),
+        // With an effect, its progress as the deck starts, so server HTML
+        // draws the effect before the engine measures (#125). The engine's
+        // own replaces it as the deck moves; React leaves it while it stays
+        // the same.
+        ...(slide.progress !== undefined &&
+          ({ '--deck-slide-progress': slide.progress } as CSSProperties)),
         // Server HTML paints at defaultIndex before any script runs, where
         // supported; elsewhere Root's layout effect scrolls before paint.
         // Exact with one slide per snap point; see createDeck's mount.

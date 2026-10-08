@@ -42,3 +42,34 @@ slide, so it neither divides by zero nor flips the arc.
 The dropped content overflows the viewport across the axis, where the viewport
 clips it (`overflow: hidden` across the axis, as `clip` cannot pair with
 `auto`), so the arc is never drawn outside the deck.
+
+**Server HTML carries the starting progress (amended for #125).** The
+engine writes progress only once it has measured, in the browser. Until
+then every curve slide read 0, so a server-rendered curve deck painted flat
+and jumped into its arc at hydration. Now, with an effect, `Deck.Slide`
+renders `--deck-slide-progress` inline from the first render, server HTML
+included: the slide's distance in slides from the slide the deck starts at,
+`index − start`, where `start` is the starting index clamped to the slides.
+A loop's copy counts from its own place in the run, a set after or before
+its slide. The engine's first measured write is the same wherever every
+slide is one snap point, the same size, and the starting slide can reach the
+focal position, so hydration changes nothing. Elsewhere, as with slides of
+different sizes, pages that start past the first, or a start the scroll range
+keeps from the focal position, the estimate is near the measured value, never
+flatter than 0 everywhere, and the engine corrects it before the first frame
+after hydration.
+
+The value is computed from the slide's index, the slide count, whether it is
+a copy and the starting index, none of which change as the deck scrolls. React
+writes a style property only when its value changes, so it never writes over
+the engine's progress during a scroll, and nothing is added to the scroll,
+pointer or drag paths. A slide that moves to a new place gets its new place's
+starting value, so `Deck.Viewport` refreshes the engine when an effect deck's
+slides change order, and the engine paints over it before the frame is drawn.
+
+Only a deck with an effect gets the starting progress. A deck with none
+renders as before: its consumer CSS reads its own `var()` fallback until the
+engine measures. Writing it on every deck was the alternative. It would also
+fix consumer CSS on progress without an effect, but it changes every deck's
+server HTML and adds a property to every slide, for a flash only an effect
+was reported to show.

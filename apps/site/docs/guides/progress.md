@@ -30,6 +30,10 @@ included), `data-slidedeck-prev`, `data-slidedeck-next`,
 `data-slidedeck-dots`, `data-slidedeck-counter` and
 `data-slidedeck-autoplay-toggle`. The live region is `data-slidedeck-live`.
 
+With an effect, each slide's `--deck-slide-progress` is in the server HTML
+too, from the slide the deck starts at (see
+[server rendering](/docs/guides/server-rendering/)).
+
 Progress is a whole number for every slide when one sits exactly at the focal
 position. An effect that moves a slide should scale about its snap alignment
 point (`transform-origin`), not away from it, or it moves the point progress

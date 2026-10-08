@@ -1,7 +1,8 @@
-import type { ComponentProps, CSSProperties } from 'react';
+import { act, type ComponentProps, type CSSProperties } from 'react';
 import { render, screen } from '@testing-library/react';
+import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, onTestFinished, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import { curve } from '@slidedeck/react/curve';
@@ -412,21 +413,176 @@ describe('curve', () => {
     expect(opacity()).toEqual([0, 0, 1, 0, 0, 0]);
     expect(angles()).toEqual([-90, -90, 0, 90, 90, 90]);
   });
+});
 
-  test('server HTML draws the slides flat, as a plain deck, until it mounts', async () => {
-    addStyle(SLIDE_CSS);
-    const container = document.createElement('div');
-    container.innerHTML = renderToString(<CurveDeck defaultIndex={2} />);
-    document.body.append(container);
-    await nextFrame();
-    const { angles, moved, opacity } = readDeck(
-      container.querySelector('[role=region]')!
+// Server HTML gives each slide its progress as the deck starts, its distance
+// in slides from the starting slide, so a server-rendered curve deck paints
+// its arc before any script runs, and hydration changes nothing (#125).
+describe('curve in server HTML', () => {
+  /** Each slide's inline `--deck-slide-progress` in `html`, in document
+   * order: the slides, then a loop's copies after them, then those before. */
+  const serverProgress = (html: string) => {
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    return [
+      ...template.content.querySelectorAll<HTMLElement>(
+        '[data-slidedeck-slide]'
+      )
+    ].map((slide) => slide.style.getPropertyValue('--deck-slide-progress'));
+  };
+  const range = (from: number, to: number) =>
+    Array.from({ length: to - from + 1 }, (_, i) => String(from + i));
+
+  test.each<{ name: string; props: CurveDeckProps; expected: string[] }>([
+    { name: 'at the first slide', props: {}, expected: range(0, 5) },
+    {
+      name: 'at defaultIndex 2',
+      props: { defaultIndex: 2 },
+      expected: range(-2, 3)
+    },
+    {
+      name: 'at a controlled index 3',
+      props: { index: 3, onIndexChange: () => {} },
+      expected: range(-3, 2)
+    },
+    {
+      name: 'at a defaultIndex past the last slide, clamped',
+      props: { defaultIndex: 10 },
+      expected: range(-5, 0)
+    },
+    {
+      name: 'vertical, at defaultIndex 2',
+      props: { orientation: 'vertical', defaultIndex: 2 },
+      expected: range(-2, 3)
+    },
+    {
+      name: 'right-to-left, at defaultIndex 2',
+      props: { dir: 'rtl', defaultIndex: 2 },
+      expected: range(-2, 3)
+    },
+    {
+      // Each copy by its own place in the run: those after the slides go on
+      // from the last, those before lead up to the first.
+      name: 'looping, at defaultIndex 1',
+      props: { loop: true, defaultIndex: 1 },
+      expected: [...range(-1, 4), ...range(5, 10), ...range(-7, -2)]
+    }
+  ])('gives each slide its progress $name', ({ props, expected }) => {
+    expect(serverProgress(renderToString(<CurveDeck {...props} />))).toEqual(
+      expected
     );
+  });
 
-    expect(angles()).toEqual(Array(6).fill(0));
-    expect(moved()).toEqual(Array(6).fill([0, 0]));
-    expect(opacity()).toEqual(Array(6).fill(1));
-    container.remove();
+  /** Each slide's opacity and its content's transform, as painted. */
+  const painted = (viewport: HTMLElement) =>
+    [
+      ...viewport.querySelectorAll<HTMLElement>(
+        ':scope > [data-slidedeck-slide]'
+      )
+    ].map((slide) => [
+      getComputedStyle(slide).opacity,
+      getComputedStyle(slide.firstElementChild!).transform
+    ]);
+
+  test.each<{ name: string; props: CurveDeckProps; css?: string }>([
+    { name: 'at defaultIndex 2', props: { defaultIndex: 2 } },
+    {
+      name: 'at a controlled index 3',
+      props: { index: 3, onIndexChange: () => {} }
+    },
+    {
+      name: 'vertical, at defaultIndex 2',
+      props: { orientation: 'vertical', defaultIndex: 2 }
+    },
+    {
+      name: 'right-to-left, at defaultIndex 2',
+      props: { dir: 'rtl', defaultIndex: 2 }
+    },
+    {
+      name: 'looping, at defaultIndex 1',
+      props: { loop: true, defaultIndex: 1 }
+    },
+    {
+      name: 'in pages of 2',
+      props: { viewportStyle: { paddingInline: 0 } },
+      css: pagesOf(2, '.curved')
+    }
+  ])(
+    'paints its arc from server HTML and hydrates without changing it, $name',
+    async ({ props, css = '' }) => {
+      addStyle(SLIDE_CSS + css);
+      const container = document.createElement('div');
+      container.innerHTML = renderToString(<CurveDeck {...props} />);
+      document.body.append(container);
+      onTestFinished(() => container.remove());
+      const viewport = viewportOf(container);
+      await nextFrame();
+      const before = painted(viewport);
+      const fromServer = progressOf(viewport);
+
+      const consoleError = vi.spyOn(console, 'error');
+      onTestFinished(() => consoleError.mockRestore());
+      const onRecoverableError = vi.fn();
+      await act(async () => {
+        hydrateRoot(container, <CurveDeck {...props} />, {
+          onRecoverableError
+        });
+      });
+      await nextFrame();
+      await nextFrame();
+
+      expect(onRecoverableError).not.toHaveBeenCalled();
+      expect(
+        consoleError.mock.calls.filter(([message]) =>
+          /hydrat/i.test(String(message))
+        )
+      ).toEqual([]);
+      // The arc is drawn before hydration, not flat, and the engine's first
+      // measured progress is the server's.
+      expect(
+        new Set(before.map(([, transform]) => transform)).size
+      ).toBeGreaterThan(1);
+      expect(progressOf(viewport)).toEqual(fromServer);
+      expect(painted(viewport)).toEqual(before);
+    }
+  );
+  // The progress each slide starts at is React's, the progress after it the
+  // engine's: a render that moves a slide to a new place must not leave the
+  // start's progress on it once the deck has moved.
+  test('keeps the measured progress when the slides reorder after a move', async () => {
+    addStyle(SLIDE_CSS);
+    const deck = (order: number[]) => (
+      <Deck.Root aria-label="Test deck">
+        <Deck.Viewport
+          effect={curve}
+          className="curved"
+          style={{ boxSizing: 'border-box', width: SPAN, paddingInline: SIZE }}
+        >
+          {order.map((n) => (
+            <Deck.Slide key={n}>
+              <div className="card">{n}</div>
+            </Deck.Slide>
+          ))}
+        </Deck.Viewport>
+        <Deck.Next />
+      </Deck.Root>
+    );
+    const { rerender } = render(deck([0, 1, 2, 3, 4, 5]));
+    const viewport = viewportOf(
+      screen.getByRole('region', { name: 'Test deck' })
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await expectSettledTo(() => progressOf(viewport), [-1, 0, 1, 2, 3, 4]);
+
+    rerender(deck([5, 4, 3, 2, 1, 0]));
+    await nextFrame();
+
+    // Wherever the browser keeps the viewport, the progress is measured
+    // from there.
+    const focal = viewport.scrollLeft / SIZE;
+    expect(progressOf(viewport)).toEqual(
+      [0, 1, 2, 3, 4, 5].map((i) => i - focal)
+    );
   });
 });
 

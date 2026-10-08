@@ -1,9 +1,9 @@
 import type { Effect } from './index.js';
 
 // Slides of the fade deck, the progress of each, from
-// `--deck-slide-progress`, or before the engine has written it, as in server
-// HTML, 0 for the focal slide and 1 for the rest, and its distance from the
-// focal position, at most 1.
+// `--deck-slide-progress`, which Deck.Slide gives each slide from the first
+// render, server HTML included, or where it is unset, 0 for the focal slide
+// and 1 for the rest, and its distance from the focal position, at most 1.
 const slide = '[data-slidedeck-effect=fade]>[data-slidedeck-slide]';
 const progress = (fallback: number) =>
   `--slidedeck-fade-progress:var(--deck-slide-progress,${fallback})`;
