@@ -105,8 +105,8 @@ const failures = expected
 if (html.includes('aria-label="Go to page 4"')) {
   failures.push('the server HTML has more dots than slides');
 }
-// Each slide of an effect's deck carries its progress as the deck starts,
-// its distance from the starting slide, so the effect draws from the first
+// Each slide carries its progress as the deck starts, its distance from the
+// starting slide, so an effect, or CSS on progress, draws from the first
 // paint: in document order, the slides, then a loop's copies after them,
 // then those before (#125).
 const fade = html.indexOf('data-slidedeck-effect="fade"');

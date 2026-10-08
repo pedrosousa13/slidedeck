@@ -1,8 +1,7 @@
-import { act, type ComponentProps, type CSSProperties } from 'react';
+import type { ComponentProps, CSSProperties } from 'react';
 import { render, screen } from '@testing-library/react';
-import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
-import { describe, expect, onTestFinished, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import * as Deck from '@slidedeck/react';
 import { curve } from '@slidedeck/react/curve';
@@ -14,6 +13,7 @@ import {
   nextFrame,
   pagesOf,
   progressOf,
+  serverThenHydrated,
   setReducedMotion,
   sleep,
   viewportOf
@@ -511,41 +511,19 @@ describe('curve in server HTML', () => {
     'paints its arc from server HTML and hydrates without changing it, $name',
     async ({ props, css = '' }) => {
       addStyle(SLIDE_CSS + css);
-      const container = document.createElement('div');
-      container.innerHTML = renderToString(<CurveDeck {...props} />);
-      document.body.append(container);
-      onTestFinished(() => container.remove());
-      const viewport = viewportOf(container);
-      await nextFrame();
-      const before = painted(viewport);
-      const fromServer = progressOf(viewport);
+      const { viewport, server, serverProgress, hydrated } =
+        await serverThenHydrated(<CurveDeck {...props} />, painted);
 
-      const consoleError = vi.spyOn(console, 'error');
-      onTestFinished(() => consoleError.mockRestore());
-      const onRecoverableError = vi.fn();
-      await act(async () => {
-        hydrateRoot(container, <CurveDeck {...props} />, {
-          onRecoverableError
-        });
-      });
-      await nextFrame();
-      await nextFrame();
-
-      expect(onRecoverableError).not.toHaveBeenCalled();
-      expect(
-        consoleError.mock.calls.filter(([message]) =>
-          /hydrat/i.test(String(message))
-        )
-      ).toEqual([]);
       // The arc is drawn before hydration, not flat, and the engine's first
       // measured progress is the server's.
       expect(
-        new Set(before.map(([, transform]) => transform)).size
+        new Set(server.map(([, transform]) => transform)).size
       ).toBeGreaterThan(1);
-      expect(progressOf(viewport)).toEqual(fromServer);
-      expect(painted(viewport)).toEqual(before);
+      expect(progressOf(viewport)).toEqual(serverProgress);
+      expect(hydrated).toEqual(server);
     }
   );
+
   // The progress each slide starts at is React's, the progress after it the
   // engine's: a render that moves a slide to a new place must not leave the
   // start's progress on it once the deck has moved.

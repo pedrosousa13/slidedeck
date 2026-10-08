@@ -10,6 +10,7 @@ import {
   expectSettledTo,
   mouseDrag,
   progressOf,
+  serverThenHydrated,
   viewportOf,
   WIDTH
 } from './fixtures';
@@ -164,6 +165,52 @@ describe('--deck-slide-progress', () => {
     await expect.poll(progress).toEqual(closeTo([-1.5, -0.5, 0.5, 1.5, 2.5]));
     await letGo();
   });
+});
+
+// Server HTML gives every deck's slides their starting progress, effect or
+// not, so consumer CSS on progress, as a scale by distance, paints as it will
+// once hydrated (#125).
+describe('--deck-slide-progress in server HTML', () => {
+  // Three slides in view, at their start, each scaled by its distance from
+  // the focal slide, as the docs' progress example does.
+  const SCALED = `.scaled > * {
+    width: ${WIDTH / 3}px;
+    scale: calc(1 - min(max(var(--deck-slide-progress, 0), -1 * var(--deck-slide-progress, 0)), 1) * 0.2);
+  }`;
+  const painted = (viewport: HTMLElement) =>
+    [...viewport.children].map((slide) => getComputedStyle(slide).scale);
+
+  test.each<{ name: string; props: ProgressDeckProps; progress: number[] }>([
+    {
+      name: 'at defaultIndex 2',
+      props: { defaultIndex: 2 },
+      progress: [-2, -1, 0, 1, 2]
+    },
+    {
+      name: 'at a controlled index 1',
+      props: { index: 1, onIndexChange: () => {} },
+      progress: [-1, 0, 1, 2, 3]
+    },
+    {
+      name: 'looping, at defaultIndex 1',
+      props: { loop: true, defaultIndex: 1 },
+      progress: [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, -6, -5, -4, -3, -2]
+    }
+  ])(
+    'with no effect, gives each slide its progress and hydrates without changing it, $name',
+    async ({ props, progress }) => {
+      addStyle(SCALED);
+      const { viewport, server, serverProgress, hydrated } =
+        await serverThenHydrated(
+          <ProgressDeck viewportClassName="scaled" {...props} />,
+          painted
+        );
+
+      expect(serverProgress).toEqual(progress);
+      expect(progressOf(viewport)).toEqual(serverProgress);
+      expect(hydrated).toEqual(server);
+    }
+  );
 });
 
 describe('--deck-slide-index', () => {

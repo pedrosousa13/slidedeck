@@ -1,9 +1,17 @@
-import type { ComponentProps, ReactNode } from 'react';
+import {
+  act,
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode
+} from 'react';
+import { hydrateRoot } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
 import {
   afterEach,
   beforeEach,
   expect,
   onTestFinished,
+  vi,
   type Mock
 } from 'vitest';
 import { cdp } from 'vitest/browser';
@@ -451,4 +459,41 @@ export function withoutScrollEnd() {
     };
   });
   afterEach(() => restore());
+}
+
+/**
+ * Paints `deck`'s server HTML and reads its viewport with `read` before any
+ * script runs, then hydrates it and reads it again. Fails on a hydration
+ * error or warning. Returns both reads, and each slide's progress as the
+ * server HTML gave it.
+ */
+export async function serverThenHydrated<T>(
+  deck: ReactElement,
+  read: (viewport: HTMLElement) => T
+) {
+  const container = document.createElement('div');
+  container.innerHTML = renderToString(deck);
+  document.body.append(container);
+  onTestFinished(() => container.remove());
+  const viewport = viewportOf(container);
+  await nextFrame();
+  const server = read(viewport);
+  const serverProgress = progressOf(viewport);
+
+  const consoleError = vi.spyOn(console, 'error');
+  onTestFinished(() => consoleError.mockRestore());
+  const onRecoverableError = vi.fn();
+  await act(async () => {
+    hydrateRoot(container, deck, { onRecoverableError });
+  });
+  await nextFrame();
+  await nextFrame();
+
+  expect(onRecoverableError).not.toHaveBeenCalled();
+  expect(
+    consoleError.mock.calls.filter(([message]) =>
+      /hydrat/i.test(String(message))
+    )
+  ).toEqual([]);
+  return { viewport, server, serverProgress, hydrated: read(viewport) };
 }

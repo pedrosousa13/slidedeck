@@ -30,8 +30,8 @@ included), `data-slidedeck-prev`, `data-slidedeck-next`,
 `data-slidedeck-dots`, `data-slidedeck-counter` and
 `data-slidedeck-autoplay-toggle`. The live region is `data-slidedeck-live`.
 
-With an effect, each slide's `--deck-slide-progress` is in the server HTML
-too, from the slide the deck starts at (see
+Each slide's `--deck-slide-progress` is in the server HTML too, counted from
+the slide the deck starts at, so CSS on it paints before any script runs (see
 [server rendering](/docs/guides/server-rendering/)).
 
 Progress is a whole number for every slide when one sits exactly at the focal
