@@ -156,7 +156,8 @@ is two and a quarter slides on. When a slide sits exactly at the focal
 position, every slide's progress is a whole number, unless an effect moves the
 slide's box at the alignment point: scale about that point
 (`transform-origin`). Published as `--deck-slide-progress` for effects to
-read. Never React state.
+read: React renders its starting value, counted from the slide the deck
+starts at, and the engine writes it from then on. Never React state.
 _Avoid_: offset, distance in pixels
 
 **In view**:

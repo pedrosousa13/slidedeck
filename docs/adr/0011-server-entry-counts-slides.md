@@ -46,3 +46,39 @@ server function cannot cross to the client. A consumer who needs that imports
   cannot create the Dots' buttons.
 - Unwrap the lazy wrapper (`_payload`, `_init`). Those are React internals.
   `use()` accepts only promises and contexts, not a lazy.
+
+## Server HTML carries the starting progress (amended for #125)
+
+The engine writes `--deck-slide-progress` only once it has measured, in the
+browser. Until then no slide had it, and CSS read its `var()` fallback, 0 in
+fade's and curve's styles and in the docs' examples. A server-rendered curve
+deck painted flat and jumped into its arc at hydration; slides scaled by
+progress painted full size and then shrank.
+
+**`Deck.Slide` renders the starting progress inline, from the first render,
+server HTML included, on every deck.** It is the slide's distance in slides
+from the slide the deck starts at, `index − start`, where `start` is the
+starting index clamped to the slides, as `data-current` already counts it. A
+loop's copy counts from its own place in the run: a set of slides after its
+slide, or before it. Server HTML and the client's first render emit the same
+value, so hydration has nothing to correct. The engine's first measured
+write is the same wherever every slide is one snap point, the slides are the
+same size, and the starting slide can reach the focal position, so nothing
+changes at hydration. Elsewhere, as with slides of different sizes, pages
+that start past the first, or a start the scroll range keeps from the focal
+position, the estimate is near the measured value, never worse than every
+slide at 0, and the engine corrects it in the layout effect that mounts it,
+before the first frame after hydration.
+
+**React never writes it over the engine's.** React writes a style property
+only where its value differs from React's own last render. The value derives
+only from the starting index, frozen on mount, and the slide's place in the
+order, none of which change as the deck scrolls, so nothing is added to the
+scroll, pointer or drag paths. A slide that moves to a new place gets its new
+place's starting value, so `Deck.Viewport` refreshes the engine when the
+slides change order, as it already does when they change in number, and the
+engine paints over it before the frame is drawn.
+
+**Rejected:** only decks with an effect. It fixed fade and curve, but left
+the same flash in consumer CSS on progress without an effect, as the docs'
+own progress example and middle-slide recipe show.
