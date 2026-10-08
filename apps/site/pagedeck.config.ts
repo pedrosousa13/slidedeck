@@ -83,6 +83,10 @@ export default defineConfig({
       after: [{ component: 'footer' }]
     }),
     css: ['./styles/site.css', './styles/docs.css'],
+    // Every page's stylesheets inline in its HTML, so none blocks the first
+    // paint (#122). Not the Examples page: its photos, not its CSS, decide
+    // its LCP, and painting earlier only starts them sooner.
+    criticalCss: { '/**': true, '/examples/': false },
     // Each page's title, description, share card and structured data, from
     // the page itself: lib/seo.ts.
     head: (page, store) => headOf(page, store, pages),
