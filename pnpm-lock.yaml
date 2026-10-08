@@ -98,6 +98,9 @@ importers:
       '@pagedeck/markdown-loader':
         specifier: 0.2.0
         version: 0.2.0
+      '@pagedeck/search':
+        specifier: 0.2.0
+        version: 0.2.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
       '@slidedeck/react':
         specifier: workspace:*
         version: link:../../packages/react
@@ -1289,6 +1292,10 @@ packages:
   '@pagedeck/markdown-loader@0.2.0':
     resolution: {integrity: sha512-fmc+/viUk9pyuh9KtK64RnBN1TfCb7APrrjjRCgLDl+4KYN5naTPe864lsQhALx8VjijKYuXQv4S0Rcn3Zl60w==}
     engines: {node: ^22.13.0 || >=23.4.0}
+
+  '@pagedeck/search@0.2.0':
+    resolution: {integrity: sha512-YS3A814ECPTUuZJScwjmklh6ZU3r7ZbjcD9a764J00kAEaZSrIL1oRGkcH30crSFJpweElsS/Hnpj5ISBGtSRA==}
+    engines: {node: ^22.18.0 || >=23.7.0}
 
   '@playdeck/core@1.3.0':
     resolution: {integrity: sha512-04ijf00dijaWLeAr/PUqA+tag4ZhlhZoSADLyW681ROaBAoEaumsyc1SvM4d5TAV0eIwpXeSwKfkc8M6ydsygQ==}
@@ -4208,6 +4215,29 @@ snapshots:
       '@pagedeck/content': 0.2.0
       marked: 18.1.0
       shiki: 4.5.0
+
+  '@pagedeck/search@0.2.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)':
+    dependencies:
+      '@pagedeck/core': 0.2.0(@babel/template@7.29.7)(@types/node@26.6.3)(@types/react@19.3.0)(esbuild@0.28.2)(yaml@2.9.1)
+      '@pagedeck/islands': 0.2.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.3.0)
+      react: 19.3.0
+    transitivePeerDependencies:
+      - '@babel/core'
+      - '@babel/template'
+      - '@types/node'
+      - '@types/react'
+      - '@vitejs/devtools'
+      - esbuild
+      - jiti
+      - less
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - supports-color
+      - terser
+      - tsx
+      - yaml
 
   '@playdeck/core@1.3.0': {}
 

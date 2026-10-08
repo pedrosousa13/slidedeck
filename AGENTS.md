@@ -10,11 +10,11 @@ pnpm verify
 
 It runs every gate in order and stops at the first failure: `format:check`,
 `lint`, `typecheck`, `test` (vitest in browser mode), `test:scripts` (the
-scripts' own tests), `build`, `docs:check` (the package README's code blocks
-type-check), `compare:check` (the README's comparison table is fresh),
-`test:packages` (publint and attw on the packed tarballs, and the React
-entries' `'use client'`), `test:next` (a Next.js server component renders a
-deck from the packed tarballs), `size` and
+scripts' own tests), `build`, `docs:check` (the code blocks in the package
+README and the site's docs type-check), `compare:check` (the README's
+comparison table is fresh), `test:packages` (publint and attw on the packed
+tarballs, and the React entries' `'use client'`), `test:next` (a Next.js
+server component renders a deck from the packed tarballs), `size` and
 `test:e2e` (Playwright with axe against storybook, in Chromium, Firefox and
 WebKit). The list lives in `scripts/verify.mjs`.
 

@@ -17,6 +17,7 @@
     "@pagedeck/core": "0.2.0",
     "@pagedeck/islands": "0.2.0",
     "@pagedeck/markdown-loader": "0.2.0",
+    "@pagedeck/search": "0.2.0",
     "@slidedeck/react": "workspace:*",
     "react": "19.3.0",
     "react-dom": "19.3.0"

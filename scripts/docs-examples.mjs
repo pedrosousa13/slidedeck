@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Keeps the package README's code honest. Every `ts` and `tsx` block in it is
+// Keeps the docs' code honest: the package README's and every page of the
+// site's docs, under apps/site/docs. Every `ts` and `tsx` block in them is
 // type-checked against the built packages, as a consumer's code is: a block
 // that no longer compiles fails. A block after an `<!-- example: <path> -->`
 // line must instead match that file in the repo byte for byte; the file is
@@ -9,18 +10,28 @@
 // `pnpm build` first: the blocks import the packages' built declarations.
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const README = 'packages/react/README.md';
+const SITE_DOCS = 'apps/site/docs';
 // Inside the storybook app's node_modules, so the blocks resolve
 // `@slidedeck/react` and `react` through installed packages, as a consumer's
 // code does.
 const OUT = 'apps/storybook/node_modules/.cache/docs-examples';
 
-const FENCE = /^```(\w*)\s*$/;
+// A fence of three or more backticks or tildes, indented or not, and the
+// first word of its info string: `tsx` in ```tsx title="a.tsx"`.
+const FENCE = /^( *)(`{3,}|~{3,})\s*([^\s`]*)/;
+const CLOSE = /^ *(`{3,}|~{3,})\s*$/;
 const MARKER = /^<!-- example: (\S+) -->$/;
 const LANGUAGES = new Set(['ts', 'tsx']);
 
@@ -55,13 +66,28 @@ export const extractExamples = (markdown) => {
     }
     const fence = FENCE.exec(text);
     if (!fence) continue;
-    const language = fence[1] ?? '';
-    const close = lines.findIndex((l, j) => j > i && FENCE.test(l));
+    const indent = fence[1]?.length ?? 0;
+    const opening = fence[2] ?? '```';
+    const language = fence[3] ?? '';
+    // Closed by a fence of the same character, at least as long.
+    const close = lines.findIndex((l, j) => {
+      const closing = j > i ? CLOSE.exec(l)?.[1] : undefined;
+      return (
+        closing !== undefined &&
+        closing[0] === opening[0] &&
+        closing.length >= opening.length
+      );
+    });
     if (close === -1) {
       throw new Error(`The code block on line ${i + 1} is never closed.`);
     }
     if (LANGUAGES.has(language) || (file !== undefined && language === 'css')) {
-      const code = lines.slice(i + 1, close).join('\n') + '\n';
+      // Each line loses as much of the fence's indent as it has.
+      const code =
+        lines
+          .slice(i + 1, close)
+          .map((l) => l.replace(new RegExp(`^ {0,${indent}}`), ''))
+          .join('\n') + '\n';
       examples.push({ line: i + 2, language, code, file });
     }
     file = undefined;
@@ -70,16 +96,34 @@ export const extractExamples = (markdown) => {
   return examples;
 };
 
+/**
+ * The markdown files whose code is checked, relative to `root`: the package
+ * README, then every `.md` under the site's docs, sorted.
+ * @param {string} root
+ * @returns {string[]}
+ */
+export const markdownFiles = (root) => [
+  README,
+  ...readdirSync(join(root, SITE_DOCS), { recursive: true, encoding: 'utf8' })
+    .filter((file) => file.endsWith('.md'))
+    .map((file) => `${SITE_DOCS}/${file.split('\\').join('/')}`)
+    .sort()
+];
+
 const main = () => {
-  const examples = extractExamples(
-    readFileSync(join(repoRoot, README), 'utf8')
+  const sources = markdownFiles(repoRoot);
+  /** @type {(Example & { source: string })[]} */
+  const examples = sources.flatMap((source) =>
+    extractExamples(readFileSync(join(repoRoot, source), 'utf8')).map(
+      (example) => ({ ...example, source })
+    )
   );
   const failures = [];
 
-  for (const { line, file, code } of examples) {
+  for (const { source, line, file, code } of examples) {
     if (file === undefined) continue;
     if (readFileSync(join(repoRoot, file), 'utf8') !== code) {
-      failures.push(`${README}:${line} differs from ${file}. Copy it in.`);
+      failures.push(`${source}:${line} differs from ${file}. Copy it in.`);
     }
   }
 
@@ -87,9 +131,10 @@ const main = () => {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   const checked = examples.filter((example) => example.file === undefined);
-  for (const { line, language, code } of checked) {
-    // Named for the README line, so tsc's errors point back to it.
-    writeFileSync(join(dir, `README-line-${line}.${language}`), code);
+  for (const { source, line, language, code } of checked) {
+    // Named for the file and line, so tsc's errors point back to them.
+    const name = source.replace(/\.md$/, '').replaceAll('/', '_');
+    writeFileSync(join(dir, `${name}-line-${line}.${language}`), code);
   }
   writeFileSync(
     join(dir, 'tsconfig.json'),
@@ -114,7 +159,7 @@ const main = () => {
       { cwd: repoRoot, stdio: 'inherit' }
     );
   } catch {
-    failures.push(`${README}'s code blocks do not type-check (above).`);
+    failures.push('The code blocks do not type-check (above).');
   }
 
   if (failures.length > 0) {
@@ -122,7 +167,7 @@ const main = () => {
     process.exit(1);
   }
   console.log(
-    `${checked.length} code blocks in ${README} type-check, and ${
+    `${checked.length} code blocks in ${sources.length} files type-check, and ${
       examples.length - checked.length
     } match their files.`
   );

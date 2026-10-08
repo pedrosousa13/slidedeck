@@ -7,9 +7,11 @@ scrolls, and slidedeck tracks where the deck rests and asks it to move.
 pnpm add @slidedeck/react
 ```
 
-The documentation, a quickstart, a recipe that plays a playdeck video in the
-focal slide and a comparison with Embla and Keen are in the package README:
-[packages/react/README.md](packages/react/README.md).
+The documentation, with guides, the reference and recipes, each with a live
+deck, is at [slidedeck.pages.dev/docs](https://slidedeck.pages.dev/docs/).
+Its pages are markdown in [apps/site/docs](apps/site/docs). The package README,
+[packages/react/README.md](packages/react/README.md), has a quickstart and a
+comparison with Embla and Keen.
 
 | Package                              | What it is                                      |
 | ------------------------------------ | ----------------------------------------------- |
