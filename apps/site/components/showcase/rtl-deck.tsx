@@ -32,6 +32,8 @@ export default function RtlDeck() {
             <Deck.Slide key={place.name}>
               <figure className="place">
                 <img
+                  srcSet={place.photo.srcSet}
+                  sizes={place.photo.sizes}
                   src={place.photo.src}
                   width={place.photo.width}
                   height={place.photo.height}

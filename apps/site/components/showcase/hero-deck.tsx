@@ -43,6 +43,8 @@ export default function HeroDeck() {
           <Deck.Slide key={banner.title}>
             <div className="hero-slide">
               <img
+                srcSet={banner.photo.srcSet}
+                sizes={banner.photo.sizes}
                 src={banner.photo.src}
                 width={banner.photo.width}
                 height={banner.photo.height}

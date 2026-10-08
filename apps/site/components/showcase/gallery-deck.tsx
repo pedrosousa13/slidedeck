@@ -83,11 +83,15 @@ export default function GalleryDeck({ eager = false }: { eager?: boolean }) {
           <Deck.Slide key={item.name}>
             <figure className="gallery-slide">
               <img
+                srcSet={item.photo.srcSet}
+                sizes={item.photo.sizes}
                 src={item.photo.src}
                 width={item.photo.width}
                 height={item.photo.height}
                 alt={item.photo.alt}
                 loading={eager && i === 0 ? 'eager' : 'lazy'}
+                // The page's LCP where the gallery is above the fold.
+                fetchPriority={eager && i === 0 ? 'high' : undefined}
               />
               <figcaption>
                 <h3>{item.name}</h3>

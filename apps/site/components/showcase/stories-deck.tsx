@@ -46,6 +46,8 @@ export default function StoriesDeck() {
           <Deck.Slide key={story.title}>
             <figure className="story">
               <img
+                srcSet={story.photo.srcSet}
+                sizes={story.photo.sizes}
                 src={story.photo.src}
                 width={story.photo.width}
                 height={story.photo.height}
