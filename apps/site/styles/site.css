@@ -244,12 +244,6 @@ main {
   flex: 0 0 100%;
 }
 
-/* First in the DOM, as the README asks, so a keyboard reaches it before the
-   slides; last in the row, as in the comps. */
-[data-slidedeck-autoplay-toggle] {
-  order: 1;
-}
-
 /* Prev and Next as pills of the same fill: a UA's own button colours do not
    all follow the scheme (WebKit keeps a light fill in dark). */
 [data-slidedeck-prev],

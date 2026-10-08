@@ -146,7 +146,7 @@ for (const width of [1280, 375]) {
   test.describe(`at ${String(width)}px wide`, () => {
     test.use({ viewport: { width, height: 800 } });
 
-    test('the controls sit in one row under the slides, toggle last', async ({
+    test('the controls sit in one row under the slides, toggle first', async ({
       page
     }) => {
       await expectControlsRow(page);
@@ -161,10 +161,10 @@ async function expectControlsRow(page: Page) {
     .boundingBox())!;
   const row = [];
   for (const selector of [
+    '[data-slidedeck-autoplay-toggle]',
     '[data-slidedeck-prev]',
     '[data-slidedeck-next]',
-    '[data-slidedeck-dots]',
-    '[data-slidedeck-autoplay-toggle]'
+    '[data-slidedeck-dots]'
   ]) {
     row.push((await page.locator(selector).boundingBox())!);
   }
