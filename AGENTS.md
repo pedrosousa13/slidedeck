@@ -55,7 +55,7 @@ Formatting is checked, never written by the gate. Run
 fix, a feature, a changed prop or type, a changed package file. Run
 `pnpm changeset`, pick the bump, write what changed for the consumer, and
 commit the file with the change. Tests, docs outside the packages, CI and
-scripts need none. Before 1.0, a breaking change is a `minor`.
+scripts need none. A breaking change is a `major`.
 
 **A release** is `.github/workflows/release.yml`, on every push to `main`. It
 runs `pnpm verify` first, then:
