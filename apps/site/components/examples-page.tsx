@@ -15,8 +15,11 @@ interface Example {
   title: string;
   /** One line on what it shows. */
   body: string;
-  /** The docs page for the features it uses. */
-  code: string;
+  /** The docs pages for the features it uses, each with what it is for when
+   * there are several. */
+  code: readonly { href: string; topic?: string }[];
+  /** Spans the page rather than sitting in a frame. */
+  bleed?: boolean;
   deck: ReactNode;
 }
 
@@ -25,42 +28,46 @@ const EXAMPLES: Example[] = [
     id: 'product-gallery',
     title: 'Product gallery',
     body: 'Large photos with a thumbnail for each page, built on useDeck. Swipe, drag or pick a thumbnail.',
-    code: '/docs/recipes/custom-controls/',
+    code: [{ href: '/docs/recipes/custom-controls/' }],
     deck: <GalleryDeck eager />
   },
   {
     id: 'hero-banner',
     title: 'Hero banner',
-    body: 'Full width, crossfading with effect={fade}, and autoplay with its toggle. Reduced motion starts it stopped.',
-    code: '/docs/guides/autoplay/',
+    body: 'Full width, edge to edge, crossfading with effect={fade}, and autoplay with its toggle. Reduced motion starts it stopped.',
+    code: [
+      { href: '/docs/guides/effects/', topic: 'fade' },
+      { href: '/docs/guides/autoplay/', topic: 'autoplay' }
+    ],
+    bleed: true,
     deck: <HeroDeck />
   },
   {
     id: 'testimonials',
     title: 'Testimonials',
-    body: 'Centred cards with their neighbours in view, the first and the last centred too.',
-    code: '/docs/recipes/centred-ends/',
+    body: 'Sample copy: reviews for Hearth & Kiln, an invented roastery. Centred cards with their neighbours in view, the first and the last centred too.',
+    code: [{ href: '/docs/recipes/centred-ends/' }],
     deck: <TestimonialsDeck />
   },
   {
     id: 'stories',
     title: 'Stories',
     body: 'orientation="vertical" in a phone-shaped frame, one full-height story at a time.',
-    code: '/docs/guides/vertical-and-rtl/',
+    code: [{ href: '/docs/guides/vertical-and-rtl/' }],
     deck: <StoriesDeck />
   },
   {
     id: 'right-to-left',
     title: 'Right to left',
     body: 'The same deck in an Arabic, dir="rtl" container. It starts at the right, and Next goes left.',
-    code: '/docs/guides/vertical-and-rtl/',
+    code: [{ href: '/docs/guides/vertical-and-rtl/' }],
     deck: <RtlDeck />
   },
   {
     id: 'cover-flow',
     title: 'Cover flow',
     body: 'effect={curve} on album covers drawn in CSS, looping, sized with the curve recipe.',
-    code: '/docs/recipes/size-a-curve/',
+    code: [{ href: '/docs/recipes/size-a-curve/' }],
     deck: <CoverFlowDeck />
   }
 ];
@@ -86,7 +93,7 @@ export default function ExamplesPage() {
       {EXAMPLES.map((example) => (
         <section
           key={example.id}
-          className="example"
+          className={example.bleed ? 'example example-bleed' : 'example'}
           aria-labelledby={example.id}
         >
           <div className="example-text">
@@ -94,7 +101,11 @@ export default function ExamplesPage() {
             <p>
               <Line text={example.body} />
             </p>
-            <a href={example.code}>View code ›</a>
+            {example.code.map(({ href, topic }) => (
+              <a key={href} href={href}>
+                {topic === undefined ? 'View code ›' : `View code: ${topic} ›`}
+              </a>
+            ))}
           </div>
           <div className="example-frame">{example.deck}</div>
         </section>

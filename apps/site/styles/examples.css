@@ -4,26 +4,19 @@
  * follow; the photos' captions are white on a dark scrim in both. Each
  * example is styled through slidedeck's data attributes and its own classes,
  * never by a slide's position: a loop's copies are slides too (ADR-0009).
+ * Every rule and token is scoped to the page's or a deck's own classes, so
+ * nothing reaches the rest of a page that shows one of the decks.
  */
 
-:root {
-  --frame-radius: 32px;
-  --frame-padding: clamp(16px, 4vw, 48px);
-  /* A card on a frame. */
-  --frame-card: #ffffff;
-  /* Captions over a photo: white on a scrim dark enough for 4.5:1. */
-  --scrim: linear-gradient(
+/* Captions over a photo: white on a scrim dark enough for 4.5:1. */
+.hero-deck,
+.stories-deck {
+  --ex-scrim: linear-gradient(
     to top,
     rgb(0 0 0 / 0.8),
     rgb(0 0 0 / 0.45) 60%,
     transparent
   );
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --frame-card: #2c2c2e;
-  }
 }
 
 /* The page. */
@@ -100,9 +93,33 @@
 .example-frame {
   box-sizing: border-box;
   min-width: 0;
-  padding: var(--frame-padding);
-  border-radius: var(--frame-radius);
+  padding: clamp(16px, 4vw, 48px);
+  border-radius: 32px;
   background-color: var(--tile);
+}
+
+/* An example that bleeds to the page's edges: its words stay in the
+   column, its deck spans the page. */
+.example-bleed {
+  max-width: none;
+  padding-inline: 0;
+}
+
+.example-bleed .example-text {
+  box-sizing: border-box;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.example-bleed .example-text > * {
+  max-width: 760px;
+}
+
+.example-bleed .example-frame {
+  padding: 0;
+  border-radius: 0;
+  background: none;
 }
 
 .examples-credits {
@@ -162,9 +179,15 @@
   color: var(--secondary);
 }
 
+/* The row is there before the thumbnails are, so they do not shift the page
+   when the deck is measured. */
 .gallery-thumbs {
+  flex: 0 0 100%;
+  min-height: 52px;
+}
+
+.gallery-thumbs [role='group'] {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
 }
@@ -192,19 +215,14 @@
 
 /* Hero banner: a wide photo, its words over a scrim at the foot. */
 
-.hero-deck [data-slidedeck-viewport] {
-  border-radius: 24px;
-}
-
 .hero-slide {
   position: relative;
   display: flex;
   align-items: flex-end;
   /* A height, not an aspect ratio with a minimum: that minimum would widen
      the slide past a phone's viewport. */
-  height: clamp(420px, 45vw, 560px);
+  height: clamp(420px, 45vw, 640px);
   overflow: hidden;
-  border-radius: 24px;
   background-color: var(--control);
 }
 
@@ -220,9 +238,10 @@
   position: relative;
   box-sizing: border-box;
   width: 100%;
-  padding: clamp(24px, 5vw, 56px);
-  padding-top: 96px;
-  background: var(--scrim);
+  /* The words line up with the page's column above. */
+  padding: 96px max(var(--gutter), calc((100% - 1200px) / 2 + var(--gutter)))
+    clamp(24px, 5vw, 56px);
+  background: var(--ex-scrim);
   color: #ffffff;
 }
 
@@ -248,6 +267,14 @@
 
 .testimonials-deck {
   --slide-width: min(420px, 78vw);
+  /* A card on the frame. */
+  --ex-card: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .testimonials-deck {
+    --ex-card: #2c2c2e;
+  }
 }
 
 .testimonials-deck [data-slidedeck-viewport] {
@@ -271,7 +298,7 @@
   margin: 0;
   padding: 32px;
   border-radius: 24px;
-  background-color: var(--frame-card);
+  background-color: var(--ex-card);
 }
 
 .testimonial blockquote {
@@ -315,19 +342,19 @@
 }
 
 /* 4.5:1 or better for the white initials. */
-[data-tone='blue'] {
+.testimonial-avatar[data-tone='blue'] {
   background-color: #0058b0;
 }
-[data-tone='orange'] {
+.testimonial-avatar[data-tone='orange'] {
   background-color: #b04a00;
 }
-[data-tone='green'] {
+.testimonial-avatar[data-tone='green'] {
   background-color: #1d7a3e;
 }
-[data-tone='purple'] {
+.testimonial-avatar[data-tone='purple'] {
   background-color: #7a3fb5;
 }
-[data-tone='teal'] {
+.testimonial-avatar[data-tone='teal'] {
   background-color: #0f6e70;
 }
 
@@ -369,7 +396,7 @@
   box-sizing: border-box;
   width: 100%;
   padding: 72px 24px 28px;
-  background: var(--scrim);
+  background: var(--ex-scrim);
   color: #ffffff;
 }
 
@@ -465,18 +492,18 @@
 
 /* Each cover by its album: white text on a colour of 4.5:1 or better at its
    foot, where the words are. */
-[data-album='tide'] {
+.album[data-album='tide'] {
   background-image: linear-gradient(160deg, #3a86c8, #1e6091 45%, #0b2545);
 }
-[data-album='moons'] {
+.album[data-album='moons'] {
   background-image:
     radial-gradient(circle at 70% 30%, #f4d35e 0 16%, transparent 17%),
     linear-gradient(160deg, #3d348b, #1b1340);
 }
-[data-album='north'] {
+.album[data-album='north'] {
   background-image: linear-gradient(#7fa7b8 0 42%, #24414e 42%);
 }
-[data-album='orbit'] {
+.album[data-album='orbit'] {
   background-image:
     radial-gradient(
       circle at 50% 38%,
@@ -486,7 +513,7 @@
     ),
     linear-gradient(135deg, #2b2d42, #11121c);
 }
-[data-album='glass'] {
+.album[data-album='glass'] {
   background-image: linear-gradient(
     135deg,
     #1f7a70 0 33%,
@@ -494,15 +521,32 @@
     #0e3f3a 66%
   );
 }
-[data-album='swim'] {
+.album[data-album='swim'] {
   background-image: linear-gradient(#415a77, #1b263b 55%, #0d1b2a);
 }
-[data-album='field'] {
+.album[data-album='field'] {
   background-image: repeating-linear-gradient(
     90deg,
     #606c38 0 18px,
     #4a5429 18px 36px
   );
+}
+
+/* A phone: the testimonials' Previous, dots and Next stay on one row down to
+   375px, as the site's controls row does, with a shorter current dot. */
+@media (max-width: 400px) {
+  .testimonials-deck {
+    gap: 6px;
+  }
+
+  .testimonials-deck [data-slidedeck-prev],
+  .testimonials-deck [data-slidedeck-next] {
+    padding: 0 10px;
+  }
+
+  .testimonials-deck [data-slidedeck-dots] [data-index][aria-current='true'] {
+    width: 40px;
+  }
 }
 
 /* A phone: smaller covers and photos, the arc's room to match. */
@@ -524,6 +568,10 @@
   }
 
   .gallery-thumbs {
+    min-height: 40px;
+  }
+
+  .gallery-thumbs [role='group'] {
     gap: 6px;
   }
 
