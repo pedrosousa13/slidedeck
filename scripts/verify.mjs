@@ -5,7 +5,8 @@
 //
 // Assumes `pnpm install` has run and Playwright's browsers are installed
 // (`pnpm exec playwright install chromium firefox webkit`): vitest's browser
-// mode drives chromium, and the e2e suite all three.
+// mode drives chromium, and webkit for a few tests, and the e2e suite all
+// three.
 
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, URL } from 'node:url';

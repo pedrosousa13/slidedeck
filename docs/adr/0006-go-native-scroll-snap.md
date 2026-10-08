@@ -32,6 +32,16 @@ settle. Restoring snapping on release was rejected: in all three browsers
 the re-snap finished before the first frame after release, and a flick was
 ignored.
 
+The drag moves the deck, and is released, from where it last put the deck,
+not from where the viewport is (amended for #123). Measured in Playwright's
+WebKit under load, on a vertical deck of photos, the browser's own handling
+of the mouse press scrolled the viewport, and the page, back toward the
+start between the drag's moves and before its release, and the deck came to
+rest where the drag began. Preventing the press's default stopped it, but
+that would also stop a press focusing a control in a slide, so the drag no
+longer reads its position back from the viewport but once per move, after
+its own write, as the browser clamped it.
+
 **A move's lifecycle (amended for #41).** A _move_ is a scroll the engine
 started: a step, a `scrollTo`, a drag's release. The engine is _idle_ or
 _moving_ to a target snap point; `startMove` and `endMove` own that state
@@ -61,7 +71,19 @@ event cannot say which move it ends. The events, and what each does:
   Quiet runs from the start of each move until it ends. Where `scrollend` is
   missing, it also ends every other scroll, the user's included, as before.
   So every move ends: at its end event, or at worst 200ms after its last
-  scroll event.
+  scroll event, and a frame (below).
+- _A frame before quiet decides_ (amended for #123): a quiet that finds a
+  move short of its target, or the quiet a re-snap waits for (below), acts
+  only once a frame has rendered with no scroll event since. Measured in
+  Playwright's WebKit under load, no frame rendered for 300ms and more
+  while the main thread was idle and timers ran, and a scroll in flight
+  went nowhere and sent no scroll event until frames came back. A dot's
+  move then ended at two quiets and re-snapped to the nearest snap point
+  on, short of its target, which stopped the browser's scroll there; and
+  an arrow key's scroll, whose `scrollend` WebKit sent part way, was
+  re-snapped back where it began. A scroll event before the frame waits
+  for quiet again. The cost: where no frame renders at all, as in a hidden
+  tab, such a move does not end, nor a re-snap come, until one does.
 - _A new layout and a scroll with no end event_ (amended for #87): a
   scroll whose end event never came left a stale scrolling flag. Measured
   in Chromium: the scroll a shorter scroll range makes, as when slides are
@@ -186,9 +208,11 @@ replaced a handle's `scrollTo` with the next step. Settling the arrived move
 first was also rejected: that settle publishes the arrived move's index in
 the same task as the new move starts, a controlled parent echoes that index
 back, and the deck undoes the new move. The cost of the model: a move whose
-scroll sends no scroll event for two quiets in a row ends short of its
-target. That needs two long tasks with no frame between them, or a browser
-that pauses the scroll, as it may in a hidden tab; neither was measured. The
+scroll sends no scroll event for two quiets in a row, each with a frame
+after it, ends short of its target. That needs two long tasks with a frame
+but no scroll between them, or a browser that pauses the scroll while it
+renders; neither was measured. A browser that renders no frame, as in a
+hidden tab, holds the move until it does (amended for #123). The
 deck then settles where the viewport is, and settles again at the scroll's
 own end, if one comes, with one more `onIndexChange`.
 

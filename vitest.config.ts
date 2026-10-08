@@ -1,6 +1,29 @@
 import { fileURLToPath, URL } from 'node:url';
 import { playwright } from '@vitest/browser-playwright';
+import type { BrowserCommand } from 'vitest/node';
 import { defineConfig } from 'vitest/config';
+
+/** A step of `mouse`, as `packages/react/test/mouse.ts` sends it. */
+type MouseStep =
+  | ['move', x: number, y: number, steps?: number]
+  | ['down' | 'up']
+  | ['wait', ms: number];
+
+/**
+ * Real mouse input through Playwright, in any browser: the CDP the other
+ * tests use is Chromium's alone. Sends each step in turn.
+ */
+const mouse: BrowserCommand<[MouseStep[]]> = async ({ page }, steps) => {
+  for (const step of steps) {
+    if (step[0] === 'move') {
+      await page.mouse.move(step[1], step[2], { steps: step[3] ?? 1 });
+    } else if (step[0] === 'wait') {
+      await new Promise((resolve) => setTimeout(resolve, step[1]));
+    } else {
+      await page.mouse[step[0]]();
+    }
+  }
+};
 
 export default defineConfig({
   resolve: {
@@ -49,7 +72,13 @@ export default defineConfig({
     browser: {
       enabled: true,
       headless: true,
-      instances: [{ browser: 'chromium' }],
+      instances: [
+        { browser: 'chromium' },
+        // Only the tests of what WebKit alone did (#123): the others drive
+        // input through CDP, which is Chromium's alone.
+        { browser: 'webkit', include: ['packages/react/test/webkit.test.tsx'] }
+      ],
+      commands: { mouse },
       // Touch-enabled so a test can swipe with real CDP touch events, and
       // with classic scrollbars, which Playwright hides by default, so a test
       // can see one take layout space.

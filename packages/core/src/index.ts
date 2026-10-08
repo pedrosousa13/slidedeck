@@ -257,6 +257,7 @@ export function createDeck(
     along.scrollTo(at + shift, 'instant');
     style.scrollSnapType = snap;
     // Positions kept from before the shift move with it.
+    if (drag === 'dragging') dragAt += shift;
     if (taken) taken.at += shift;
     if (resnapFrom !== null) resnapFrom += shift;
     return at + shift;
@@ -394,6 +395,12 @@ export function createDeck(
   let last = 0;
   // How far the pointer has dragged the deck forward, in scroll pixels.
   let travel = 0;
+  // Where the drag has put the deck, as the browser clamped it. The drag
+  // goes on, and is released, from here, not from where the viewport is:
+  // measured in Playwright's WebKit under load (#123), the browser's own
+  // handling of the mouse press can scroll the viewport back between the
+  // drag's moves, and the deck came to rest where the drag began.
+  let dragAt = 0;
   let samples: { t: number; travel: number }[] = [];
   // A move asked for while the pointer held the deck.
   let deferred: { index: number; across: boolean } | null = null;
@@ -427,15 +434,42 @@ export function createDeck(
   // its target ends only at a second quiet with no scroll between: the
   // first can come just after a long task held the main thread, before the
   // browser has gone on with the scroll, or sent its scroll events.
+  //
+  // A quiet that would find a scroll stopped, a move's short of its target
+  // or the one a re-snap waits on, waits for a frame to render with no
+  // scroll event first (#123). Measured in Playwright's WebKit under load,
+  // no frame renders for 300ms and more while the main thread is idle and
+  // timers run, and a scroll in flight goes nowhere until frames come back.
+  // Quiet then took the move for stalled and re-snapped it short of its
+  // target, or took a keyboard scroll's early `scrollend` for its end and
+  // re-snapped the deck back. Where no frame renders at all, as in a hidden
+  // tab, those wait until one does.
   const hasScrollEnd = 'onscrollend' in window;
   let quiet: ReturnType<typeof setTimeout> | undefined;
-  const stopQuiet = () => clearTimeout(quiet);
+  let quietFrame = 0;
+  const stopQuiet = () => {
+    clearTimeout(quiet);
+    cancelAnimationFrame(quietFrame);
+    quietFrame = 0;
+  };
   const awaitQuiet = () => {
     stopQuiet();
     quiet = setTimeout(onQuiet, SCROLL_END_DEBOUNCE_MS);
   };
   const onQuiet = () => {
-    if (move && !move.stalled && !arrived(move)) {
+    const short = move !== null && !arrived(move);
+    if (!short && confirm !== 'waiting') {
+      quieted(false);
+      return;
+    }
+    // A scroll event before the frame awaits quiet again, which cancels it.
+    quietFrame = requestAnimationFrame(() => {
+      quietFrame = 0;
+      quieted(short);
+    });
+  };
+  const quieted = (short: boolean) => {
+    if (short && move && !move.stalled) {
       move.stalled = true;
       awaitQuiet();
       return;
@@ -1029,13 +1063,15 @@ export function createDeck(
       viewport.setPointerCapture(pointer);
       // Before the drag first moves the deck (see `shiftOffCopies`).
       shiftOffCopies();
+      dragAt = dragAxis.position;
     }
     // The deck follows the pointer: a pointer moving toward the deck's start
     // drags it forward.
     const at = dragAxis.at(event);
     const delta = last - at;
     last = at;
-    dragAxis.position += delta;
+    dragAxis.position = dragAt + delta;
+    dragAt = dragAxis.position;
     travel += delta;
     samples.push({ t: event.timeStamp, travel });
     if (samples.length > MAX_SAMPLES) samples.shift();
@@ -1062,7 +1098,7 @@ export function createDeck(
       { length: geometry.points.length + 2 * reach },
       (_, i) => positionOf(geometry, i - reach)
     );
-    const position = dragAxis.position;
+    const position = dragAt;
     const velocity = releaseVelocity(samples, event.timeStamp);
     let next = nearest(points, position + velocity * MOMENTUM_MS);
     // A flick always moves at least one snap point the way it was thrown.
