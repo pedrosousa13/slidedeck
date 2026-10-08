@@ -4,7 +4,8 @@ import * as Deck from '@slidedeck/react';
 
 export default function PlaceholderDeck() {
   return (
-    <Deck.Root aria-label="Placeholder slides">
+    <Deck.Root aria-label="Placeholder slides" autoplay={5000}>
+      <Deck.AutoplayToggle />
       <Deck.Viewport>
         <Deck.Slide>Slide 1</Deck.Slide>
         <Deck.Slide>Slide 2</Deck.Slide>
