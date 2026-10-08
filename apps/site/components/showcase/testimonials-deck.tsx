@@ -11,36 +11,36 @@ interface Testimonial {
   tone: 'blue' | 'green' | 'orange' | 'purple' | 'teal';
 }
 
-// A made-up roastery's customers.
+// Sample copy: invented customers of Hearth & Kiln, an invented roastery.
 const TESTIMONIALS: Testimonial[] = [
   {
     quote: 'The beans arrive two days after roasting, and you can taste it.',
     name: 'Maya Chen',
-    role: 'Home barista',
+    role: 'Home barista, Hearth & Kiln customer',
     tone: 'blue'
   },
   {
-    quote: 'We moved the whole café over in a week. Our regulars noticed.',
+    quote: 'Our espresso has never pulled sweeter than with the house blend.',
     name: 'Tomás Rivera',
-    role: 'Café owner',
+    role: 'Café owner, Hearth & Kiln customer',
     tone: 'orange'
   },
   {
-    quote: 'I skip a month when I ask. No emails, no calls, no fuss.',
+    quote: 'Skipping a month of beans takes one click, and every bag is fresh.',
     name: 'Priya Nair',
-    role: 'Subscriber',
+    role: 'Subscriber, Hearth & Kiln customer',
     tone: 'green'
   },
   {
-    quote: 'Every bag says where it grew and how to brew it.',
+    quote: 'Every bag says where the coffee grew and how to brew it.',
     name: 'Jonas Weber',
-    role: 'Coffee teacher',
+    role: 'Coffee teacher, Hearth & Kiln customer',
     tone: 'purple'
   },
   {
-    quote: 'Packaging we can compost. That settled it for the office.',
+    quote: 'Compostable bags, and a medium roast the whole office agrees on.',
     name: 'Amara Okafor',
-    role: 'Office manager',
+    role: 'Office manager, Hearth & Kiln customer',
     tone: 'teal'
   }
 ];

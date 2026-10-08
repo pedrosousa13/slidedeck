@@ -5,29 +5,29 @@ import { STORIES, type Photo } from './photos.ts';
 import '../../styles/examples.css';
 
 interface Story {
-  place: string;
+  title: string;
   caption: string;
   photo: Photo;
 }
 
 const ITEMS: Story[] = [
   {
-    place: 'SoHo, New York',
+    title: 'City morning',
     caption: 'Cobbles before the shops open.',
     photo: STORIES.street
   },
   {
-    place: 'Douro Valley',
-    caption: 'Harvest starts on Monday.',
+    title: 'Harvest',
+    caption: 'The first grapes come in on Monday.',
     photo: STORIES.grapes
   },
   {
-    place: 'Cordillera Blanca',
+    title: 'High trail',
     caption: 'Four hours up. Worth it.',
     photo: STORIES.trail
   },
   {
-    place: 'Studio kitchen',
+    title: 'Supper',
     caption: 'Tonight’s table, set early.',
     photo: STORIES.forks
   }
@@ -43,7 +43,7 @@ export default function StoriesDeck() {
     >
       <Deck.Viewport>
         {ITEMS.map((story) => (
-          <Deck.Slide key={story.place}>
+          <Deck.Slide key={story.title}>
             <figure className="story">
               <img
                 src={story.photo.src}
@@ -53,7 +53,7 @@ export default function StoriesDeck() {
                 loading="lazy"
               />
               <figcaption>
-                <h3>{story.place}</h3>
+                <h3>{story.title}</h3>
                 <p>{story.caption}</p>
               </figcaption>
             </figure>
