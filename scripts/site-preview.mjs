@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url';
 
 // Marks the comment this script owns, so a later push finds it.
 const MARKER = '<!-- slidedeck-site-preview -->';
+// Who writes it: the workflow's `GITHUB_TOKEN`.
+const AUTHOR = 'github-actions[bot]';
 
 /**
  * The URLs of the Pages deployment in wrangler's output file: `url` for this
@@ -43,16 +45,21 @@ export const previewComment = ({ url, alias, sha }) =>
   ].join('\n');
 
 /**
- * Updates the comment that carries the marker, or creates it if there is none.
+ * Updates the comment that carries the marker and that the workflow wrote, or
+ * creates it if there is none. A person's comment is never edited, even one
+ * that quotes the marker.
  * @param {{
- *   comments: { id: number, body: string }[];
+ *   comments: { id: number, body: string, user: { login: string, type: string } }[];
  *   body: string;
  *   create: (body: string) => void;
  *   update: (id: number, body: string) => void;
  * }} options
  */
 export const upsertPreviewComment = ({ comments, body, create, update }) => {
-  const own = comments.find((comment) => comment.body.startsWith(MARKER));
+  const own = comments.find(
+    ({ body, user }) =>
+      body.startsWith(MARKER) && user.login === AUTHOR && user.type === 'Bot'
+  );
   if (own) update(own.id, body);
   else create(body);
 };
@@ -80,7 +87,7 @@ const main = () => {
     '--paginate',
     `repos/${repo}/issues/${pr}/comments`,
     '--jq',
-    '.[] | {id, body}'
+    '.[] | {id, body, user: {login: .user.login, type: .user.type}}'
   ])
     .split('\n')
     .filter((line) => line !== '')

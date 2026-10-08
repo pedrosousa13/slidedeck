@@ -104,9 +104,9 @@ The site is `apps/site`, a pagedeck site. `pnpm build` writes it to
 headers included.
 
 **It deploys from CI**, in the `deploy-site` job of `ci.yml`, after `verify`
-passes. The job uploads the `apps/site/site/` that `verify` built, with the
-pinned `wrangler` in `apps/site`, to the Cloudflare Pages project `slidedeck`,
-a Direct Upload project:
+passes on the same commit. The job builds the site again, with no pnpm or turbo
+cache, and uploads it with the pinned `wrangler` in `apps/site` to the
+Cloudflare Pages project `slidedeck`, a Direct Upload project:
 
 - a push to `main` deploys production, https://slidedeck.pages.dev.
 - a pull request from this repository deploys a preview at

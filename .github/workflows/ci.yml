@@ -8,9 +8,12 @@ on:
 permissions:
   contents: read
 
+# A pull request's newer push cancels its older run. A push to `main` never
+# cancels one, for release.yml's reason: `deploy-site` must not stop partway
+# through a production deploy. The runs queue instead.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
@@ -46,19 +49,16 @@ jobs:
         timeout-minutes: 15
       # The one gate, the same command a developer runs locally.
       - run: pnpm verify
-      # The site `pnpm verify` built, for `deploy-site` to upload as it is.
-      - uses: actions/upload-artifact@v7
-        with:
-          name: site
-          path: apps/site/site
-          if-no-files-found: error
-          retention-days: 1
 
   # Uploads the site to Cloudflare Pages (project `slidedeck`): production from
   # a push to `main`, a preview at https://pr-<number>.slidedeck.pages.dev from
-  # a pull request. A job here rather than its own workflow, so it waits on the
-  # `pnpm verify` above and uploads the build that run checked, with no second
-  # verify. See AGENTS.md, "Site".
+  # a pull request. A job here rather than its own workflow, so it runs only
+  # after `verify` passed every gate on the same commit, with no second verify.
+  # See AGENTS.md, "Site".
+  #
+  # It builds the site itself, as release.yml's jobs whose output ships do: no
+  # pnpm store cache and no turbo cache, as a restored cache is code from
+  # another run.
   #
   # A fork, and a pull request from one, get no secrets: the job is skipped,
   # which passes, rather than run and fail.
@@ -69,30 +69,19 @@ jobs:
       (github.event_name == 'push' ||
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: write # the preview comment
+    # Every action is pinned to a full commit SHA, its version in a comment:
+    # this job holds the Cloudflare token.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: corepack enable
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          package-manager-cache: false
-      # For the pinned wrangler only: this job builds nothing, and
-      # `--ignore-scripts` keeps every dependency's lifecycle script out of the
-      # job that holds the Cloudflare token.
-      - run: pnpm install --frozen-lockfile --ignore-scripts --filter @slidedeck/site
-      - uses: actions/download-artifact@v8
-        with:
-          name: site
-          path: apps/site/site
 
-      # Fails before anything is uploaded when a secret is missing, and says
-      # which, rather than leaving it to wrangler's error.
+      # Fails before anything is built or uploaded when a secret is missing,
+      # and says which, rather than leaving it to wrangler's error.
       - name: Check the Cloudflare secrets are set
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -105,6 +94,17 @@ jobs:
             echo "::error::Missing repository secrets:$missing. Nothing was deployed. See AGENTS.md, Site."
             exit 1
           fi
+
+      - run: corepack enable
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      # The token is only in the deploy step's environment, never in these.
+      - run: pnpm install --frozen-lockfile
+      # The site and the packages it depends on. `--force`: no cache, local or
+      # remote, even if one is ever configured.
+      - run: pnpm exec turbo run build --filter=@slidedeck/site --force
 
       # `main` is the Pages project's production branch; any other is a preview.
       - name: Deploy to Cloudflare Pages
@@ -124,5 +124,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/site-preview.mjs

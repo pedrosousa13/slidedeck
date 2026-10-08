@@ -39,9 +39,12 @@ test('previewComment names the alias, the deployment and the commit', () => {
   assert.match(body, /abc1234def/);
 });
 
+const person = { login: 'pedrosousa13', type: 'User' };
+const bot = { login: 'github-actions[bot]', type: 'Bot' };
+
 /**
  * A pull request's comments, in memory.
- * @param {{ id: number, body: string }[]} comments
+ * @param {{ id: number, body: string, user: { login: string, type: string } }[]} comments
  */
 const fakePr = (comments) => {
   /** @type {string[]} */
@@ -64,7 +67,7 @@ const fakePr = (comments) => {
 };
 
 test('upsertPreviewComment creates the comment on a first deploy', () => {
-  const pr = fakePr([{ id: 1, body: 'Looks good.' }]);
+  const pr = fakePr([{ id: 1, body: 'Looks good.', user: person }]);
   const body = previewComment({ ...deployment, sha: 'abc' });
   upsertPreviewComment({ ...pr, body });
   assert.deepEqual(pr.created, [body]);
@@ -74,11 +77,20 @@ test('upsertPreviewComment creates the comment on a first deploy', () => {
 test('upsertPreviewComment updates its own comment on a later push', () => {
   const earlier = previewComment({ ...deployment, sha: 'abc' });
   const pr = fakePr([
-    { id: 1, body: 'Looks good.' },
-    { id: 2, body: earlier }
+    { id: 1, body: 'Looks good.', user: person },
+    { id: 2, body: earlier, user: bot }
   ]);
   const body = previewComment({ ...deployment, sha: 'def' });
   upsertPreviewComment({ ...pr, body });
   assert.deepEqual(pr.created, []);
   assert.deepEqual(pr.updated, [{ id: 2, body }]);
+});
+
+test('upsertPreviewComment leaves a comment from a person alone, marker or not', () => {
+  const quoted = previewComment({ ...deployment, sha: 'abc' });
+  const pr = fakePr([{ id: 3, body: quoted, user: person }]);
+  const body = previewComment({ ...deployment, sha: 'def' });
+  upsertPreviewComment({ ...pr, body });
+  assert.deepEqual(pr.created, [body]);
+  assert.deepEqual(pr.updated, []);
 });
