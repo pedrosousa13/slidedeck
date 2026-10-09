@@ -1,8 +1,7 @@
 ---
+title: Known limits
 description: "Known limits of slidedeck: loop copies render a slide's children again, fade ignores slide geometry, and the first paint estimates progress from each index."
 ---
-
-# Known limits
 
 - **A loop copy renders the slide's children again.** Their state is their
   own, effects and refs in them run once per copy, and an `id` inside a slide

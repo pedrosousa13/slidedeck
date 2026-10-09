@@ -1,13 +1,13 @@
 ---
-components: [example-theme]
+title: Theme
 description: "An optional stylesheet that gives slidedeck's Prev, Next, Dots, Counter and autoplay toggle a plain look, with every value a custom property you can set."
 ---
-
-# Theme
 
 An optional stylesheet gives the controls (Prev, Next, Dots, Counter and
 AutoplayToggle) a plain appearance. Slides stay your CSS, and a deck works
 without it.
+
+<!-- demo:example-theme -->
 
 ```ts
 import '@slidedeck/react/theme.css';

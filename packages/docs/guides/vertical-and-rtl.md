@@ -1,9 +1,7 @@
 ---
-components: [example-vertical, example-right-to-left]
+title: Vertical and right-to-left
 description: 'Scroll a slidedeck deck along the block axis with orientation="vertical", and how a deck follows a right-to-left writing direction, a change of dir included.'
 ---
-
-# Vertical and right-to-left
 
 `orientation="vertical"` scrolls along the block axis. A vertical deck needs a
 height, set on `Deck.Viewport` in CSS; each slide fills it by default.
@@ -17,3 +15,7 @@ A deck follows a change of `dir` after it mounts, as a locale switch makes:
 it stays on its slide, and from there goes the new way. A change of
 `direction` in CSS alone is not watched, and a deck inside a shadow root does
 not see a change of `dir` on its ancestors outside it.
+
+<!-- demo:example-vertical -->
+
+<!-- demo:example-right-to-left -->

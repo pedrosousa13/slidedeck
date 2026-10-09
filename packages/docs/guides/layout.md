@@ -1,13 +1,13 @@
 ---
-components: [example-layout]
+title: Layout is CSS
 description: 'Slides per view, gap, alignment and breakpoints are plain CSS in slidedeck, not props. The zero-specificity defaults, and how to bring the scrollbar back.'
 ---
-
-# Layout is CSS
 
 Slides per view, gap, alignment and their breakpoints are plain CSS, never
 props. By default each slide is as wide as the viewport and snaps at its
 start. These defaults have zero specificity, so any rule of yours wins:
+
+<!-- demo:example-layout -->
 
 ```css
 /* Two and a half slides in view, a 16px gap, centred. */
@@ -57,4 +57,4 @@ inline on the primitives; your `style` prop is spread after them.
 
 Centred slides rest with the first slide at the start edge, as the viewport
 cannot scroll before it. To centre the first and last slides too, see
-[centre the first and last slide](/docs/recipes/centred-ends/).
+[centre the first and last slide](../recipes/centred-ends.md).

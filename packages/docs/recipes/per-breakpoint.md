@@ -1,10 +1,8 @@
 ---
+title: Change effect, loop or autoplay per breakpoint
 label: Per breakpoint
-components: [example-per-breakpoint]
 description: "Switch a slidedeck deck's effect, loop or autoplay at a breakpoint: read the media query in your component and pass the props it picks, with CSS in step."
 ---
-
-# Change `effect`, `loop` or `autoplay` per breakpoint
 
 A prop cannot read a media query, so read it in your component and pass the
 props it picks. A deck takes a new `effect`, `loop` or `autoplay` after it
@@ -15,7 +13,9 @@ last one and reports it, through `onIndexChange` and the live region. Here a
 narrow screen crossfades one slide at a time, and from 768px the deck shows
 three slides and loops:
 
-<!-- example: apps/storybook/stories/recipes/responsive-deck.tsx -->
+<!-- demo:example-per-breakpoint -->
+
+[example: responsive-deck.tsx]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/recipes/responsive-deck.tsx
 
 ```tsx
 import { useCallback, useSyncExternalStore, type ReactNode } from 'react';
@@ -56,7 +56,7 @@ export function ResponsiveDeck({ children }: { children: ReactNode }) {
 
 Slides per view stays in CSS, at the same breakpoint:
 
-<!-- example: apps/storybook/stories/recipes/responsive-deck.css -->
+[example: responsive-deck.css]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/recipes/responsive-deck.css
 
 ```css
 /* From 768px, the breakpoint the hook reads, three slides in view, 16px
@@ -81,7 +81,7 @@ Notes:
 - Autoplay works the same way: `autoplay={wide ? 5000 : undefined}` rotates
   the deck on wide screens only. Keep `Deck.AutoplayToggle` in the deck; it is
   absent while `autoplay` is unset.
-- The deck keeps its index, not its slide. With [pages](/docs/guides/pages/), an index is
+- The deck keeps its index, not its slide. With [pages](../guides/pages.md), an index is
   a page, so on the side of the breakpoint that pages, the same index shows
   other slides than on the side that fades.
 

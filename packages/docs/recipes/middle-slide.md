@@ -1,15 +1,17 @@
 ---
-components: [example-middle-centred, example-middle-by-progress]
+title: Highlight the middle slide in view
 description: 'Two ways to highlight the middle of several slides in view in a slidedeck deck: centre the slides and style data-focal, or style by scroll progress.'
 ---
 
-# Highlight the middle slide in view
-
 The focal slide is the slide at the snap alignment point (see
-[Focal slide](/docs/guides/focal-slide/)), not the middle of the slides in view. With the
+[Focal slide](../guides/focal-slide.md)), not the middle of the slides in view. With the
 default `scroll-snap-align: start`, it is the first slide in view. There are
 two ways to highlight the middle one, here of three in view. Both outline it
 rather than dim the others, which would lower their text's contrast.
+
+<!-- demo:example-middle-centred -->
+
+<!-- demo:example-middle-by-progress -->
 
 ## Centre the slides
 
@@ -17,7 +19,7 @@ rather than dim the others, which would lower their text's contrast.
 slide is the middle one: style `[data-focal]`. `onFocalChange` and
 `clickToFocus` then follow the middle slide too.
 
-<!-- example: apps/storybook/stories/recipes/middle-centred.css -->
+[example: middle-centred.css]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/recipes/middle-centred.css
 
 ```css
 /* Three slides in view, centred: the focal slide is the middle one. */
@@ -35,7 +37,7 @@ slide is the middle one: style `[data-focal]`. `onFocalChange` and
 ```
 
 At the ends, the middle slide is the second and the second to last; add the
-padding of [centre the first and last slide](/docs/recipes/centred-ends/)
+padding of [centre the first and last slide](./centred-ends.md)
 to let the first and last slides reach the middle.
 
 ## Style by progress
@@ -46,7 +48,7 @@ of `n` in view at `(n - 1) / 2`. Progress changes every frame, so the
 highlight moves with the scroll, where `[data-focal]` changes when the deck
 settles.
 
-<!-- example: apps/storybook/stories/recipes/middle-by-progress.css -->
+[example: middle-by-progress.css]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/recipes/middle-by-progress.css
 
 ```css
 /* Three slides in view, at the start: the focal slide is the first in view,

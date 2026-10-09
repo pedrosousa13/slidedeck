@@ -1,9 +1,8 @@
 ---
+title: Play a playdeck video in the focal slide
 label: Playdeck video
 description: 'A social-style feed of videos with slidedeck and playdeck: the video in the focal slide plays muted, the others pause, and it works with loop.'
 ---
-
-# Play a playdeck video in the focal slide
 
 A social-style deck of videos: the video in the focal slide plays, muted, and
 the others pause. Each slide holds a [playdeck](https://www.npmjs.com/package/@playdeck/react)
@@ -15,7 +14,7 @@ scroll settles, and each player's handle plays or pauses it. It works with
 pnpm add @playdeck/react
 ```
 
-<!-- example: apps/storybook/stories/video-deck.tsx -->
+[example: video-deck.tsx]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/video-deck.tsx
 
 ```tsx
 import {

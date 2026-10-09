@@ -7,7 +7,8 @@ name: Release
 #   Nothing is published.
 # - no changesets, and a version not yet on npm (the version PR just merged):
 #   `publish` publishes the tarballs `verify` packed, with provenance, then
-#   `tag` tags them and creates their GitHub releases.
+#   `tag` tags them and creates their GitHub releases, and `tell-deck-cool`
+#   tells deck.cool the version, so it builds slidedeck's docs from it.
 # - neither: nothing runs after `verify`.
 #
 # Nothing after `verify` runs until the maintainer sets the `RELEASE_ENABLED`
@@ -145,8 +146,10 @@ jobs:
       # Trusted publishing, and provenance: without it npm refuses a publish
       # whose manifest sets `publishConfig.provenance`.
       id-token: write
-    # What this run published, for `tag` to wait for.
+    # What this run published, for `tag` to wait for and `tell-deck-cool` to
+    # send.
     outputs:
+      published: ${{ steps.publish.outputs.published }}
       published-packages: ${{ steps.publish.outputs.published-packages }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -246,3 +249,47 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PUBLISHED_PACKAGES: ${{ needs.publish.outputs.published-packages }}
         run: node scripts/tag-releases.mjs
+
+  # deck.cool builds slidedeck's docs site from @slidedeck/docs (#133). Its
+  # `bump-deck` workflow takes a `deck-released` dispatch, sets every
+  # `@slidedeck/*` dependency there to the version, and merges the bump: see
+  # deck-cool's AGENTS.md, "Releasing a deck". Only when `publish` published
+  # a version, and only after `tag`, which ends once npm shows every version
+  # `publish` published, so deck.cool's install finds it.
+  #
+  # Its own job, so the App's key is never in a job with the npm credential.
+  # It checks out and runs nothing of the repo's, and needs no GITHUB_TOKEN.
+  tell-deck-cool:
+    needs: [publish, tag]
+    if: vars.RELEASE_ENABLED == 'true' && needs.publish.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      # One version: core, react and docs are one fixed group in
+      # .changeset/config.json, so whatever this run published shares it.
+      - name: Read the version just published
+        id: version
+        env:
+          PUBLISHED_PACKAGES: ${{ needs.publish.outputs.published-packages }}
+        run: |
+          version=$(jq -r '[.[].version] | unique | if length == 1 then .[0] else error("not one version: \(.)") end' <<< "$PUBLISHED_PACKAGES")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Get a token from the deck-cool-releases App
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.DECK_APP_ID }}
+          private-key: ${{ secrets.DECK_APP_PRIVATE_KEY }}
+          owner: pedrosousa13
+          repositories: deck-cool
+          permission-contents: write
+      - name: Tell deck-cool
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh api repos/pedrosousa13/deck-cool/dispatches \
+            -f event_type=deck-released \
+            -f "client_payload[deck]=slidedeck" \
+            -f "client_payload[version]=${VERSION}"

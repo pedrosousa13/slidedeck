@@ -1,9 +1,7 @@
 ---
-components: [example-curve-size]
+title: Size a curve
 description: 'Turn a curve radius in pixels into slides for --deck-curve-radius, and work out how much room the arc needs inside the viewport so it is not clipped.'
 ---
-
-# Size a curve
 
 `--deck-curve-radius` is in slides, not pixels, where a slide is the step from
 one slide to the next: its width plus the gap. To turn a radius in pixels into
@@ -31,7 +29,9 @@ slides away, so if the faint ends of the arc may clip while the deck moves,
 the room for the furthest of them is enough: for `k = 2` here, 122px of drop
 and 28px of turn, 150px.
 
-<!-- example: apps/storybook/stories/recipes/curve-size.css -->
+<!-- demo:example-curve-size -->
+
+[example: curve-size.css]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/recipes/curve-size.css
 
 ```css
 /* An arc of radius 528px under slides 160px wide and 16px apart:

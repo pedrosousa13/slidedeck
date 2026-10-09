@@ -1,14 +1,14 @@
 ---
+title: 'The index: controlled, uncontrolled and the handle'
 label: The index
-components: [example-controlled]
 description: 'Read and set which snap point a slidedeck deck rests at: uncontrolled with defaultIndex, controlled with index and onIndexChange, or moved with its handle.'
 ---
-
-# The index: controlled, uncontrolled and the handle
 
 The current index is the snap point the viewport rests at. Uncontrolled, pass
 `defaultIndex` and read changes with `onIndexChange`. Controlled, pass
 `index` and `onIndexChange`, as with a React input's `value`:
+
+<!-- demo:example-controlled -->
 
 ```tsx
 import { useState } from 'react';

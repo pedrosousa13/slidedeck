@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { renderTable, spliceTable, versionCell } from './compare-libraries.mjs';
+import {
+  renderTable,
+  spliceDocsTable,
+  spliceTable,
+  versionCell
+} from './compare-libraries.mjs';
 
 const row = {
   name: '`a-lib`',
@@ -69,6 +74,37 @@ test('spliceTable throws when a marker is missing or out of order', () => {
       ),
     /comparison:start/
   );
+});
+
+test('spliceDocsTable replaces the page from its first table row on', () => {
+  const page = [
+    '---',
+    'title: T',
+    '---',
+    '',
+    'Intro.',
+    '',
+    '| old |',
+    '',
+    'Notes.',
+    ''
+  ];
+  assert.equal(
+    spliceDocsTable(page.join('\n'), '| new |\n\nNew notes.'),
+    [
+      '---',
+      'title: T',
+      '---',
+      '',
+      'Intro.',
+      '',
+      '| new |',
+      '',
+      'New notes.',
+      ''
+    ].join('\n')
+  );
+  assert.throws(() => spliceDocsTable('Intro.\n', '| t |'), /compare\.md/);
 });
 
 test("versionCell gives slidedeck's own packages no version, so a release never stales the table", () => {

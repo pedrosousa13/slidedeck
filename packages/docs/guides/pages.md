@@ -1,12 +1,12 @@
 ---
-components: [example-pages]
+title: Pages
 description: 'Snap a slidedeck deck a page at a time: make the first slide of each group a snap point, and Next moves a page while Dots and Counter count pages.'
 ---
 
-# Pages
-
 To snap in groups, make only the first slide of each group a snap point. Next
 then moves a page, and Dots and Counter count pages:
+
+<!-- demo:example-pages -->
 
 ```css
 /* Three slides in view, three to a page, from 640px. */

@@ -1,15 +1,15 @@
 ---
-components: [example-custom-controls]
+title: Custom controls and a counter
 description: "Build Previous, Next, a button per page and a counter from your own design system's components with Deck.useDeck(), behaving as the built-in controls do."
 ---
 
-# Custom controls and a counter
-
-`Deck.useDeck()` (see [Hooks](/docs/reference/hooks/)) gives your own components what the
+`Deck.useDeck()` (see [Hooks](../reference/hooks.md)) gives your own components what the
 built-in controls read. Here Previous, Next, a button per page and a counter
 are built from a design system's button, whose API is not a native button's:
 
-<!-- example: apps/storybook/stories/recipes/custom-controls.tsx -->
+<!-- demo:example-custom-controls -->
+
+[example: custom-controls.tsx]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/recipes/custom-controls.tsx
 
 ```tsx
 import * as Deck from '@slidedeck/react';

@@ -1,9 +1,9 @@
 ---
-components: [example-quickstart]
+title: Quickstart
 description: 'A working slidedeck carousel in one component: Deck.Root, a viewport of slides, Prev and Next buttons, dots and a counter, with no stylesheet needed.'
 ---
 
-# Quickstart
+<!-- demo:example-quickstart -->
 
 ```tsx
 import * as Deck from '@slidedeck/react';

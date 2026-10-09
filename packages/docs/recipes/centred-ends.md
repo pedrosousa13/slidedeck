@@ -1,9 +1,7 @@
 ---
-components: [example-centred-ends]
+title: Centre the first and last slide
 description: 'Let the first and last slides of a centred slidedeck deck reach the middle of the viewport by padding each end by half its width less half a slide.'
 ---
-
-# Centre the first and last slide
 
 With `scroll-snap-align: center`, the first slide cannot reach the centre of
 the viewport, which cannot scroll before the slide's start: the deck rests
@@ -12,7 +10,9 @@ focal. The last slide is the same at the end. Without `loop`, pad the viewport
 at each end by half its width less half a slide, so the scroll range runs far
 enough:
 
-<!-- example: apps/storybook/stories/recipes/centred-ends.css -->
+<!-- demo:example-centred-ends -->
+
+[example: centred-ends.css]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/recipes/centred-ends.css
 
 ```css
 /* Slides 280px wide, 16px apart, each centred, the first and last too. */

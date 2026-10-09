@@ -1,9 +1,7 @@
 ---
-components: [example-hooks]
+title: Hooks
 description: "Reference for slidedeck's hooks: Deck.useDeck() gives your own controls the deck's index, count and moves, and Deck.useSlide() tells a slide about itself."
 ---
-
-# Hooks
 
 `Deck.useDeck()`, called by any component inside `Deck.Root`, gives it the
 deck's state and moves, so you can build Prev, Next, a counter or pagination
@@ -25,7 +23,9 @@ whenever `Deck.Root` does: when the deck settles somewhere new, when the
 number of snap points changes and, on a deck with `autoplay`, when autoplay
 starts, stops, or pauses for a pointer or a hidden tab. Called outside a
 `Deck.Root`, it throws. For a full set, with a button per page, see
-[custom controls and a counter](/docs/recipes/custom-controls/).
+[custom controls and a counter](../recipes/custom-controls.md).
+
+<!-- demo:example-hooks -->
 
 ```tsx
 import type { ReactNode } from 'react';
@@ -78,5 +78,5 @@ is in. It returns `{ index, copy }`: `index` is the slide's index, also inside
 a loop's copy of it, and `copy` is `'before'` or `'after'` in a copy, the side
 of the slides it is on, and `undefined` in a slide. Use it where stateful
 content must not run twice, as in the
-[playdeck recipe](/docs/recipes/playdeck-video/). Called
+[playdeck recipe](../recipes/playdeck-video.md). Called
 outside a `Deck.Slide`, it throws.

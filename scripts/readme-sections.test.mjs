@@ -18,15 +18,15 @@ const mapping = JSON.parse(read('apps/site/readme-sections.json'));
 
 /**
  * The markdown file a docs URL is built from: `/docs/a/` from
- * `apps/site/docs/a.md`, or from `apps/site/docs/a/index.md`.
+ * `packages/docs/a.md`, or from `packages/docs/a/index.md`.
  * @param {string} url
  */
 const pageFile = (url) => {
   const path = url.replace(/^\/docs\/?/, '').replace(/\/$/, '');
   const candidates =
     path === ''
-      ? ['apps/site/docs/index.md']
-      : [`apps/site/docs/${path}.md`, `apps/site/docs/${path}/index.md`];
+      ? ['packages/docs/index.md']
+      : [`packages/docs/${path}.md`, `packages/docs/${path}/index.md`];
   return candidates.find((file) => existsSync(join(repoRoot, file)));
 };
 
@@ -79,12 +79,14 @@ test('every README section from before the move has a docs page', () => {
   for (const [heading, url] of Object.entries(mapping)) {
     const file = pageFile(url);
     assert.ok(file, `"${heading}" maps to ${url}, which has no page.`);
-    // A recipe's page drops the "Recipe: " its README heading had.
+    // A recipe's page drops the "Recipe: " its README heading had. A title
+    // is plain text, so it drops the heading's code marks too.
     const wanted = heading.replace(/^Recipe: (.)/, (_, first) =>
       String(first).toUpperCase()
     );
+    const plain = (/** @type {string} */ text) => text.replaceAll('`', '');
     assert.ok(
-      headingsOf(read(file)).includes(wanted),
+      headingsOf(read(file)).map(plain).includes(plain(wanted)),
       `${file} has no title or heading "${wanted}".`
     );
   }

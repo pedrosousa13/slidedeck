@@ -1,9 +1,8 @@
 ---
+title: slidedeck
 label: Introduction
 description: 'Documentation for slidedeck, a headless carousel for React 19 built on native CSS scroll snap, composed from primitives that need no stylesheet.'
 ---
-
-# slidedeck
 
 A headless carousel for React 19 built on native CSS scroll snap. The browser
 scrolls, with its own momentum, snapping and focus scrolling; slidedeck tracks

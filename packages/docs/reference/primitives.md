@@ -1,9 +1,7 @@
 ---
-components: [example-primitives]
+title: Primitives
 description: "Reference for slidedeck's primitives, Deck.Root, Viewport, Slide, Prev, Next, Dots, Counter and AutoplayToggle: the element each renders and its props."
 ---
-
-# Primitives
 
 Each primitive passes its other props, `ref`, `className` and `style`
 included, to the element in the table. Some render more inside it:
@@ -26,6 +24,8 @@ Prev, Next, Dots, Counter and AutoplayToggle render nothing when every slide
 fits in the viewport, as there is nowhere to go. A consumer's `onClick` on
 Prev, Next or AutoplayToggle runs first and can cancel the move with
 `event.preventDefault()`.
+
+<!-- demo:example-primitives -->
 
 ## `Deck.Root` props
 

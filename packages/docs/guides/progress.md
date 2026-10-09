@@ -1,9 +1,7 @@
 ---
-components: [example-progress]
+title: Progress and data attributes
 description: 'The continuous state slidedeck writes to the DOM for CSS to read as the deck scrolls: --deck-slide-progress, data-focal, data-in-view and the other attributes.'
 ---
-
-# Progress and data attributes
 
 Slidedeck writes continuous state to the DOM, not to React state, so CSS can
 read it while the deck scrolls:
@@ -33,12 +31,14 @@ included), `data-slidedeck-prev`, `data-slidedeck-next`,
 
 Each slide's `--deck-slide-progress` is in the server HTML too, counted from
 the slide the deck starts at, so CSS on it paints before any script runs (see
-[server rendering](/docs/guides/server-rendering/)).
+[server rendering](./server-rendering.md)).
 
 Progress is a whole number for every slide when one sits exactly at the focal
 position. An effect that moves a slide should scale about its snap alignment
 point (`transform-origin`), not away from it, or it moves the point progress
 is measured from:
+
+<!-- demo:example-progress -->
 
 ```css
 .products [data-slidedeck-slide] {

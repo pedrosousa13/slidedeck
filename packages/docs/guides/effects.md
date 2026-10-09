@@ -1,14 +1,16 @@
 ---
+title: 'Effects: fade and curve'
 label: Effects
-components: [example-fade, example-curve]
 description: "slidedeck's two effects: fade crossfades slides in one place, curve fans them along an arc. Each is its own import, so a deck without one ships none of it."
 ---
-
-# Effects: fade and curve
 
 An effect is a value passed to `Deck.Viewport`'s `effect`, imported from its
 own entry point. A deck that imports none ships none of their code. The
 viewport keeps scrolling, snapping and dragging natively under both.
+
+<!-- demo:example-fade -->
+
+<!-- demo:example-curve -->
 
 ```tsx
 import * as Deck from '@slidedeck/react';
@@ -59,11 +61,11 @@ that fills it, styled as the slide is seen. The radius, in slides, is
 has `contain: layout`, so a `position: fixed` element inside it is placed
 against the slide. Under reduced motion the content stays flat and only fades.
 To turn a radius in pixels into slides and leave the arc room in the
-viewport, see [size a curve](/docs/recipes/size-a-curve/).
+viewport, see [size a curve](../recipes/size-a-curve.md).
 
 Both effects' styles are zero-specificity rules on `--deck-slide-progress`, so
 your CSS overrides any of them. Server HTML already carries each slide's
 starting progress, so an effect draws from the first paint, before any script
-runs (see [server rendering](/docs/guides/server-rendering/)). To use an
+runs (see [server rendering](./server-rendering.md)). To use an
 effect on some screens only, see
-[change `effect`, `loop` or `autoplay` per breakpoint](/docs/recipes/per-breakpoint/).
+[change `effect`, `loop` or `autoplay` per breakpoint](../recipes/per-breakpoint.md).
