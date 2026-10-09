@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -162,11 +162,35 @@ test('two files cannot share a route', () => {
   ]);
 });
 
+// The demos a page may mark. slidedeck's site, sites/slidedeck in
+// pedrosousa13/deck-cool, must register each one. Agree a new one with the
+// site before a release uses it.
+const SITE_DEMOS = [
+  'autoplay',
+  'centred-ends',
+  'controlled',
+  'curve',
+  'curve-size',
+  'custom-controls',
+  'drag',
+  'fade',
+  'focal-slide',
+  'hooks',
+  'layout',
+  'loop',
+  'middle-by-progress',
+  'middle-centred',
+  'pages',
+  'per-breakpoint',
+  'primitives',
+  'progress',
+  'quickstart',
+  'right-to-left',
+  'theme',
+  'vertical'
+];
+
 test('@slidedeck/docs follows the contract, with the demos the site registers', () => {
-  const demos = new Set(
-    readdirSync(join(repoRoot, 'apps/site/components/examples'))
-      .filter((file) => file.endsWith('-example.tsx'))
-      .map((file) => `example-${file.replace(/-example\.tsx$/, '')}`)
-  );
+  const demos = new Set(SITE_DEMOS.map((name) => `example-${name}`));
   assert.deepEqual(docsFaults(join(repoRoot, 'packages/docs'), { demos }), []);
 });

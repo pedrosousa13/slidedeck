@@ -99,7 +99,7 @@ test('the checked files are the README and every page of the docs package', () =
   write('packages/docs/index.md');
   write('packages/docs/guides/loop.md');
   write('packages/docs/guides/notes.txt');
-  write('apps/site/content/index.md');
+  write('apps/storybook/notes.md');
   assert.deepEqual(markdownFiles(root), [
     'packages/react/README.md',
     'packages/docs/guides/loop.md',

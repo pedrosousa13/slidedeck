@@ -13,8 +13,9 @@ packages:
 # replays resolutions that already happened and is unaffected.
 minimumReleaseAge: 1440
 # pagedeck is the maintainer's own framework, released by its own workflow
-# and developed alongside apps/site, so by the maintainer's decision its
-# releases skip the 24-hour hold.
+# and developed alongside deck.cool, so by the maintainer's decision its
+# releases skip the 24-hour hold. scripts/docs-contract.mjs uses
+# @pagedeck/markdown-loader.
 minimumReleaseAgeExclude:
   - '@pagedeck/*'
 allowBuilds:

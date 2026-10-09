@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "test": "vitest run",
-    "test:scripts": "node --test scripts/*.test.mjs apps/site/lib/*.test.ts",
+    "test:scripts": "node --test scripts/*.test.mjs",
     "build": "turbo run build",
     "test:e2e": "playwright test",
     "test:packages": "node scripts/verify-packaging.mjs",

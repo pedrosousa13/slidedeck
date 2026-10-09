@@ -7,7 +7,7 @@ the deck from primitives that work with no stylesheet, and style it with plain
 CSS.
 
 The guides, the reference and the recipes, each with a live deck, are at
-[slidedeck.pages.dev/docs](https://slidedeck.pages.dev/docs/).
+[slide.deck.cool/docs](https://slide.deck.cool/docs/).
 
 ## Install
 

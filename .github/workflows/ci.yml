@@ -9,8 +9,7 @@ permissions:
   contents: read
 
 # A pull request's newer push cancels its older run. A push to `main` never
-# cancels one, for release.yml's reason: `deploy-site` must not stop partway
-# through a production deploy. The runs queue instead.
+# cancels one: the runs queue instead.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -209,82 +208,3 @@ jobs:
                 ;;
             esac
           done
-
-  # Uploads the site to Cloudflare Pages (project `slidedeck`): production from
-  # a push to `main`, a preview at https://pr-<number>.slidedeck.pages.dev from
-  # a pull request. A job here rather than its own workflow, so it runs only
-  # after every gate job passed on the same commit, or was skipped as the
-  # change needs none of its gates, with no second verify.
-  # See AGENTS.md, "Site".
-  #
-  # It builds the site itself, as release.yml's jobs whose output ships do: no
-  # pnpm store cache and no turbo cache, as a restored cache is code from
-  # another run.
-  #
-  # A fork, and a pull request from one, get no secrets: the job is skipped,
-  # which passes, rather than run and fail.
-  deploy-site:
-    needs: [checks, packages, next, unit, e2e, all-gates]
-    if: >-
-      !cancelled() && needs.all-gates.result == 'success' &&
-      github.repository == 'pedrosousa13/slidedeck' &&
-      (github.event_name == 'push' ||
-      github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      pull-requests: write # the preview comment
-    # Every action is pinned to a full commit SHA, its version in a comment:
-    # this job holds the Cloudflare token.
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      # Fails before anything is built or uploaded when a secret is missing,
-      # and says which, rather than leaving it to wrangler's error.
-      - name: Check the Cloudflare secrets are set
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          missing=""
-          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
-          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
-          if [ -n "$missing" ]; then
-            echo "::error::Missing repository secrets:$missing. Nothing was deployed. See AGENTS.md, Site."
-            exit 1
-          fi
-
-      - run: corepack enable
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          package-manager-cache: false
-      # The token is only in the deploy step's environment, never in these.
-      - run: pnpm install --frozen-lockfile
-      # The site and the packages it depends on. `--force`: no cache, local or
-      # remote, even if one is ever configured.
-      - run: pnpm exec turbo run build --filter=@slidedeck/site --force
-
-      # `main` is the Pages project's production branch; any other is a preview.
-      - name: Deploy to Cloudflare Pages
-        working-directory: apps/site
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
-          BRANCH: ${{ github.event_name == 'push' && 'main' || format('pr-{0}', github.event.pull_request.number) }}
-          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: pnpm exec wrangler pages deploy site --project-name slidedeck --branch "$BRANCH" --commit-hash "$COMMIT"
-
-      # Prints the URLs and, on a pull request, writes them into its one
-      # preview comment.
-      - name: Report the deployment
-        env:
-          GH_TOKEN: ${{ github.token }}
-          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node scripts/site-preview.mjs

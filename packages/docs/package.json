@@ -3,7 +3,7 @@
   "version": "1.0.3",
   "description": "The slidedeck docs as markdown, at the version of the code they document, for deck.cool to build the docs site from.",
   "license": "MIT",
-  "homepage": "https://slidedeck.pages.dev/docs/",
+  "homepage": "https://slide.deck.cool/docs/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/pedrosousa13/slidedeck.git",

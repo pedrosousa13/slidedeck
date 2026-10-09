@@ -14,7 +14,7 @@ const read = (/** @type {string} */ file) =>
   readFileSync(join(repoRoot, file), 'utf8');
 
 /** @type {Record<string, string>} */
-const mapping = JSON.parse(read('apps/site/readme-sections.json'));
+const mapping = JSON.parse(read('scripts/readme-sections.json'));
 
 /**
  * The markdown file a docs URL is built from: `/docs/a/` from
@@ -99,7 +99,7 @@ test('every section the README has now is placed in the mapping', () => {
   for (const heading of headings) {
     assert.ok(
       heading !== undefined && heading in mapping,
-      `The README's "${heading}" is not in apps/site/readme-sections.json.`
+      `The README's "${heading}" is not in scripts/readme-sections.json.`
     );
   }
 });

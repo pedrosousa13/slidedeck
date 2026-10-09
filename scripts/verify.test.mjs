@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL, URL } from 'node:url';
 import { CI_JOBS, ciJobs, gatesFor, plan, STEPS } from './verify.mjs';
@@ -80,12 +80,6 @@ test('--job runs that CI job’s steps', () => {
 
 // Path-to-gate mapping: which gates a change to these paths needs.
 
-const SITE_SPECS = [
-  'e2e/docs.spec.ts',
-  'e2e/examples.spec.ts',
-  'e2e/seo.spec.ts',
-  'e2e/site.spec.ts'
-];
 const gateNames = (/** @type {string[]} */ paths) =>
   gatesFor(paths).map(({ step }) => step);
 
@@ -112,24 +106,6 @@ test('a path no rule matches needs every gate', () => {
   }
 });
 
-test('a change to the site needs its checks and its e2e specs', () => {
-  assert.deepEqual(gatesFor(['apps/site/docs/index.md']), [
-    { step: 'format:check', args: [] },
-    { step: 'lint', args: [] },
-    { step: 'typecheck', args: [] },
-    // apps/site/lib's tests run in test:scripts.
-    { step: 'test:scripts', args: [] },
-    { step: 'build', args: [] },
-    { step: 'docs:check', args: [] },
-    { step: 'compare:check', args: [] },
-    { step: 'test:e2e', args: SITE_SPECS }
-  ]);
-  assert.deepEqual(
-    gatesFor(['e2e/seo.spec.ts']).find(({ step }) => step === 'test:e2e'),
-    { step: 'test:e2e', args: SITE_SPECS }
-  );
-});
-
 test('a change to storybook or its spec needs the build and the deck spec', () => {
   for (const path of [
     'apps/storybook/stories/deck.stories.tsx',
@@ -142,7 +118,7 @@ test('a change to storybook or its spec needs the build and the deck spec', () =
         { step: 'lint', args: [] },
         { step: 'typecheck', args: [] },
         { step: 'build', args: [] },
-        { step: 'test:e2e', args: ['e2e/deck.spec.ts'] }
+        { step: 'test:e2e', args: [] }
       ],
       path
     );
@@ -153,7 +129,7 @@ test('a change to CI or a script needs the checks and the scripts’ tests', () 
   for (const path of [
     '.github/workflows/ci.yml',
     'scripts/verify.mjs',
-    'scripts/site-preview.test.mjs'
+    'scripts/tag-releases.test.mjs'
   ]) {
     assert.deepEqual(
       gateNames([path]),
@@ -183,7 +159,7 @@ test('every script a gate runs is one that needs every gate', () => {
   }
 });
 
-test('markdown and docs outside the site need format:check alone', () => {
+test('markdown and docs need format:check alone', () => {
   for (const path of [
     'README.md',
     'AGENTS.md',
@@ -203,35 +179,17 @@ test('several paths need the union of their gates, in list order', () => {
       { step: 'typecheck', args: [] },
       { step: 'test:scripts', args: [] },
       { step: 'build', args: [] },
-      { step: 'test:e2e', args: ['e2e/deck.spec.ts'] }
+      { step: 'test:e2e', args: [] }
     ]
   );
-  // The site's specs and storybook's are every spec: no filter.
-  assert.deepEqual(gatesFor(['apps/site/a.ts', 'apps/storybook/b.ts']).at(-1), {
-    step: 'test:e2e',
-    args: []
-  });
   assert.deepEqual(
-    gatesFor(['apps/site/a.ts', 'packages/core/src/a.ts']),
+    gatesFor(['apps/storybook/b.ts', 'packages/core/src/a.ts']),
     STEPS.map((step) => ({ step, args: [] }))
   );
 });
 
 test('no changed paths need no gate', () => {
   assert.deepEqual(gatesFor([]), []);
-});
-
-test('the site’s and storybook’s specs are every e2e spec', () => {
-  const specs = readdirSync(fileURLToPath(new URL('../e2e', import.meta.url)))
-    .filter((file) => file.endsWith('.spec.ts'))
-    .map((file) => `e2e/${file}`);
-  const covered = new Set(
-    [...SITE_SPECS, 'e2e/deck.spec.ts'].flatMap(
-      (spec) =>
-        gatesFor([spec]).find(({ step }) => step === 'test:e2e')?.args ?? []
-    )
-  );
-  assert.deepEqual([...covered].sort(), specs.sort());
 });
 
 // --changed: the gates the paths changed since a ref need.
@@ -252,10 +210,10 @@ test('--changed runs the gates the changed paths need', () => {
 });
 
 test('--changed with --only or --job runs what both ask for', () => {
-  const changed = () => ['apps/site/index.md'];
+  const changed = () => ['apps/storybook/stories/deck.stories.tsx'];
   assert.deepEqual(
     plan(['--job', 'e2e', '--project=firefox', '--changed'], changed),
-    [{ step: 'test:e2e', args: [...SITE_SPECS, '--project=firefox'] }]
+    [{ step: 'test:e2e', args: ['--project=firefox'] }]
   );
   assert.deepEqual(
     plan(['--only', 'lint,test', '--changed'], changed).map(({ step }) => step),
@@ -369,13 +327,10 @@ const needsOf = (/** @type {string} */ block) =>
     .split(',')
     .map((job) => job.trim());
 
-test('all-gates and deploy-site need every gate job', () => {
-  const blocks = ciJobBlocks();
-  for (const job of ['all-gates', 'deploy-site']) {
-    const needs = needsOf(blocks[job] ?? '');
-    for (const gateJob of Object.keys(CI_JOBS)) {
-      assert.ok(needs.includes(gateJob), `${job} does not need ${gateJob}`);
-    }
+test('all-gates needs every gate job', () => {
+  const needs = needsOf(ciJobBlocks()['all-gates'] ?? '');
+  for (const gateJob of Object.keys(CI_JOBS)) {
+    assert.ok(needs.includes(gateJob), `all-gates does not need ${gateJob}`);
   }
 });
 
