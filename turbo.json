@@ -3,7 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".tsbuildinfo", "storybook-static/**", "site/**"]
+      "outputs": ["dist/**", ".tsbuildinfo", "storybook-static/**"]
     }
   }
 }

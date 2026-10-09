@@ -33,7 +33,8 @@ export const STEPS = [
   'test',
   'test:scripts',
   'build',
-  // The README's and the site docs' code blocks against the built packages.
+  // The README's and the docs package's code blocks against the built
+  // packages.
   'docs:check',
   // The README's comparison table against a fresh measurement.
   'compare:check',
@@ -48,8 +49,8 @@ export const STEPS = [
 /**
  * CI's parallel jobs, by the steps each runs: `pnpm verify --job <name>` in
  * the ci.yml job of that name. Each step is in one job. test:packages and
- * test:next build what they need themselves, and the e2e suite's web servers
- * build the site and serve storybook from source, so only `checks` builds.
+ * test:next build what they need themselves, and the e2e suite's web server
+ * serves storybook from source, so only `checks` builds.
  *
  * @type {Record<string, string[]>}
  */
@@ -75,42 +76,17 @@ export const CI_JOBS = {
   e2e: ['test:e2e']
 };
 
-const SITE_SPECS = [
-  'e2e/docs.spec.ts',
-  'e2e/examples.spec.ts',
-  'e2e/seo.spec.ts',
-  'e2e/site.spec.ts'
-];
-const STORYBOOK_SPECS = ['e2e/deck.spec.ts'];
-
 /**
- * The gates a change needs, by path, first match wins. `specs` is the e2e
- * specs to run, when test:e2e is among `steps`; absent, every spec. A path no
- * rule matches needs every gate.
+ * The gates a change needs, by path, first match wins. A path no rule matches
+ * needs every gate.
  *
- * @type {{ match: RegExp, steps: string[], specs?: string[] }[]}
+ * @type {{ match: RegExp, steps: string[] }[]}
  */
 const RULES = [
   { match: /^packages\/|^pnpm-lock\.yaml$/, steps: STEPS },
   {
-    match: /^apps\/site\/|^e2e\/(docs|examples|seo|site)\.spec\.ts$/,
-    steps: [
-      'format:check',
-      'lint',
-      'typecheck',
-      // apps/site/lib's own tests run in test:scripts.
-      'test:scripts',
-      'build',
-      'docs:check',
-      'compare:check',
-      'test:e2e'
-    ],
-    specs: SITE_SPECS
-  },
-  {
     match: /^apps\/storybook\/|^e2e\/deck\.spec\.ts$/,
-    steps: ['format:check', 'lint', 'typecheck', 'build', 'test:e2e'],
-    specs: STORYBOOK_SPECS
+    steps: ['format:check', 'lint', 'typecheck', 'build', 'test:e2e']
   },
   // What a gate runs, and what those scripts import, is that gate: a change to
   // it needs every gate. verify.test.mjs checks each script package.json runs
@@ -128,34 +104,20 @@ const RULES = [
 ];
 
 /**
- * The steps a change to `paths` needs, in list order, each with the arguments
- * it is run with: test:e2e with the specs to run, or none for every spec.
+ * The steps a change to `paths` needs, in list order, each with no arguments.
  *
  * @param {string[]} paths repo-relative, `/`-separated
  * @returns {{ step: string, args: string[] }[]}
  */
 export function gatesFor(paths) {
   const steps = new Set();
-  // The e2e specs to run; undefined once a rule with no `specs` asks for all.
-  /** @type {Set<string> | undefined} */
-  let specs = new Set();
   for (const path of paths) {
     const rule = RULES.find(({ match }) => match.test(path));
-    const ruleSteps = rule?.steps ?? STEPS;
-    for (const step of ruleSteps) steps.add(step);
-    if (ruleSteps.includes('test:e2e')) {
-      if (rule?.specs && specs) for (const spec of rule.specs) specs.add(spec);
-      else specs = undefined;
-    }
+    for (const step of rule?.steps ?? STEPS) steps.add(step);
   }
-  const chosen = specs;
-  const e2eArgs =
-    !chosen || [...SITE_SPECS, ...STORYBOOK_SPECS].every((s) => chosen.has(s))
-      ? []
-      : [...chosen].sort();
   return STEPS.filter((step) => steps.has(step)).map((step) => ({
     step,
-    args: step === 'test:e2e' ? e2eArgs : []
+    args: /** @type {string[]} */ ([])
   }));
 }
 

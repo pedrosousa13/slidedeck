@@ -10,7 +10,7 @@ pnpm verify
 
 It runs every gate in order and stops at the first failure: `format:check`,
 `lint`, `typecheck`, `test` (vitest in browser mode), `test:scripts` (the
-scripts' own tests and the site's), `build`, `docs:check` (the code blocks in
+scripts' own tests), `build`, `docs:check` (the code blocks in
 the package README and the docs type-check), `compare:check` (the
 README's and the docs' comparison table is fresh), `test:packages` (publint and attw on the
 packed tarballs, and the React entries' `'use client'`), `test:next` (a Next.js
@@ -152,8 +152,8 @@ from the published package, so every page follows deck.cool's docs contract
 - `nav.json` lists every page, in reading order, under its group.
 - a link to another page is a relative link to its `.md` file.
 - a live example is `<!-- demo:example-<name> -->` on its own line, where
-  `<name>` is a file `apps/site/components/examples/<name>-example.tsx`. It is
-  the only HTML a page may hold.
+  `<name>` is a demo the site registers, listed in `SITE_DEMOS` in
+  `scripts/docs-contract.test.mjs`. It is the only HTML a page may hold.
 - a code block that must match a file in the repo follows an unused link
   definition to the file,
   `[example: <name>]: https://github.com/pedrosousa13/slidedeck/blob/main/<path>`.
@@ -163,27 +163,9 @@ against the contract with the rules deck.cool's docs loader applies.
 
 ## Site
 
-The site is `apps/site`, a pagedeck site. Its docs pages read
-`packages/docs` until slide.deck.cool replaces the site. `pnpm build` writes
-it to `apps/site/site/`, with the `_headers` and `_redirects` that
-`@pagedeck/adapter-cloudflare-pages` compiles from its routing, security
-headers included.
-
-**It deploys from CI**, in the `deploy-site` job of `ci.yml`, after
-`all-gates` passes on the same commit. The job builds the site again, with no
-pnpm or turbo cache, and uploads it with the pinned `wrangler` in `apps/site`
-to the Cloudflare Pages project `slidedeck`, a Direct Upload project:
-
-- a push to `main` deploys production, https://slidedeck.pages.dev.
-- a pull request from this repository deploys a preview at
-  `https://pr-<number>.slidedeck.pages.dev`, and keeps one comment on the
-  pull request with that URL and the URL of the latest deployment.
-- a pull request from a fork gets no secrets, so the job is skipped, and CI
-  passes without a deploy.
-
-It needs two repository secrets: `CLOUDFLARE_API_TOKEN`, a token with Account
-· Cloudflare Pages · Edit, and `CLOUDFLARE_ACCOUNT_ID`. The job fails loudly,
-before it uploads anything, if either is missing.
+The site lives in pedrosousa13/deck-cool, as `sites/slidedeck`, and is served
+at https://slide.deck.cool. It will build its docs pages from the published
+`@slidedeck/docs` once deck-cool#51 lands. This repo deploys nothing.
 
 ## Agent skills
 
