@@ -4,8 +4,8 @@ label: Playdeck video
 description: 'A social-style feed of videos with slidedeck and playdeck: the video in the focal slide plays muted, the others pause, and it works with loop.'
 ---
 
-A social-style deck of videos: the video in the focal slide plays, muted, and
-the others pause. Each slide holds a [playdeck](https://www.npmjs.com/package/@playdeck/react)
+A social-style deck of videos, where the video in the focal slide plays,
+muted, and the others pause. Each slide holds a [playdeck](https://www.npmjs.com/package/@playdeck/react)
 player. `onFocalChange` tells the deck's parent which slide is focal once a
 scroll settles, and each player's handle plays or pauses it. It works with
 `loop`, as a feed usually is.

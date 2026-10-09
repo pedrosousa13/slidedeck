@@ -36,7 +36,7 @@ the middle one. Style `[data-focal]`. `onFocalChange` and
 }
 ```
 
-At the ends, the middle slide is the second and the second to last; add the
+At the ends, the middle slide is the second and the second to last. Add the
 padding of [centre the first and last slide](./centred-ends.md)
 to let the first and last slides reach the middle.
 

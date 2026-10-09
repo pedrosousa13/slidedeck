@@ -30,5 +30,5 @@ description: "Known limits of slidedeck: loop copies render a slide's children a
 - **A long task can let Chromium undo a wheel.** When a long task holds the
   main thread just after a wheel during a move, Chromium can carry the move
   on to its slide, against the wheel. The deck still rests on a snap point.
-- **No automated test covers touch flicks across a loop's seam.** They are
-  checked by hand on a phone and a trackpad.
+- **No automated test covers touch flicks across a loop's seam.** The
+  maintainer checks them by hand on a phone and a trackpad.

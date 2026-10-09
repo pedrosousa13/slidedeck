@@ -75,10 +75,10 @@ Notes:
 
 - Keep the breakpoint in the hook and in CSS the same, so the CSS applies
   only where the deck does not fade. Fade lays out the slides itself.
-- Server HTML, and hydrating it, use the hook's `initial`, here `false`, the
-  narrow layout. On a wide screen the deck then switches to the loop once it
+- Server HTML, and hydrating it, use the hook's `initial`. Here that is
+  `false`, the narrow layout. On a wide screen the deck then switches to the loop once it
   mounts, on the same slide. Pass the `initial` most of your visitors see.
-- Autoplay works the same way: `autoplay={wide ? 5000 : undefined}` rotates
+- Autoplay works the same way. `autoplay={wide ? 5000 : undefined}` rotates
   the deck on wide screens only. Keep `Deck.AutoplayToggle` in the deck. It is
   absent while `autoplay` is unset.
 - The deck keeps its index, not its slide. With [pages](../guides/pages.md), an index is

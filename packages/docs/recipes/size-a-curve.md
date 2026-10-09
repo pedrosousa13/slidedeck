@@ -4,13 +4,13 @@ description: 'Turn a curve radius in pixels into slides for --deck-curve-radius,
 ---
 
 `--deck-curve-radius` is in slides, not pixels, where a slide is the step from
-one slide to the next: its width plus the gap. To turn a radius in pixels into
+one slide to the next, its width plus the gap. To turn a radius in pixels into
 slides, divide it by that step: 528px under slides 160px wide and 16px apart
 is `528 / (160 + 16)`, 3 slides. CSS cannot divide one length by another in
 every browser, so write the number. The arc is a true circle of that radius
 only along the axis, where each slide turns as it would on one. Across the
 axis, its sag scales by the content's width, not the step, so with a gap the
-arc sags less than the circle, by `width / (width + gap)`: here `160 / 176`.
+arc sags less than the circle, by `width / (width + gap)`, here `160 / 176`.
 
 The arc extends past the slides, and the viewport clips it across the axis, so
 leave it room inside the viewport, as padding. With a radius of `r` slides,
@@ -20,9 +20,9 @@ drops `w × (r − √(r² − k²))` and, turned by `asin(k / r)`, reaches
 the slide fades out, `r` slides away, so the room at the block end is what a
 slide about to fade out needs while the deck moves: `r × w + (w − h) / 2`,
 460px in the CSS below. Near the focal slide, moving content also lifts above
-its place, by at most about `w / (8 × r)`: 7px at the block start. A vertical
-deck's arc bends toward the inline end: leave the room there, with `w` and `h`
-swapped.
+its place, by at most about `w / (8 × r)`, 7px at the block start. A vertical
+deck's arc bends toward the inline end, so leave the room there, with `w` and
+`h` swapped.
 
 That room is large. At rest, the slides not faded out are those fewer than `r`
 slides away, so if the faint ends of the arc may clip while the deck moves,

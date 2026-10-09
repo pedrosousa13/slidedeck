@@ -4,7 +4,7 @@ description: 'Scroll a slidedeck deck along the block axis with orientation="ver
 ---
 
 `orientation="vertical"` scrolls along the block axis. A vertical deck needs a
-height, set on `Deck.Viewport` in CSS; each slide fills it by default.
+height, set on `Deck.Viewport` in CSS. Each slide fills it by default.
 
 The deck reads the writing direction from the document's computed
 `direction`, so `dir` on any ancestor applies. In a right-to-left document the deck starts at the

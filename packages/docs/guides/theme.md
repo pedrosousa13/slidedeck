@@ -40,8 +40,8 @@ is a custom property. Set one on the deck or any ancestor:
 | `--deck-focus-offset`              | `2px`                         | Space between a control and its focus ring             |
 | `--deck-transition-duration`       | `150ms`                       | Hover and state fades; none under reduced motion       |
 
-Stopped, the autoplay toggle looks like Prev and Next. Playing, it is filled
-with the accent, even while a pointer pauses it. With a light `--deck-accent`, set
+Stopped, the autoplay toggle looks like Prev and Next. Playing, the accent
+fills it, even while a pointer pauses it. With a light `--deck-accent`, set
 `--deck-control-active-color` too, so its text keeps 4.5:1 contrast.
 
 In forced colours mode, dots are drawn in system colours, with the current

@@ -33,8 +33,7 @@ scrollbar back:
 Safari before 18.2 does not support `scrollbar-width`, and its native
 scrollbar cannot come back there. Any `::-webkit-scrollbar` rule replaces it
 with one drawn from your CSS. To show a styled one there instead, scope it to
-browsers without `scrollbar-width`, so other browsers keep theirs. This is
-untested in Safari before 18.2:
+browsers without `scrollbar-width`, so other browsers keep theirs:
 
 ```css
 @supports not (scrollbar-width: auto) {
@@ -49,6 +48,8 @@ untested in Safari before 18.2:
   }
 }
 ```
+
+This is untested in Safari before 18.2.
 
 Media queries and container queries work as they do for anything else, and
 the deck re-reads its snap points when the viewport resizes. The primitives
