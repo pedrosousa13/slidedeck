@@ -1,6 +1,6 @@
 {
   "name": "@slidedeck/docs",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "The slidedeck docs as markdown, at the version of the code they document, for deck.cool to build the docs site from.",
   "license": "MIT",
   "homepage": "https://slide.deck.cool/docs/",
