@@ -1,7 +1,19 @@
 #!/usr/bin/env node
 // Every gate, in one command that stops at the first failure and names it.
-// CI runs this same command (.github/workflows/ci.yml), so a gate added here
-// runs in CI too, and there is no second list to keep in step with it.
+// CI runs this same list (.github/workflows/ci.yml), split across parallel
+// jobs by CI_JOBS below, so a gate added here runs in CI too, and there is no
+// second list to keep in step with it: verify.test.mjs fails if CI_JOBS do
+// not cover the whole list, or if ci.yml does not run every one of them.
+//
+//   pnpm verify                         every step, in order
+//   pnpm verify --changed               the steps the diff against main needs
+//   pnpm verify --changed=<ref>         ... against <ref> instead
+//   pnpm verify --only lint,typecheck   those steps, in list order
+//   pnpm verify --job unit              one CI job's steps
+//   pnpm verify --project=webkit ...    test:e2e in one Playwright project
+//   pnpm verify --dry-run ...           print the steps, run none
+//   pnpm verify --ci-jobs ...           print `<job>=true|false` for each CI
+//                                       job: whether it has a step to run
 //
 // Assumes `pnpm install` has run and Playwright's browsers are installed
 // (`pnpm exec playwright install chromium firefox webkit`): vitest's browser
@@ -13,7 +25,7 @@ import { fileURLToPath, URL } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 
-const STEPS = [
+export const STEPS = [
   'format:check',
   'lint',
   'typecheck',
@@ -32,16 +44,265 @@ const STEPS = [
   'test:e2e'
 ];
 
-for (const step of STEPS) {
-  console.log(`\n> ${step}`);
-  try {
-    execFileSync('pnpm', [step], { cwd: repoRoot, stdio: 'inherit' });
-  } catch (error) {
-    const code = /** @type {{ status?: unknown } | undefined} */ (error)
-      ?.status;
-    const status = typeof code === 'number' ? code : 1;
-    console.error(`\nverify: step \`${step}\` failed (exit ${status})`);
-    process.exit(status);
+/**
+ * CI's parallel jobs, by the steps each runs: `pnpm verify --job <name>` in
+ * the ci.yml job of that name. Each step is in one job. test:packages and
+ * test:next build what they need themselves, and the e2e suite's web servers
+ * build the site and serve storybook from source, so only `checks` builds.
+ *
+ * @type {Record<string, string[]>}
+ */
+export const CI_JOBS = {
+  // No browser.
+  checks: [
+    'format:check',
+    'lint',
+    'typecheck',
+    'test:scripts',
+    'build',
+    'docs:check',
+    'compare:check',
+    'size'
+  ],
+  // In Playwright's container: vitest drives chromium and webkit.
+  unit: ['test'],
+  // No browser. Apart from `unit`, whose vitest run is CI's longest job.
+  packages: ['test:packages'],
+  next: ['test:next'],
+  // In Playwright's container, once per Playwright project.
+  e2e: ['test:e2e']
+};
+
+const SITE_SPECS = [
+  'e2e/docs.spec.ts',
+  'e2e/examples.spec.ts',
+  'e2e/seo.spec.ts',
+  'e2e/site.spec.ts'
+];
+const STORYBOOK_SPECS = ['e2e/deck.spec.ts'];
+
+/**
+ * The gates a change needs, by path, first match wins. `specs` is the e2e
+ * specs to run, when test:e2e is among `steps`; absent, every spec. A path no
+ * rule matches needs every gate.
+ *
+ * @type {{ match: RegExp, steps: string[], specs?: string[] }[]}
+ */
+const RULES = [
+  { match: /^packages\/|^pnpm-lock\.yaml$/, steps: STEPS },
+  {
+    match: /^apps\/site\/|^e2e\/(docs|examples|seo|site)\.spec\.ts$/,
+    steps: [
+      'format:check',
+      'lint',
+      'typecheck',
+      // apps/site/lib's own tests run in test:scripts.
+      'test:scripts',
+      'build',
+      'docs:check',
+      'compare:check',
+      'test:e2e'
+    ],
+    specs: SITE_SPECS
+  },
+  {
+    match: /^apps\/storybook\/|^e2e\/deck\.spec\.ts$/,
+    steps: ['format:check', 'lint', 'typecheck', 'build', 'test:e2e'],
+    specs: STORYBOOK_SPECS
+  },
+  // What a gate runs, and what those scripts import, is that gate: a change to
+  // it needs every gate. verify.test.mjs checks each script package.json runs
+  // for a step is here.
+  {
+    match:
+      /^scripts\/(bundle-size|compare-libraries|docs-examples|next-rsc|verify-packaging|workspace-packages)\.mjs$/,
+    steps: STEPS
+  },
+  {
+    match: /^\.github\/|^scripts\//,
+    steps: ['format:check', 'lint', 'typecheck', 'test:scripts']
+  },
+  { match: /^docs\/|\.md$/, steps: ['format:check'] }
+];
+
+/**
+ * The steps a change to `paths` needs, in list order, each with the arguments
+ * it is run with: test:e2e with the specs to run, or none for every spec.
+ *
+ * @param {string[]} paths repo-relative, `/`-separated
+ * @returns {{ step: string, args: string[] }[]}
+ */
+export function gatesFor(paths) {
+  const steps = new Set();
+  // The e2e specs to run; undefined once a rule with no `specs` asks for all.
+  /** @type {Set<string> | undefined} */
+  let specs = new Set();
+  for (const path of paths) {
+    const rule = RULES.find(({ match }) => match.test(path));
+    const ruleSteps = rule?.steps ?? STEPS;
+    for (const step of ruleSteps) steps.add(step);
+    if (ruleSteps.includes('test:e2e')) {
+      if (rule?.specs && specs) for (const spec of rule.specs) specs.add(spec);
+      else specs = undefined;
+    }
   }
+  const chosen = specs;
+  const e2eArgs =
+    !chosen || [...SITE_SPECS, ...STORYBOOK_SPECS].every((s) => chosen.has(s))
+      ? []
+      : [...chosen].sort();
+  return STEPS.filter((step) => steps.has(step)).map((step) => ({
+    step,
+    args: step === 'test:e2e' ? e2eArgs : []
+  }));
 }
-console.log(`\nAll ${STEPS.length} verify steps passed.`);
+
+/**
+ * Which CI jobs have a step to run in `steps`.
+ *
+ * @param {{ step: string }[]} steps
+ * @returns {Record<string, boolean>}
+ */
+export function ciJobs(steps) {
+  return Object.fromEntries(
+    Object.entries(CI_JOBS).map(([job, jobSteps]) => [
+      job,
+      steps.some(({ step }) => jobSteps.includes(step))
+    ])
+  );
+}
+
+/**
+ * The paths changed since `ref`'s merge base with HEAD: committed, staged,
+ * unstaged and untracked.
+ *
+ * @param {string} ref
+ * @returns {string[]}
+ */
+function changedSince(ref) {
+  const git = (/** @type {string[]} */ args) =>
+    execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+      .split('\n')
+      .filter(Boolean);
+  const [base] = git(['merge-base', ref, 'HEAD']);
+  return [
+    ...git([
+      'diff',
+      '--name-only',
+      '--no-renames',
+      /** @type {string} */ (base)
+    ]),
+    ...git(['ls-files', '--others', '--exclude-standard'])
+  ];
+}
+
+/**
+ * The steps `argv` asks for, each with the arguments it is run with.
+ *
+ * @param {string[]} argv `pnpm verify`'s arguments, `--dry-run` and
+ *   `--ci-jobs` aside
+ * @param {(ref: string) => string[]} changed the paths changed since `ref`
+ * @returns {{ step: string, args: string[] }[]}
+ */
+export function plan(argv, changed = changedSince) {
+  /** @type {string[] | undefined} */
+  let only;
+  /** @type {string | undefined} */
+  let job;
+  /** @type {string | undefined} */
+  let project;
+  /** @type {string | undefined} */
+  let since;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = /** @type {string} */ (argv[i]);
+    const [flag, inline] = arg.split(/=(.*)/s);
+    const value = () => (inline === undefined ? argv[++i] : inline) ?? '';
+    if (flag === '--only') {
+      only = value().split(',').filter(Boolean);
+      if (only.length === 0) {
+        throw new Error('--only needs a comma-separated list of steps');
+      }
+      for (const step of only) {
+        if (!STEPS.includes(step)) {
+          throw new Error(
+            `unknown step \`${step}\`; the steps are ${STEPS.join(', ')}`
+          );
+        }
+      }
+    } else if (flag === '--job') {
+      job = value();
+      if (!Object.hasOwn(CI_JOBS, job)) {
+        throw new Error(
+          `unknown CI job \`${job}\`; the jobs are ${Object.keys(CI_JOBS).join(', ')}`
+        );
+      }
+    } else if (flag === '--project') {
+      project = value();
+    } else if (flag === '--changed') {
+      since = inline ?? 'main';
+    } else {
+      throw new Error(`unknown argument \`${arg}\``);
+    }
+  }
+  if (only && job) throw new Error('--job and --only cannot be used together');
+  const wanted = only ?? (job ? CI_JOBS[job] : undefined) ?? STEPS;
+  if (project !== undefined && !wanted.includes('test:e2e')) {
+    throw new Error('--project needs test:e2e among the steps');
+  }
+  const steps = (
+    since === undefined
+      ? STEPS.map((step) => ({ step, args: /** @type {string[]} */ ([]) }))
+      : gatesFor(changed(since))
+  ).filter(({ step }) => wanted.includes(step));
+  return steps.map(({ step, args }) => ({
+    step,
+    args:
+      step === 'test:e2e' && project ? [...args, `--project=${project}`] : args
+  }));
+}
+
+function main() {
+  const argv = process.argv.slice(2);
+  const dryRun = argv.includes('--dry-run');
+  const printJobs = argv.includes('--ci-jobs');
+  /** @type {ReturnType<typeof plan>} */
+  let steps;
+  try {
+    steps = plan(
+      argv.filter((arg) => arg !== '--dry-run' && arg !== '--ci-jobs')
+    );
+  } catch (error) {
+    console.error(`verify: ${/** @type {Error} */ (error).message}`);
+    process.exit(2);
+  }
+  if (printJobs) {
+    for (const [job, run] of Object.entries(ciJobs(steps))) {
+      console.log(`${job}=${run}`);
+    }
+    return;
+  }
+  for (const { step, args } of steps) {
+    console.log(`\n> ${[step, ...args].join(' ')}`);
+    if (dryRun) continue;
+    try {
+      execFileSync('pnpm', [step, ...args], {
+        cwd: repoRoot,
+        stdio: 'inherit'
+      });
+    } catch (error) {
+      const code = /** @type {{ status?: unknown } | undefined} */ (error)
+        ?.status;
+      const status = typeof code === 'number' ? code : 1;
+      console.error(`\nverify: step \`${step}\` failed (exit ${status})`);
+      process.exit(status);
+    }
+  }
+  console.log(
+    dryRun
+      ? `\n${steps.length} verify steps listed; none run (--dry-run).`
+      : `\nAll ${steps.length} verify steps passed.`
+  );
+}
+
+// Run as a script, not when verify.test.mjs imports it.
+if (process.argv[1] === fileURLToPath(import.meta.url)) main();

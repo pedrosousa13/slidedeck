@@ -22,9 +22,44 @@ On its first run, `test:next` installs Next.js into `tests/next-rsc` from
 that fixture's own lockfile, so it needs the network once; later runs install
 from the pnpm store.
 
-CI (`.github/workflows/ci.yml`) runs the same `pnpm verify` on every pull
-request and every push to `main`, so there is no second list to drift from
-it. It does not replace running it locally; it catches the time you forgot.
+`pnpm verify --changed` runs only the gates the diff against `main` needs
+(committed, uncommitted and untracked files; `--changed=<ref>` diffs against
+another ref). The paths map to gates in `scripts/verify.mjs`, first match
+wins:
+
+- `packages/**`, the lockfile, root config: every gate.
+- `apps/site/**` and the site's e2e specs: `format:check`, `lint`,
+  `typecheck`, `test:scripts`, `build`, `docs:check`, `compare:check`, and
+  the site's e2e specs in every browser.
+- `apps/storybook/**` and `e2e/deck.spec.ts`: `format:check`, `lint`,
+  `typecheck`, `build`, and `e2e/deck.spec.ts` in every browser.
+- a script a gate runs (`scripts/verify-packaging.mjs` and the like): every
+  gate.
+- other `.github/**` and `scripts/**`: `format:check`, `lint`, `typecheck`,
+  `test:scripts`.
+- Markdown and `docs/**` elsewhere: `format:check`.
+- anything else: every gate.
+
+`--only lint,typecheck` runs those gates, `--project=webkit` runs `test:e2e`
+in one browser, and `--dry-run` lists the gates without running them. With
+no arguments, `pnpm verify` runs every gate, as before.
+
+CI (`.github/workflows/ci.yml`) runs the same list, split into parallel jobs
+by `CI_JOBS` in `scripts/verify.mjs`: `changes` works out which gates the
+change needs, then `checks` (the gates with no browser but the next two),
+`packages` (`test:packages`), `next` (`test:next`), `unit` (vitest) and `e2e`
+(one job per browser) each run `pnpm verify --job <name>`. On a pull request
+they run with `--changed` against its base, and a job with nothing to run is
+skipped; a push to `main` runs every gate. `unit` and `e2e` run in Playwright's container image, pinned
+by digest in `ci.yml`: bump it with `@playwright/test`, as the comment there
+says. `scripts/verify.test.mjs` fails if the jobs do not cover every gate, so
+a gate added to the list runs in CI with no second list to update. It does not
+replace running it locally; it catches the time you forgot.
+
+`all-gates` is the one check to require in branch protection: it fails if a
+gate job failed or was cancelled, and passes if each passed or was skipped as
+the change did not need it. `release.yml` still runs the whole `pnpm verify`
+in one job before it publishes.
 
 Both browser suites drive Playwright's Chromium, and the e2e suite also
 drives its Firefox and WebKit, and vitest its WebKit for the tests of what
@@ -104,10 +139,10 @@ The site is `apps/site`, a pagedeck site. `pnpm build` writes it to
 `@pagedeck/adapter-cloudflare-pages` compiles from its routing, security
 headers included.
 
-**It deploys from CI**, in the `deploy-site` job of `ci.yml`, after `verify`
-passes on the same commit. The job builds the site again, with no pnpm or turbo
-cache, and uploads it with the pinned `wrangler` in `apps/site` to the
-Cloudflare Pages project `slidedeck`, a Direct Upload project:
+**It deploys from CI**, in the `deploy-site` job of `ci.yml`, after
+`all-gates` passes on the same commit. The job builds the site again, with no
+pnpm or turbo cache, and uploads it with the pinned `wrangler` in `apps/site`
+to the Cloudflare Pages project `slidedeck`, a Direct Upload project:
 
 - a push to `main` deploys production, https://slidedeck.pages.dev.
 - a pull request from this repository deploys a preview at
