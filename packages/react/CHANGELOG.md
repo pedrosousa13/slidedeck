@@ -1,5 +1,13 @@
 # @slidedeck/react
 
+## 1.0.4
+
+### Patch Changes
+
+- 688999f: The docs pages and the package README read more plainly, with the same facts, headings, code blocks and API.
+- 5b5b59f: The packages' `homepage` and the README's docs link now point at https://slide.deck.cool. No code changed.
+- @slidedeck/core@1.0.4
+
 ## 1.0.3
 
 ### Patch Changes
