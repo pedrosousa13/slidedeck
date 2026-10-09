@@ -24,21 +24,8 @@ from the pnpm store.
 
 `pnpm verify --changed` runs only the gates the diff against `main` needs
 (committed, uncommitted and untracked files; `--changed=<ref>` diffs against
-another ref). The paths map to gates in `scripts/verify.mjs`, first match
-wins:
-
-- `packages/**`, the lockfile, root config: every gate.
-- `apps/site/**` and the site's e2e specs: `format:check`, `lint`,
-  `typecheck`, `test:scripts`, `build`, `docs:check`, `compare:check`, and
-  the site's e2e specs in every browser.
-- `apps/storybook/**` and `e2e/deck.spec.ts`: `format:check`, `lint`,
-  `typecheck`, `build`, and `e2e/deck.spec.ts` in every browser.
-- a script a gate runs (`scripts/verify-packaging.mjs` and the like): every
-  gate.
-- other `.github/**` and `scripts/**`: `format:check`, `lint`, `typecheck`,
-  `test:scripts`.
-- Markdown and `docs/**` elsewhere: `format:check`.
-- anything else: every gate.
+another ref). `RULES` in `scripts/verify.mjs` maps each changed path to the
+gates it needs, first match wins, and a path no rule matches needs every gate.
 
 `--only lint,typecheck` runs those gates, `--project=webkit` runs `test:e2e`
 in one browser, `--shard=1/4` runs `test` in one vitest shard of four, and
@@ -55,8 +42,8 @@ job with nothing to run is skipped; a push to `main` runs every gate. `unit`
 and `e2e` run in Playwright's container image, pinned by digest in `ci.yml`:
 bump it with `@playwright/test`, as the comment there says.
 `scripts/verify.test.mjs` fails if the jobs do not cover every gate, so a gate
-added to the list runs in CI with no second list to update. It does not
-replace running it locally; it catches the time you forgot.
+added to the list runs in CI with no second list to update. CI does not
+replace running `pnpm verify` locally; it catches the time you forgot.
 
 `all-gates` is the one check to require in branch protection: it fails if a
 gate job failed or was cancelled, and passes if each passed or was skipped as

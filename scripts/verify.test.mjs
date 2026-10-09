@@ -348,3 +348,65 @@ test("ci.yml's e2e matrix is every Playwright project", async () => {
     projects
   );
 });
+
+/**
+ * ci.yml's jobs, by id, each with its own lines: the jobs are the keys
+ * indented two spaces under `jobs:`.
+ */
+const ciJobBlocks = () => {
+  const jobs = ci.slice(ci.indexOf('\njobs:\n'));
+  return Object.fromEntries(
+    jobs
+      .split(/^ {2}(?=[\w-]+:$)/m)
+      .slice(1)
+      .map((block) => [block.slice(0, block.indexOf(':')), block])
+  );
+};
+
+/** The job ids in a block's `needs: [...]`. */
+const needsOf = (/** @type {string} */ block) =>
+  (block.match(/^ {4}needs: \[([^\]]*)\]$/m)?.[1] ?? '')
+    .split(',')
+    .map((job) => job.trim());
+
+test('all-gates and deploy-site need every gate job', () => {
+  const blocks = ciJobBlocks();
+  for (const job of ['all-gates', 'deploy-site']) {
+    const needs = needsOf(blocks[job] ?? '');
+    for (const gateJob of Object.keys(CI_JOBS)) {
+      assert.ok(needs.includes(gateJob), `${job} does not need ${gateJob}`);
+    }
+  }
+});
+
+test('each gate job runs on a `changes` output that `changes` declares', () => {
+  const blocks = ciJobBlocks();
+  const outputs = [
+    ...(blocks.changes ?? '').matchAll(
+      /^ {6}([\w-]+): \$\{\{ steps\.plan\.outputs\.([\w-]+) \}\}$/gm
+    )
+  ].map(([, key, output]) => {
+    assert.equal(key, output, `changes output ${key} reads ${output}`);
+    return key;
+  });
+  for (const job of Object.keys(CI_JOBS)) {
+    assert.ok(outputs.includes(job), `changes declares no ${job} output`);
+    assert.match(
+      blocks[job] ?? '',
+      new RegExp(`^ {4}if: needs\\.changes\\.outputs\\.${job} == 'true'$`, 'm'),
+      `${job} does not run on needs.changes.outputs.${job}`
+    );
+  }
+});
+
+test("ci.yml's Playwright image is the @playwright/test in the lockfile", () => {
+  const locked = read('pnpm-lock.yaml').match(
+    /^ {2}'@playwright\/test@([\d.]+)':$/m
+  )?.[1];
+  assert.ok(locked, 'pnpm-lock.yaml locks no @playwright/test');
+  const tags = [
+    ...ci.matchAll(/mcr\.microsoft\.com\/playwright:v([\d.]+)-\w+@sha256:/g)
+  ].map((match) => match[1]);
+  assert.ok(tags.length > 0, 'ci.yml uses no Playwright image by digest');
+  for (const tag of tags) assert.equal(tag, locked);
+});
