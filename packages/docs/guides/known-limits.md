@@ -14,7 +14,7 @@ description: "Known limits of slidedeck: loop copies render a slide's children a
   snap point.
 - **Fade ignores slide geometry.** Slide width, alignment and pages do not
   apply to a fade deck.
-- **Curve draws on the slides' children**, not the slide box: a slide's own
+- **Curve draws on the slides' children, not the slide box.** A slide's own
   background and border stay flat.
 - **Server HTML can only start at a slide.** With several slides per snap
   point, or pages, the first paint at a `defaultIndex` may correct after
@@ -25,10 +25,10 @@ description: "Known limits of slidedeck: loop copies render a slide's children a
   scroll range keeps from the focal position, as at the end of a centred deck
   with no padding, an effect or CSS on progress can move slightly at
   hydration, when the engine measures.
-- **A controlled index counts pages**, so a breakpoint that changes the page
+- **A controlled index counts pages.** A breakpoint that changes the page
   size points the same index at different slides.
 - **A long task can let Chromium undo a wheel.** When a long task holds the
   main thread just after a wheel during a move, Chromium can carry the move
   on to its slide, against the wheel. The deck still rests on a snap point.
-- **Touch flicks across a loop's seam are not covered by automated tests**;
-  they are checked by hand on a phone and a trackpad.
+- **No automated test covers touch flicks across a loop's seam.** They are
+  checked by hand on a phone and a trackpad.

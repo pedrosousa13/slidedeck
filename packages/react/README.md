@@ -1,9 +1,10 @@
 # @slidedeck/react
 
-A headless carousel for React 19 built on native CSS scroll snap. The browser
-scrolls, with its own momentum, snapping and focus scrolling; slidedeck tracks
-where the deck rests and asks the browser to move. You compose the deck from
-primitives that work with no stylesheet, and style it with plain CSS.
+A headless carousel for React 19, built on native CSS scroll snap. The browser
+does the scrolling, with its own momentum, snapping and focus scrolling.
+Slidedeck tracks where the deck rests and asks the browser to move. You build
+the deck from primitives that work with no stylesheet, and style it with plain
+CSS.
 
 The guides, the reference and the recipes, each with a live deck, are at
 [slidedeck.pages.dev/docs](https://slidedeck.pages.dev/docs/).
@@ -15,8 +16,8 @@ pnpm add @slidedeck/react
 ```
 
 `react` and `react-dom` 19 are peer dependencies. `@slidedeck/react` is the
-only package to install; it brings `@slidedeck/core`, the engine. The package
-is ESM only.
+only package to install. It brings `@slidedeck/core`, the engine, with it. The
+package is ESM only.
 
 ## Quickstart
 
@@ -41,14 +42,14 @@ export function Featured() {
 ```
 
 That is a working deck: one full-width slide per snap point, Prev and Next
-buttons, a dot per page and a "1 / 3" counter. No stylesheet is needed. Give
-`Deck.Root` an `aria-label`: it names the carousel region.
+buttons, a dot per page and a "1 / 3" counter. It needs no stylesheet. Give
+`Deck.Root` an `aria-label`, which names the carousel region.
 
 ## Comparison with Embla and Keen
 
-Embla and Keen move slides with transforms and their own physics; slidedeck
-lets the browser scroll. The size column is measured by `pnpm compare` from
-pinned installs, and CI fails if this table is stale.
+Embla and Keen move slides with transforms and their own physics. Slidedeck
+lets the browser scroll. `pnpm compare` measures the size column from pinned
+installs, and CI fails if this table is stale.
 
 <!-- comparison:start -->
 

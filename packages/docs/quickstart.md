@@ -26,5 +26,5 @@ export function Featured() {
 ```
 
 That is a working deck: one full-width slide per snap point, Prev and Next
-buttons, a dot per page and a "1 / 3" counter. No stylesheet is needed. Give
-`Deck.Root` an `aria-label`: it names the carousel region.
+buttons, a dot per page and a "1 / 3" counter. It needs no stylesheet. Give
+`Deck.Root` an `aria-label`, which names the carousel region.

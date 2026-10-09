@@ -3,7 +3,7 @@ title: Autoplay
 description: 'Autoplay moves a slidedeck deck one snap point at an interval. It pauses on hover and in a hidden tab, stops on focus, and Deck.AutoplayToggle stops it.'
 ---
 
-`autoplay={5000}` moves the deck one snap point on every 5 seconds, counted
+`autoplay={5000}` moves the deck on one snap point every 5 seconds, counted
 from when it comes to rest. It stops at the last snap point unless the deck
 loops. Pair it with `Deck.AutoplayToggle`, placed first among the deck's
 controls, so motion can always be stopped (WCAG 2.2.2):
@@ -33,11 +33,12 @@ export function Hero() {
 - Focus entering the deck, other than on the toggle, or the user moving the
   deck, stops it until the toggle starts it again.
 - A preference for reduced motion stops it from the start.
-- Moves autoplay makes are not announced, and the live region is off while
-  it rotates.
+- The deck does not announce autoplay's moves, and its live region is off
+  while autoplay rotates it.
 
 The toggle carries `data-playing` while autoplay is on. Children replace its
-text: give both states and show one with `[data-playing]` in CSS. Starting it
-again where it stopped at the last snap point goes back to the first. To
+text, so give it both states and show one with `[data-playing]` in CSS. If
+autoplay stopped at the last snap point, starting it again goes back to the
+first. To
 autoplay on some screens only, see
 [change `effect`, `loop` or `autoplay` per breakpoint](../recipes/per-breakpoint.md).

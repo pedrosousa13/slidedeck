@@ -4,9 +4,9 @@ description: 'Let the first and last slides of a centred slidedeck deck reach th
 ---
 
 With `scroll-snap-align: center`, the first slide cannot reach the centre of
-the viewport, which cannot scroll before the slide's start: the deck rests
-with the first slide at the start edge, and the slide nearest the centre is
-focal. The last slide is the same at the end. Without `loop`, pad the viewport
+the viewport, because the viewport cannot scroll before the slide's start. The
+deck rests with the first slide at the start edge, and the slide nearest the
+centre is focal. The last slide is the same at the end. Without `loop`, pad the viewport
 at each end by half its width less half a slide, so the scroll range runs far
 enough:
 
@@ -30,8 +30,8 @@ enough:
 }
 ```
 
-Give the slides a width that is not a percentage, such as `px`, `rem` or `vw`:
-the padding's percentage is of the deck's width, and a slide's is of the
+Give the slides a width that is not a percentage, such as `px`, `rem` or `vw`.
+The padding's percentage is of the deck's width, and a slide's is of the
 viewport's content box, which the padding narrows. With `loop`, the copies
 either side already let the first and last slides reach the centre.
 

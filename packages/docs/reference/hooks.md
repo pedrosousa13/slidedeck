@@ -74,9 +74,9 @@ export function Photos() {
 ```
 
 `Deck.useSlide()`, called by content inside a slide, tells it which slide it
-is in. It returns `{ index, copy }`: `index` is the slide's index, also inside
-a loop's copy of it, and `copy` is `'before'` or `'after'` in a copy, the side
-of the slides it is on, and `undefined` in a slide. Use it where stateful
+is in. It returns `{ index, copy }`. `index` is the slide's index, also inside
+a loop's copy of it. `copy` is `'before'` or `'after'` in a copy, the side of
+the slides it is on, and `undefined` in a slide. Use it where stateful
 content must not run twice, as in the
 [playdeck recipe](../recipes/playdeck-video.md). Called
 outside a `Deck.Slide`, it throws.

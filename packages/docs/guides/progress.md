@@ -35,8 +35,8 @@ the slide the deck starts at, so CSS on it paints before any script runs (see
 
 Progress is a whole number for every slide when one sits exactly at the focal
 position. An effect that moves a slide should scale about its snap alignment
-point (`transform-origin`), not away from it, or it moves the point progress
-is measured from:
+point (`transform-origin`), not away from it, or it moves the point the deck
+measures progress from:
 
 <!-- demo:example-progress -->
 

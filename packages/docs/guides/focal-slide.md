@@ -4,13 +4,13 @@ description: 'The focal slide is the one at the snap alignment point. How slided
 ---
 
 The focal slide is the slide at the snap alignment point, the one the deck is
-about. With one slide in view it is the current slide; with several in view,
+about. With one slide in view it is the current slide. With several in view,
 centred, it is the middle one. It carries `data-focal`, and `onFocalChange`
 reports it. The current slide, the first slide resting at the current snap
 point, carries `data-current`.
 
-The focal slide is defined by the alignment point, not by which slides are in
-view: with several in view at the start, it is the first of them. To highlight
+The alignment point defines the focal slide, not which slides are in view.
+With several in view at the start, it is the first of them. To highlight
 the middle one, see
 [highlight the middle slide in view](../recipes/middle-slide.md).
 

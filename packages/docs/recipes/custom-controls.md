@@ -69,7 +69,7 @@ They do what the built-in controls do:
 - Previous and Next are disabled at the ends, unless the deck loops.
 - The page buttons are a group labelled "Choose page", the current page's
   marked `aria-current`, as `Deck.Dots`. There are none until the deck is
-  measured: `count` is `null` on the server.
+  measured, since `count` is `null` on the server.
 - `Deck.Root`'s live region still announces the slide the deck moves to, so
   the counter needs no live region of its own.
 - A move stops autoplay, as a move with a built-in control does.
