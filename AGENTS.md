@@ -11,8 +11,8 @@ pnpm verify
 It runs every gate in order and stops at the first failure: `format:check`,
 `lint`, `typecheck`, `test` (vitest in browser mode), `test:scripts` (the
 scripts' own tests and the site's), `build`, `docs:check` (the code blocks in
-the package README and the site's docs type-check), `compare:check` (the
-README's comparison table is fresh), `test:packages` (publint and attw on the
+the package README and the docs type-check), `compare:check` (the
+README's and the docs' comparison table is fresh), `test:packages` (publint and attw on the
 packed tarballs, and the React entries' `'use client'`), `test:next` (a Next.js
 server component renders a deck from the packed tarballs), `size` and
 `test:e2e` (Playwright with axe against storybook, in Chromium, Firefox and
@@ -60,27 +60,29 @@ firefox webkit` once, or install with `--with-deps`.
 `size` prints each package's gzipped size and never fails: bundle size is an
 aim, not a gate (ADR-0001). Read the numbers; do not add a budget.
 
-`compare:check` fails when the comparison in `packages/react/README.md` no
-longer matches a fresh measurement: after a bump of a compared library in
-`tests/compare`, or any change to `packages/*/src` that moves slidedeck's
-gzipped size. Run `pnpm build && pnpm compare` and commit the new table. The
-size is reported, never budgeted (ADR-0001): a bigger number is not a failure,
-only a stale one is. A release does not stale it: slidedeck's row has no
-version.
+`compare:check` fails when the comparison in `packages/react/README.md`, or
+the same table at the end of `packages/docs/compare.md`, no longer matches a
+fresh measurement: after a bump of a compared library in `tests/compare`, or
+any change to `packages/*/src` that moves slidedeck's gzipped size. Run
+`pnpm build && pnpm compare` and commit the new tables. The size is
+reported, never budgeted (ADR-0001): a bigger number is not a failure, only a
+stale one is. A release does not stale it: slidedeck's row has no version.
 
 Formatting is checked, never written by the gate. Run
 `pnpm exec prettier --write <files>` on the files you changed.
 
 ## Releasing
 
-`@slidedeck/core` and `@slidedeck/react` release together at one version
-(`fixed` in `.changeset/config.json`).
+`@slidedeck/core`, `@slidedeck/react` and `@slidedeck/docs` release together
+at one version (`fixed` in `.changeset/config.json`).
 
 **A change that a consumer of either package can see needs a changeset**: a
 fix, a feature, a changed prop or type, a changed package file. Run
 `pnpm changeset`, pick the bump, write what changed for the consumer, and
 commit the file with the change. Tests, docs outside the packages, CI and
-scripts need none. A breaking change is a `major`.
+scripts need none. A breaking change is a `major`. A change to
+`packages/docs` alone needs none either: the docs are published at the
+version of the code they describe, so the change ships with the next release.
 
 **A release** is `.github/workflows/release.yml`, on every push to `main`. It
 runs `pnpm verify` first, then:
@@ -89,7 +91,13 @@ runs `pnpm verify` first, then:
   which bumps the versions and writes the changelogs. Nothing is published.
 - after that PR merges, it publishes the versions npm does not have yet, with
   provenance, from the tarballs the verify job packed, then tags them and
-  creates the GitHub releases.
+  creates the GitHub releases. Then `tell-deck-cool` sends
+  pedrosousa13/deck-cool a `deck-released` dispatch with the version, with a
+  token from the `deck-cool-releases` App (the `DECK_APP_ID` variable and the
+  `DECK_APP_PRIVATE_KEY` secret). deck.cool bumps `@slidedeck/docs` and
+  rebuilds slidedeck's docs from it. Nobody needs to send a dispatch again:
+  deck-cool's daily scheduled bump checks npm every day, so it picks up a
+  version its one-day hold refused at dispatch, or one whose dispatch was lost.
 
 The version PR is opened with the workflow's `GITHUB_TOKEN`, and a PR that
 token opens triggers no workflow, so `ci.yml` does not run on it. Its merge
@@ -121,10 +129,43 @@ package: GitHub Actions, `pedrosousa13` / `slidedeck` / `release.yml`, no
 environment. Then delete the `NPM_TOKEN` secret; later releases publish over
 OIDC. Done on 2026-10-07 (#79): releases now publish over OIDC only.
 
+`@slidedeck/docs` (#133) is not on npm yet, and trusted publishing needs a
+package to exist. The merge that adds it is its first release: its 1.0.3 is
+not on npm, so the release run after the merge tries to publish it.
+
+- If no `NPM_TOKEN` secret is set, that run fails at "Check a credential can
+  publish", and nothing is published. Add an `NPM_TOKEN` secret, a token that
+  can create new packages under the `@slidedeck` scope, then re-run the
+  `publish` job.
+- Once `@slidedeck/docs@1.0.3` is on npm, add its trusted publisher on
+  npmjs.com, as above, and delete the `NPM_TOKEN` secret.
+
+## Docs
+
+The docs are `packages/docs`, published as `@slidedeck/docs`: markdown,
+`nav.json` and `assets/`, no code. deck.cool builds slidedeck's docs site
+from the published package, so every page follows deck.cool's docs contract
+(`docs/docs-contract.md` in pedrosousa13/deck-cool):
+
+- every page has a `title` and a `description` in its frontmatter, and no
+  `#` heading. A `label` is the site's shorter sidebar name for it.
+- `nav.json` lists every page, in reading order, under its group.
+- a link to another page is a relative link to its `.md` file.
+- a live example is `<!-- demo:example-<name> -->` on its own line, where
+  `<name>` is a file `apps/site/components/examples/<name>-example.tsx`. It is
+  the only HTML a page may hold.
+- a code block that must match a file in the repo follows an unused link
+  definition to the file,
+  `[example: <name>]: https://github.com/pedrosousa13/slidedeck/blob/main/<path>`.
+
+`scripts/docs-contract.test.mjs`, in `test:scripts`, checks the package
+against the contract with the rules deck.cool's docs loader applies.
+
 ## Site
 
-The site is `apps/site`, a pagedeck site. `pnpm build` writes it to
-`apps/site/site/`, with the `_headers` and `_redirects` that
+The site is `apps/site`, a pagedeck site. Its docs pages read
+`packages/docs` until slide.deck.cool replaces the site. `pnpm build` writes
+it to `apps/site/site/`, with the `_headers` and `_redirects` that
 `@pagedeck/adapter-cloudflare-pages` compiles from its routing, security
 headers included.
 

@@ -32,7 +32,8 @@ const staticGraph = (file, seen = new Set()) => {
 // is shipped only by a deck that imports it, so it is measured apart from the
 // main one.
 const rows = publishablePackages(repoRoot).flatMap((pkg) =>
-  Object.entries(pkg.manifest.exports).map(([subpath, entry]) => {
+  // The docs package has no code, so no entry point.
+  Object.entries(pkg.manifest.exports ?? {}).map(([subpath, entry]) => {
     const source = Buffer.concat(
       [...staticGraph(join(pkg.path, entry.default))].map((file) =>
         readFileSync(file)

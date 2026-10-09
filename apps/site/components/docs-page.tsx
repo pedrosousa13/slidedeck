@@ -1,4 +1,4 @@
-import { Children, type ReactNode } from 'react';
+import { Children, Fragment, type ReactNode } from 'react';
 
 export interface DocsLink {
   href: string;
@@ -19,20 +19,46 @@ interface Props {
   nav: readonly DocsSection[];
   previous?: DocsLink;
   next?: DocsLink;
-  /** The page's live examples, named in its frontmatter `components`. */
+  /** The page's live examples, in the order its demo markers name them. */
   children?: ReactNode;
 }
 
 // What is the same on every page, so search finds a page by its own words only.
 const UNINDEXED = { 'data-fw-search': 'ignore' } as const;
 
+// A run of demo markers, `<!-- demo:<name> -->`: one figure of examples.
+const DEMOS = /((?:<!-- demo:[A-Za-z0-9_-]+ -->\s*)+)/;
+
 /**
- * The page's HTML before and after the place its example goes: after the
- * intro, so before the page's first code block or `##` heading, or at the end.
+ * The page's HTML cut at each run of demo markers: the prose, then for each
+ * run the examples it shows, from `start` to `end` in marker order, and the
+ * prose after it.
  */
-function splitIntro(html: string): [string, string] {
-  const at = html.search(/<pre[\s>]|<h2[\s>]/);
-  return at === -1 ? [html, ''] : [html.slice(0, at), html.slice(at)];
+function splitAtDemos(html: string): {
+  intro: string;
+  runs: { start: number; end: number; prose: string }[];
+} {
+  const [intro = '', ...rest] = html.split(DEMOS);
+  if (rest.length === 0) {
+    // No example: the page is still cut where one would go, after the intro,
+    // so before its first code block or `##` heading, as every page was cut
+    // before the examples moved into demo markers (#133).
+    const at = html.search(/<pre[\s>]|<h2[\s>]/);
+    return at === -1
+      ? { intro: html, runs: [] }
+      : {
+          intro: html.slice(0, at),
+          runs: [{ start: 0, end: 0, prose: html.slice(at) }]
+        };
+  }
+  const runs = [];
+  let end = 0;
+  for (let i = 0; i < rest.length; i += 2) {
+    const start = end;
+    end += rest[i]?.match(/<!-- demo:/g)?.length ?? 0;
+    runs.push({ start, end, prose: rest[i + 1] ?? '' });
+  }
+  return { intro, runs };
 }
 
 /**
@@ -57,7 +83,8 @@ export default function DocsPage({
   next,
   children
 }: Props) {
-  const [intro, rest] = splitIntro(prose(html));
+  const { intro, runs } = splitAtDemos(prose(html));
+  const examples = Children.toArray(children);
   return (
     <>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -99,20 +126,27 @@ export default function DocsPage({
             className="docs-prose"
             dangerouslySetInnerHTML={{ __html: intro }}
           />
-          {Children.count(children) > 0 && (
-            <figure className="docs-example" aria-labelledby="docs-example">
-              <figcaption id="docs-example" {...UNINDEXED}>
-                Example
-              </figcaption>
-              {children}
-            </figure>
-          )}
-          {rest !== '' && (
-            <div
-              className="docs-prose"
-              dangerouslySetInnerHTML={{ __html: rest }}
-            />
-          )}
+          {runs.map(({ start, end, prose: after }, run) => {
+            const id = run === 0 ? 'docs-example' : `docs-example-${run + 1}`;
+            return (
+              <Fragment key={id}>
+                {end > start && (
+                  <figure className="docs-example" aria-labelledby={id}>
+                    <figcaption id={id} {...UNINDEXED}>
+                      Example
+                    </figcaption>
+                    {examples.slice(start, end)}
+                  </figure>
+                )}
+                {after !== '' && (
+                  <div
+                    className="docs-prose"
+                    dangerouslySetInnerHTML={{ __html: after }}
+                  />
+                )}
+              </Fragment>
+            );
+          })}
           {(previous !== undefined || next !== undefined) && (
             <nav
               className="docs-pager"

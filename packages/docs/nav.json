@@ -1,0 +1,42 @@
+[
+  {
+    "label": "Getting started",
+    "pages": ["index.md", "install.md", "quickstart.md"]
+  },
+  {
+    "label": "Guides",
+    "pages": [
+      "guides/layout.md",
+      "guides/the-index.md",
+      "guides/focal-slide.md",
+      "guides/loop.md",
+      "guides/drag.md",
+      "guides/autoplay.md",
+      "guides/vertical-and-rtl.md",
+      "guides/pages.md",
+      "guides/progress.md",
+      "guides/effects.md",
+      "guides/theme.md",
+      "guides/server-rendering.md",
+      "guides/accessibility.md",
+      "guides/known-limits.md"
+    ]
+  },
+  {
+    "label": "Reference",
+    "pages": ["reference/primitives.md", "reference/hooks.md"]
+  },
+  {
+    "label": "Recipes",
+    "pages": [
+      "recipes/index.md",
+      "recipes/centred-ends.md",
+      "recipes/middle-slide.md",
+      "recipes/size-a-curve.md",
+      "recipes/custom-controls.md",
+      "recipes/per-breakpoint.md",
+      "recipes/playdeck-video.md"
+    ]
+  },
+  { "label": "Compare", "pages": ["compare.md"] }
+]

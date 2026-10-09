@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // Keeps the docs' code honest: the package README's and every page of the
-// site's docs, under apps/site/docs. Every `ts` and `tsx` block in them is
-// type-checked against the built packages, as a consumer's code is: a block
-// that no longer compiles fails. A block after an `<!-- example: <path> -->`
-// line must instead match that file in the repo byte for byte; the file is
+// docs, @slidedeck/docs under packages/docs. Every `ts` and `tsx` block in
+// them is type-checked against the built packages, as a consumer's code is: a
+// block that no longer compiles fails. A block after an example line, a link
+// definition to the file on GitHub that the page never shows,
+// `[example: <name>]: https://github.com/pedrosousa13/slidedeck/blob/main/<path>`,
+// must instead match that file in the repo byte for byte; the file is
 // type-checked where it lives, as the playdeck recipe's story is. A `css`
 // block after such a line is held to its file too, as a recipe's story
 // imports it; other `css` blocks are not checked. Run
@@ -22,7 +24,7 @@ import { fileURLToPath, URL } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const README = 'packages/react/README.md';
-const SITE_DOCS = 'apps/site/docs';
+const DOCS = 'packages/docs';
 // Inside the storybook app's node_modules, so the blocks resolve
 // `@slidedeck/react` and `react` through installed packages, as a consumer's
 // code does.
@@ -32,7 +34,10 @@ const OUT = 'apps/storybook/node_modules/.cache/docs-examples';
 // first word of its info string: `tsx` in ```tsx title="a.tsx"`.
 const FENCE = /^( *)(`{3,}|~{3,})\s*([^\s`]*)/;
 const CLOSE = /^ *(`{3,}|~{3,})\s*$/;
-const MARKER = /^<!-- example: (\S+) -->$/;
+// A link definition, not an HTML comment: a docs page holds no HTML but a demo
+// marker (deck.cool's docs contract).
+const MARKER =
+  /^\[example: [^\]]+\]: https:\/\/github\.com\/pedrosousa13\/slidedeck\/blob\/main\/(\S+)$/;
 const LANGUAGES = new Set(['ts', 'tsx']);
 
 /**
@@ -98,15 +103,15 @@ export const extractExamples = (markdown) => {
 
 /**
  * The markdown files whose code is checked, relative to `root`: the package
- * README, then every `.md` under the site's docs, sorted.
+ * README, then every `.md` under the docs package, sorted.
  * @param {string} root
  * @returns {string[]}
  */
 export const markdownFiles = (root) => [
   README,
-  ...readdirSync(join(root, SITE_DOCS), { recursive: true, encoding: 'utf8' })
+  ...readdirSync(join(root, DOCS), { recursive: true, encoding: 'utf8' })
     .filter((file) => file.endsWith('.md'))
-    .map((file) => `${SITE_DOCS}/${file.split('\\').join('/')}`)
+    .map((file) => `${DOCS}/${file.split('\\').join('/')}`)
     .sort()
 ];
 

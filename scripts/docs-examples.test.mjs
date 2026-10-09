@@ -36,7 +36,7 @@ test('extractExamples skips blocks in other languages', () => {
 
 test('an example marker names the file a block must match', () => {
   const markdown = [
-    '<!-- example: apps/storybook/stories/recipe.tsx -->',
+    '[example: recipe.tsx]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/recipe.tsx',
     '',
     '```tsx',
     'export {};',
@@ -54,7 +54,7 @@ test('an example marker names the file a block must match', () => {
 
 test('a marker holds a css block to its file too', () => {
   const markdown = [
-    '<!-- example: apps/storybook/stories/recipe.css -->',
+    '[example: recipe.css]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/recipe.css',
     '```css',
     'a {}',
     '```'
@@ -71,7 +71,7 @@ test('a marker holds a css block to its file too', () => {
 
 test('a marker applies to the next block only', () => {
   const markdown = [
-    '<!-- example: a.tsx -->',
+    '[example: a.tsx]: https://github.com/pedrosousa13/slidedeck/blob/main/a.tsx',
     '```tsx',
     'export {};',
     '```',
@@ -89,21 +89,21 @@ test('an unclosed block is an error, not a silent skip', () => {
   assert.throws(() => extractExamples('```tsx\nconst a = 1;\n'), /line 1/);
 });
 
-test('the checked files are the README and every page of the site docs', () => {
+test('the checked files are the README and every page of the docs package', () => {
   const root = mkdtempSync(join(tmpdir(), 'docs-examples-'));
   const write = (/** @type {string} */ file) => {
     mkdirSync(join(root, file, '..'), { recursive: true });
     writeFileSync(join(root, file), '');
   };
   write('packages/react/README.md');
-  write('apps/site/docs/index.md');
-  write('apps/site/docs/guides/loop.md');
-  write('apps/site/docs/guides/notes.txt');
+  write('packages/docs/index.md');
+  write('packages/docs/guides/loop.md');
+  write('packages/docs/guides/notes.txt');
   write('apps/site/content/index.md');
   assert.deepEqual(markdownFiles(root), [
     'packages/react/README.md',
-    'apps/site/docs/guides/loop.md',
-    'apps/site/docs/index.md'
+    'packages/docs/guides/loop.md',
+    'packages/docs/index.md'
   ]);
 });
 

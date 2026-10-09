@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
-// The site's docs, under /docs/, built from apps/site/docs. The site is served
+// The site's docs, under /docs/, built from packages/docs. The site is served
 // as in e2e/site.spec.ts; SITE_URL moves it.
 test.use({ baseURL: process.env.SITE_URL ?? 'http://127.0.0.1:4174' });
 

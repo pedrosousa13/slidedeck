@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Packs every publishable package and checks the tarball -- what npm would
 // actually ship -- with publint and attw, and that each React module starts
-// with `'use client'`, but the server component code, which must not.
+// with `'use client'`, but the server component code, which must not. A
+// package with no code, the docs, is checked for what deck.cool's docs
+// contract lets it ship instead: markdown, nav.json and assets/.
 
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
@@ -22,6 +24,8 @@ const CLIENT_PACKAGES = new Map([
   ['@slidedeck/react', new Set(['server.js', 'slides-in.js'])]
 ]);
 const USE_CLIENT = /^(['"])use client\1;?\n/;
+// Every file a docs package may ship, by its path in the tarball.
+const DOCS_FILE = /^package\/(?:.+\.md|nav\.json|package\.json|assets\/.+)$/;
 
 /** @param {string[]} args */
 const pnpm = (args) =>
@@ -63,6 +67,27 @@ pnpm(['exec', 'turbo', 'run', 'build', '--filter=./packages/*']);
 
 for (const { manifest, path } of packages) {
   const { name } = manifest;
+
+  if (manifest.exports === undefined) {
+    const destination = mkdtempSync(join(tmpdir(), 'slidedeck-pack-'));
+    try {
+      pnpm(['--filter', name, 'pack', '--pack-destination', destination]);
+      const tarball = join(destination, readdirSync(destination)[0] ?? '');
+      const files = execFileSync('tar', ['-tzf', tarball], { encoding: 'utf8' })
+        .split('\n')
+        .filter((file) => file !== '');
+      for (const file of files.filter((file) => !DOCS_FILE.test(file))) {
+        failures.push(`${name} ships ${file}, which is not docs`);
+      }
+      console.log(`\n--- publint: ${name} ---`);
+      if (!passes(['exec', 'publint', 'run', '--strict', tarball])) {
+        failures.push(`publint failed for ${name}`);
+      }
+    } finally {
+      rmSync(destination, { recursive: true, force: true });
+    }
+    continue;
+  }
 
   // A subpath entry, such as an effect, ships only to a consumer who imports
   // it: the main entry must never reach it.
