@@ -4,8 +4,8 @@ label: Effects
 description: "slidedeck's two effects: fade crossfades slides in one place, curve fans them along an arc. Each is its own import, so a deck without one ships none of it."
 ---
 
-An effect is a value passed to `Deck.Viewport`'s `effect`, imported from its
-own entry point. A deck that imports none ships none of their code. The
+An effect is a value you pass to `Deck.Viewport`'s `effect`, imported from
+its own entry point. A deck that imports none ships none of their code. The
 viewport keeps scrolling, snapping and dragging natively under both.
 
 <!-- demo:example-fade -->
@@ -45,18 +45,18 @@ export function Effects() {
 
 ## Fade
 
-**Fade** stacks the slides in one place and crossfades them by progress. Each
+Fade stacks the slides in one place and crossfades them by progress. Each
 slide fills the viewport and snaps at its start, so slide width, alignment and
-pages do not apply: a fade shows one slide at a time. Every slide but the
+pages do not apply. A fade shows one slide at a time. Every slide but the
 focal one is `inert`. Under reduced motion it cuts from one slide to the next
 halfway instead of fading.
 
 ## Curve
 
-**Curve** fans the slides along an arc around the focal slide and fades them
+Curve fans the slides along an arc around the focal slide and fades them
 with their distance from it. The slides keep their size, gap, alignment and
-pages. The arc is drawn on each slide's children, so give each slide one child
-that fills it, styled as the slide is seen. The radius, in slides, is
+pages. Curve draws the arc on each slide's children, so give each slide one
+child that fills it, styled as the slide should look. The radius, in slides, is
 `--deck-curve-radius` (default 4), set in CSS on the viewport. Each curve slide
 has `contain: layout`, so a `position: fixed` element inside it is placed
 against the slide. Under reduced motion the content stays flat and only fades.

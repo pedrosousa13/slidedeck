@@ -4,9 +4,9 @@ label: Compare
 description: 'How slidedeck compares with Embla and Keen Slider: native scrolling against transforms, accessibility out of the box, API shape and min+gzip size.'
 ---
 
-Embla and Keen move slides with transforms and their own physics; slidedeck
-lets the browser scroll. The size column is measured by `pnpm compare` from
-pinned installs, and CI fails if this table is stale.
+Embla and Keen move slides with transforms and their own physics. Slidedeck
+lets the browser scroll. `pnpm compare` measures the size column from pinned
+installs, and CI fails if this table is stale.
 
 | Library                | Version   | Min+gzip | Native scroll                                    | Accessibility out of the box                                                                                                           | API shape                                                                                          |
 | ---------------------- | --------- | -------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |

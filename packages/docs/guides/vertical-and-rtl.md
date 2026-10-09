@@ -4,17 +4,17 @@ description: 'Scroll a slidedeck deck along the block axis with orientation="ver
 ---
 
 `orientation="vertical"` scrolls along the block axis. A vertical deck needs a
-height, set on `Deck.Viewport` in CSS; each slide fills it by default.
+height, set on `Deck.Viewport` in CSS. Each slide fills it by default.
 
-Writing direction is read from the document's computed `direction`, so `dir`
-on any ancestor applies. In a right-to-left document the deck starts at the
+The deck reads the writing direction from the document's computed
+`direction`, so `dir` on any ancestor applies. In a right-to-left document the deck starts at the
 right, Next moves toward the inline end on the left, and a mouse drag and the
 arrow keys follow.
 
-A deck follows a change of `dir` after it mounts, as a locale switch makes:
-it stays on its slide, and from there goes the new way. A change of
-`direction` in CSS alone is not watched, and a deck inside a shadow root does
-not see a change of `dir` on its ancestors outside it.
+A deck follows a change of `dir` after it mounts, as after a locale switch.
+It stays on its slide and goes the new way from there. The deck does
+not watch a change of `direction` in CSS alone, and a deck inside a shadow
+root does not see a change of `dir` on its ancestors outside it.
 
 <!-- demo:example-vertical -->
 

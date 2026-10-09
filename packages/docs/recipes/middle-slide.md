@@ -15,8 +15,8 @@ rather than dim the others, which would lower their text's contrast.
 
 ## Centre the slides
 
-**Centre the slides.** The alignment point is then the centre, so the focal
-slide is the middle one: style `[data-focal]`. `onFocalChange` and
+With centred slides, the alignment point is the centre, so the focal slide is
+the middle one. Style `[data-focal]`. `onFocalChange` and
 `clickToFocus` then follow the middle slide too.
 
 [example: middle-centred.css]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/recipes/middle-centred.css
@@ -36,16 +36,16 @@ slide is the middle one: style `[data-focal]`. `onFocalChange` and
 }
 ```
 
-At the ends, the middle slide is the second and the second to last; add the
+At the ends, the middle slide is the second and the second to last. Add the
 padding of [centre the first and last slide](./centred-ends.md)
 to let the first and last slides reach the middle.
 
 ## Style by progress
 
-**Keep the slides at the start and style by progress.** The focal slide stays
-the first in view, at progress 0, so the middle of three is at progress 1, and
-of `n` in view at `(n - 1) / 2`. Progress changes every frame, so the
-highlight moves with the scroll, where `[data-focal]` changes when the deck
+Keep the slides at the start and style them by progress. The focal slide
+stays the first in view, at progress 0, so the middle of three is at progress
+1, and of `n` in view at `(n - 1) / 2`. Progress changes every frame, so the
+highlight moves with the scroll, whereas `[data-focal]` changes when the deck
 settles.
 
 [example: middle-by-progress.css]: https://github.com/pedrosousa13/slidedeck/blob/main/apps/storybook/stories/recipes/middle-by-progress.css

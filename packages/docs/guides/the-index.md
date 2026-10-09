@@ -42,8 +42,8 @@ thumbnail strip do.
 
 ## The handle
 
-For event handlers that should not go through state, `handleRef` gives the
-deck's moves:
+`handleRef` gives you the deck's moves, for event handlers that should not go
+through state:
 
 ```tsx
 import { useRef } from 'react';
@@ -67,13 +67,13 @@ export function WithHandle() {
 }
 ```
 
-`scrollTo` clamps to the snap points there are. `ref` stays the region
+`scrollTo` clamps to the snap points that exist. `ref` stays the region
 element, as on every primitive. With pages, the index counts pages.
 
 ## When the index changes
 
 `onIndexChange` and `onFocalChange` fire only when a scroll settles, never
-during one, and not for where the deck starts. Scrolling never re-renders:
+during one, and not for where the deck starts. Scrolling never re-renders.
 React state changes when the deck settles somewhere new (the index, the
 current and focal slides, the live region's announcement), when the number
 of snap points changes, and, on a deck with `autoplay`, when autoplay starts,

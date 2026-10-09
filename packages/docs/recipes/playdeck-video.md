@@ -4,9 +4,9 @@ label: Playdeck video
 description: 'A social-style feed of videos with slidedeck and playdeck: the video in the focal slide plays muted, the others pause, and it works with loop.'
 ---
 
-A social-style deck of videos: the video in the focal slide plays, muted, and
-the others pause. Each slide holds a [playdeck](https://www.npmjs.com/package/@playdeck/react)
-player; `onFocalChange` tells the deck's parent which slide is focal once a
+A social-style deck of videos, where the video in the focal slide plays,
+muted, and the others pause. Each slide holds a [playdeck](https://www.npmjs.com/package/@playdeck/react)
+player. `onFocalChange` tells the deck's parent which slide is focal once a
 scroll settles, and each player's handle plays or pauses it. It works with
 `loop`, as a feed usually is.
 
@@ -158,14 +158,14 @@ Notes:
 - The videos are muted so the browser lets them play without a gesture. Each
   keeps playdeck's own play button, so a viewer can pause the one playing.
 - Under reduced motion no video plays by itself, and turning the preference
-  on pauses the one playing; a viewer can still press play. Playdeck applies
+  on pauses the one playing. A viewer can still press play. Playdeck applies
   reduced motion only to its own `autoplay`, not to `play()` called from code,
   so the recipe checks `prefers-reduced-motion` itself.
 - A playdeck player loads when it comes into view. `whenReady` waits for that,
   and the focal check stops a late load from playing a slide the deck has
   left.
 - With `loop`, the deck renders each slide again in its copies. Each
-  slide's content calls `Deck.useSlide()`: a slide registers its player by
+  slide's content calls `Deck.useSlide()`. A slide registers its player by
   its index, and a copy shows the video's first frame, still, and registers
   nothing. No copy's player can replace or clear a slide's, and the focal
   slide's video plays once the deck crosses the seam and jumps.

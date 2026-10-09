@@ -6,7 +6,7 @@ description: "Switch a slidedeck deck's effect, loop or autoplay at a breakpoint
 
 A prop cannot read a media query, so read it in your component and pass the
 props it picks. A deck takes a new `effect`, `loop` or `autoplay` after it
-mounts: it stays at its current index, at rest on its snap point, and
+mounts. It stays at its current index, at rest on its snap point, and
 announces nothing. A move in flight still ends where it was going. Where the
 new layout has fewer snap points than the index needs, the deck rests on the
 last one and reports it, through `onIndexChange` and the live region. Here a
@@ -74,12 +74,12 @@ Slides per view stays in CSS, at the same breakpoint:
 Notes:
 
 - Keep the breakpoint in the hook and in CSS the same, so the CSS applies
-  only where the deck does not fade: fade lays out the slides itself.
-- Server HTML, and hydrating it, use the hook's `initial`, `false` here: the
-  narrow layout. On a wide screen the deck then switches to the loop once it
+  only where the deck does not fade. Fade lays out the slides itself.
+- Server HTML, and hydrating it, use the hook's `initial`. Here that is
+  `false`, the narrow layout. On a wide screen the deck then switches to the loop once it
   mounts, on the same slide. Pass the `initial` most of your visitors see.
-- Autoplay works the same way: `autoplay={wide ? 5000 : undefined}` rotates
-  the deck on wide screens only. Keep `Deck.AutoplayToggle` in the deck; it is
+- Autoplay works the same way. `autoplay={wide ? 5000 : undefined}` rotates
+  the deck on wide screens only. Keep `Deck.AutoplayToggle` in the deck. It is
   absent while `autoplay` is unset.
 - The deck keeps its index, not its slide. With [pages](../guides/pages.md), an index is
   a page, so on the side of the breakpoint that pages, the same index shows

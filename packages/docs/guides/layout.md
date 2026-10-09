@@ -21,8 +21,8 @@ start. These defaults have zero specificity, so any rule of yours wins:
 ```
 
 The viewport shows no scrollbar by default. It still scrolls by touch,
-trackpad, mouse wheel, drag, keyboard and the controls. To bring the scrollbar
-back, one rule:
+trackpad, mouse wheel, drag, keyboard and the controls. One rule brings the
+scrollbar back:
 
 ```css
 [data-slidedeck-viewport] {
@@ -31,10 +31,9 @@ back, one rule:
 ```
 
 Safari before 18.2 does not support `scrollbar-width`, and its native
-scrollbar cannot come back there: any `::-webkit-scrollbar` rule replaces it
-with one drawn from your CSS. To show a styled one there instead, only where
-`scrollbar-width` is not supported, so other browsers keep theirs (untested in
-Safari before 18.2):
+scrollbar cannot come back there. Any `::-webkit-scrollbar` rule replaces it
+with one drawn from your CSS. To show a styled one there instead, scope it to
+browsers without `scrollbar-width`, so other browsers keep theirs:
 
 ```css
 @supports not (scrollbar-width: auto) {
@@ -50,10 +49,12 @@ Safari before 18.2):
 }
 ```
 
+This is untested in Safari before 18.2.
+
 Media queries and container queries work as they do for anything else, and
-the deck re-reads its snap points when the viewport resizes. The structural
-styles a deck needs, such as the scroll container and its snap type, are set
-inline on the primitives; your `style` prop is spread after them.
+the deck re-reads its snap points when the viewport resizes. The primitives
+set the structural styles a deck needs inline, such as the scroll container
+and its snap type. Your `style` prop is spread after them.
 
 Centred slides rest with the first slide at the start edge, as the viewport
 cannot scroll before it. To centre the first and last slides too, see
