@@ -130,6 +130,22 @@ test('a demo marker is alone on its line and names a registered demo, and is the
   ]);
 });
 
+test('a link or image whose path the loader cannot rewrite as written is a fault', () => {
+  const root = docsPackage({
+    'assets/a_b.png': '',
+    'index.md': page(
+      'Example',
+      ['![grid](assets/a\\_b.png)', '', '[Layout](./guides/layout\\.md)'].join(
+        '\n'
+      )
+    )
+  });
+  assert.deepEqual(messages(root), [
+    'index.md:6 shows "assets/a_b.png" in a form the loader cannot rewrite',
+    'index.md:8 links to "./guides/layout.md" in a form the loader cannot rewrite'
+  ]);
+});
+
 test('two files cannot share a route', () => {
   const root = docsPackage({
     'guides.md': page('Guides'),

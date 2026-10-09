@@ -68,11 +68,12 @@ runs `pnpm verify` first, then:
 - after that PR merges, it publishes the versions npm does not have yet, with
   provenance, from the tarballs the verify job packed, then tags them and
   creates the GitHub releases. Then `tell-deck-cool` sends
-  pedrosousa13/deck-cool a `deck-released` dispatch with the version, with a token from the
-  `deck-cool-releases` App (the `DECK_APP_ID` variable and the
+  pedrosousa13/deck-cool a `deck-released` dispatch with the version, with a
+  token from the `deck-cool-releases` App (the `DECK_APP_ID` variable and the
   `DECK_APP_PRIVATE_KEY` secret). deck.cool bumps `@slidedeck/docs` and
-  rebuilds slidedeck's docs from it. Its `bump-deck` run holds a version for a
-  day; send the dispatch again after that, as deck-cool's AGENTS.md says.
+  rebuilds slidedeck's docs from it. Nobody needs to send a dispatch again:
+  deck-cool's daily scheduled bump checks npm every day, so it picks up a
+  version its one-day hold refused at dispatch, or one whose dispatch was lost.
 
 The version PR is opened with the workflow's `GITHUB_TOKEN`, and a PR that
 token opens triggers no workflow, so `ci.yml` does not run on it. Its merge
@@ -105,10 +106,15 @@ environment. Then delete the `NPM_TOKEN` secret; later releases publish over
 OIDC. Done on 2026-10-07 (#79): releases now publish over OIDC only.
 
 `@slidedeck/docs` (#133) is not on npm yet, and trusted publishing needs a
-package to exist, so the publish job's first step refuses to publish while no
-`NPM_TOKEN` is set. For its first release, add the `NPM_TOKEN` secret again
-(step 4), let the release publish, add the docs package's trusted publisher,
-and delete the secret.
+package to exist. The merge that adds it is its first release: its 1.0.3 is
+not on npm, so the release run after the merge tries to publish it.
+
+- If no `NPM_TOKEN` secret is set, that run fails at "Check a credential can
+  publish", and nothing is published. Add an `NPM_TOKEN` secret, a token that
+  can create new packages under the `@slidedeck` scope, then re-run the
+  `publish` job.
+- Once `@slidedeck/docs@1.0.3` is on npm, add its trusted publisher on
+  npmjs.com, as above, and delete the `NPM_TOKEN` secret.
 
 ## Docs
 

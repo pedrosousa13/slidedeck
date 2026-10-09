@@ -276,16 +276,21 @@ export const pageFaults = (file, text, context) => {
       if (token.type === 'image') {
         if (!target.startsWith('assets/') || !context.exists(target)) {
           fault(at, `shows "${href}", which is not a file under assets/`);
+          return;
         }
       } else if (!target.endsWith(EXTENSION)) {
         fault(at, `links to "${href}", which is not a .md page`);
+        return;
       } else if (!context.pages.has(target)) {
         fault(at, `links to "${href}", which is not a page in this package`);
-      } else if (
-        text.indexOf(href, text.indexOf(token.type === 'def' ? ']:' : '](')) ===
-        -1
-      ) {
-        fault(at, `links to "${href}" in a form the loader cannot rewrite`);
+        return;
+      }
+      // The loader rewrites a relative link or image in place, so its path
+      // must be in the file as written: not with backslash escapes.
+      const opening = text.indexOf(token.type === 'def' ? ']:' : '](');
+      if (text.indexOf(href, opening) === -1) {
+        const verb = token.type === 'image' ? 'shows' : 'links to';
+        fault(at, `${verb} "${href}" in a form the loader cannot rewrite`);
       }
     });
     offset += block.raw.length;
