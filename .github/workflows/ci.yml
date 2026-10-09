@@ -109,9 +109,10 @@ jobs:
           CHANGED: ${{ github.event_name == 'pull_request' && '--changed=HEAD^1' || '' }}
         run: pnpm verify --job next ${CHANGED:+"$CHANGED"}
 
-  # vitest's browser mode: chromium, and webkit for a few tests. Not sharded:
-  # nearly all its time is one file, arrival.test.tsx, and vitest shards by
-  # file. In Playwright's image, as `e2e` is: its browsers and their
+  # vitest's browser mode: chromium, and webkit for a few tests, in four
+  # shards. vitest shards by file, so no one file may be much longer than a
+  # shard: arrival.test.tsx, once nine minutes, is four files for that. In
+  # Playwright's image, as `e2e` is: its browsers and their
   # system libraries are installed, so no job installs them with apt, which
   # once hung CI for 15 minutes on a slow mirror.
   #
@@ -130,6 +131,10 @@ jobs:
     if: needs.changes.outputs.unit == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/4, 2/4, 3/4, 4/4]
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
       options: --user 1001
@@ -148,7 +153,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - env:
           CHANGED: ${{ github.event_name == 'pull_request' && '--changed=HEAD^1' || '' }}
-        run: pnpm verify --job unit ${CHANGED:+"$CHANGED"}
+          SHARD: ${{ matrix.shard }}
+        run: pnpm verify --job unit --shard="$SHARD" ${CHANGED:+"$CHANGED"}
 
   # The e2e suite, one Playwright project per job, in the image `unit` uses:
   # keep the two in step.

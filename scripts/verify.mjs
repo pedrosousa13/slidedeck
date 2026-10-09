@@ -11,6 +11,7 @@
 //   pnpm verify --only lint,typecheck   those steps, in list order
 //   pnpm verify --job unit              one CI job's steps
 //   pnpm verify --project=webkit ...    test:e2e in one Playwright project
+//   pnpm verify --shard=1/4 ...         test (vitest) in one shard of four
 //   pnpm verify --dry-run ...           print the steps, run none
 //   pnpm verify --ci-jobs ...           print `<job>=true|false` for each CI
 //                                       job: whether it has a step to run
@@ -64,7 +65,8 @@ export const CI_JOBS = {
     'compare:check',
     'size'
   ],
-  // In Playwright's container: vitest drives chromium and webkit.
+  // In Playwright's container, once per vitest shard: vitest drives chromium
+  // and webkit.
   unit: ['test'],
   // No browser. Apart from `unit`, whose vitest run is CI's longest job.
   packages: ['test:packages'],
@@ -212,6 +214,8 @@ export function plan(argv, changed = changedSince) {
   /** @type {string | undefined} */
   let project;
   /** @type {string | undefined} */
+  let shard;
+  /** @type {string | undefined} */
   let since;
   for (let i = 0; i < argv.length; i++) {
     const arg = /** @type {string} */ (argv[i]);
@@ -238,6 +242,8 @@ export function plan(argv, changed = changedSince) {
       }
     } else if (flag === '--project') {
       project = value();
+    } else if (flag === '--shard') {
+      shard = value();
     } else if (flag === '--changed') {
       since = inline ?? 'main';
     } else {
@@ -249,6 +255,9 @@ export function plan(argv, changed = changedSince) {
   if (project !== undefined && !wanted.includes('test:e2e')) {
     throw new Error('--project needs test:e2e among the steps');
   }
+  if (shard !== undefined && !wanted.includes('test')) {
+    throw new Error('--shard needs test among the steps');
+  }
   const steps = (
     since === undefined
       ? STEPS.map((step) => ({ step, args: /** @type {string[]} */ ([]) }))
@@ -257,7 +266,11 @@ export function plan(argv, changed = changedSince) {
   return steps.map(({ step, args }) => ({
     step,
     args:
-      step === 'test:e2e' && project ? [...args, `--project=${project}`] : args
+      step === 'test:e2e' && project
+        ? [...args, `--project=${project}`]
+        : step === 'test' && shard
+          ? [...args, `--shard=${shard}`]
+          : args
   }));
 }
 

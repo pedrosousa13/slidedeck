@@ -48,6 +48,22 @@ test('--project with no test:e2e to take it is refused', () => {
   );
 });
 
+test('--shard goes to test alone', () => {
+  assert.deepEqual(plan(['--only', 'lint,test', '--shard=2/4']), [
+    { step: 'lint', args: [] },
+    { step: 'test', args: ['--shard=2/4'] }
+  ]);
+  assert.throws(
+    () => plan(['--only', 'lint', '--shard=1/4']),
+    /--shard needs test/
+  );
+  // A change that needs no vitest runs nothing, rather than fail on --shard.
+  assert.deepEqual(
+    plan(['--job', 'unit', '--shard=1/4', '--changed'], () => ['README.md']),
+    []
+  );
+});
+
 test('an unknown argument is refused', () => {
   assert.throws(() => plan(['--onyl', 'lint']), /unknown argument `--onyl`/);
 });
@@ -304,6 +320,17 @@ test('ci.yml runs every CI job, and no other', () => {
     (match) => /** @type {string} */ (match[1])
   );
   assert.deepEqual(jobs.sort(), Object.keys(CI_JOBS).sort());
+});
+
+test("ci.yml's unit matrix is every shard of one count", () => {
+  const matrix = ci.match(/^\s+shard: \[([^\]]*)\]$/m)?.[1];
+  assert.ok(matrix, 'ci.yml has no `shard: [...]` matrix');
+  const shards = matrix.split(',').map((shard) => shard.trim());
+  assert.deepEqual(
+    shards,
+    shards.map((_, i) => `${i + 1}/${shards.length}`)
+  );
+  assert.match(ci, /pnpm verify --job unit --shard="\$SHARD"/);
 });
 
 test("ci.yml's e2e matrix is every Playwright project", async () => {
