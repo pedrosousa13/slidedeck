@@ -1,7 +1,8 @@
 name: Release
 
-# Changesets' version-PR flow (#39). On every push to `main`, `verify` runs the
-# same `pnpm verify` as `ci.yml`, then asks Changesets what the tree is:
+# Changesets' version-PR flow (#39). On every push to `main`, `verify` runs
+# `pnpm verify`, every gate `ci.yml` runs, then asks Changesets what the tree
+# is:
 #
 # - changesets pending: `version` opens or updates the "Version packages" PR.
 #   Nothing is published.
@@ -68,9 +69,12 @@ jobs:
       - if: vars.RELEASE_ENABLED != 'true'
         run: echo "::notice::Releases are off until the RELEASE_ENABLED repository variable is true. See AGENTS.md, Releasing."
 
-      # From here to `pnpm verify`, the steps of `ci.yml`: keep them in step.
-      # One difference: no pnpm store cache. This job packs the tarballs that
-      # ship, and a restored store is code from another run.
+      # One runner, one `pnpm verify`, every gate, not `ci.yml`'s parallel
+      # jobs: a release has no time pressure, and the tarballs `pack` ships
+      # below are the build this same job verified. So it keeps the runner's
+      # browsers plus apt rather than `ci.yml`'s Playwright image. No pnpm
+      # store cache: this job packs the tarballs that ship, and a restored
+      # store is code from another run.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
