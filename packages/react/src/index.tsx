@@ -800,9 +800,9 @@ const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;
 /** One slide, labelled "n of m". Its size and alignment are consumer CSS.
  * For CSS to read, it carries `--deck-slide-index`, its index, and
  * `--deck-slide-count`, the number of slides, copies not counted, from the
- * first render; `--deck-slide-progress`, its signed distance from the focal position
- * in slides, from the first render too, server HTML included, counted from
- * the slide the deck starts at; and once mounted, `data-in-view` while any of
+ * first render; `--deck-slide-progress`, its signed distance from the focal
+ * position in slides, from the first render too, server HTML included,
+ * counted from the slide the deck starts at; and once mounted, `data-in-view` while any of
  * it is in view. Progress and in-view are kept up to date as the deck scrolls
  * without a React render. Where an effect stacks the slides, as fade does, every slide but the focal
  * one is inert. */
