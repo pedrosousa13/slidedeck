@@ -25,6 +25,7 @@ jobs:
     outputs:
       checks: ${{ steps.plan.outputs.checks }}
       unit: ${{ steps.plan.outputs.unit }}
+      unit-react-18: ${{ steps.plan.outputs.unit-react-18 }}
       packages: ${{ steps.plan.outputs.packages }}
       next: ${{ steps.plan.outputs.next }}
       e2e: ${{ steps.plan.outputs.e2e }}
@@ -116,7 +117,7 @@ jobs:
   # once hung CI for 15 minutes on a slow mirror.
   #
   # The image is pinned by digest, and must match @playwright/test in
-  # pnpm-lock.yaml. To bump it with Playwright: change the tag in both jobs,
+  # pnpm-lock.yaml. To bump it with Playwright: change the tag in all three jobs,
   # then pin the digest the tag now names, from
   #   docker buildx imagetools inspect mcr.microsoft.com/playwright:v<version>-noble
   # (the index's `Digest:`).
@@ -155,8 +156,41 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: pnpm verify --job unit --shard="$SHARD" ${CHANGED:+"$CHANGED"}
 
+  # The React package's tests again, on React 18, against
+  # @slidedeck/react-18's build: `unit`, with its image and shards, beside it
+  # rather than after it in the same job, so CI takes no longer.
+  unit-react-18:
+    needs: changes
+    if: needs.changes.outputs.unit-react-18 == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/4, 2/4, 3/4, 4/4]
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --user 1001
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - run: |
+          mkdir -p "$RUNNER_TEMP/corepack"
+          corepack enable --install-directory "$RUNNER_TEMP/corepack"
+          echo "$RUNNER_TEMP/corepack" >> "$GITHUB_PATH"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - env:
+          CHANGED: ${{ github.event_name == 'pull_request' && '--changed=HEAD^1' || '' }}
+          SHARD: ${{ matrix.shard }}
+        run: pnpm verify --job unit-react-18 --shard="$SHARD" ${CHANGED:+"$CHANGED"}
+
   # The e2e suite, one Playwright project per job, in the image `unit` uses:
-  # keep the two in step.
+  # keep the three in step.
   e2e:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
@@ -190,7 +224,7 @@ jobs:
   # The one check to require in branch protection: it passes when every gate
   # job passed, or was skipped because the change needs none of its gates.
   all-gates:
-    needs: [changes, checks, packages, next, unit, e2e]
+    needs: [changes, checks, packages, next, unit, unit-react-18, e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
