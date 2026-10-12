@@ -3,6 +3,7 @@ import { expectTypeOf, test } from 'vitest';
 import * as Deck from '@slidedeck/react';
 import { curve } from '@slidedeck/react/curve';
 import { fade } from '@slidedeck/react/fade';
+import { stack } from '@slidedeck/react/stack';
 
 // Compile-time checks: `pnpm typecheck` fails if a line expected to error
 // compiles, or an unmarked one does not.
@@ -98,8 +99,10 @@ test("useDeck reports the deck's state and its moves", () => {
 test('an effect is imported from its own entry point, not named', () => {
   void (<Deck.Viewport effect={fade} />);
   void (<Deck.Viewport effect={curve} />);
+  void (<Deck.Viewport effect={stack} />);
   expectTypeOf(fade).toEqualTypeOf<Deck.Effect>();
   expectTypeOf(curve).toEqualTypeOf<Deck.Effect>();
+  expectTypeOf(stack).toEqualTypeOf<Deck.Effect>();
   // @ts-expect-error -- an effect is the imported value, not its name
   void (<Deck.Viewport effect="fade" />);
 });

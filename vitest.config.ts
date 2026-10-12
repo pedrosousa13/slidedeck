@@ -47,6 +47,12 @@ export default defineConfig({
         )
       },
       {
+        find: /^@slidedeck\/react\/stack$/,
+        replacement: fileURLToPath(
+          new URL('./packages/react/src/stack.ts', import.meta.url)
+        )
+      },
+      {
         find: /^@slidedeck\/react\/curve$/,
         replacement: fileURLToPath(
           new URL('./packages/react/src/curve.ts', import.meta.url)

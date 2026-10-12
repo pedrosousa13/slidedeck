@@ -62,7 +62,7 @@ from the slides' `scroll-snap-align`.
 **Snap target**:
 An empty element an effect lays out along the axis for each slide, and for
 each copy where the deck loops, when it stacks the slides in one place, as
-fade does. It stands in for its slide or copy: the browser snaps to it, and
+fade and stack do. It stands in for its slide or copy: the browser snaps to it, and
 the slide's snap point, progress, focal position and in-view state are
 measured from it. Not a slide.
 _Avoid_: placeholder, spacer
@@ -170,5 +170,6 @@ _Avoid_: visible, active
 
 **Effect**:
 A transition built on progress while the viewport keeps scrolling natively —
-fade and curve are effects, not separate engines.
+fade, curve and stack are effects, not separate engines. Stack orders the
+slides and ships no appearance (ADR-0012).
 _Avoid_: transition mode, render mode

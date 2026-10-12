@@ -1,4 +1,5 @@
 import type { Effect } from './index.js';
+import { stackedLayout } from './stacked.js';
 
 // Slides of the fade deck, the progress of each, from
 // `--deck-slide-progress`, which Deck.Slide gives each slide from the first
@@ -49,34 +50,5 @@ const css =
 export const fade: Effect = {
   name: 'fade',
   css,
-  layout(orientation, count) {
-    const vertical = orientation === 'vertical';
-    // The track is as long as the scroll range, and each slide's grid area
-    // spans all of it: a sticky box is held inside its grid area.
-    const track = `repeat(${Math.max(count, 1)}, 100%)`;
-    const along = vertical ? 'gridRow' : 'gridColumn';
-    const across = vertical ? 'gridColumn' : 'gridRow';
-    return {
-      viewport: {
-        display: 'grid',
-        gridTemplateColumns: vertical ? '100%' : track,
-        gridTemplateRows: vertical ? track : '100%'
-      },
-      slide: {
-        [across]: '1',
-        [along]: '1 / -1',
-        [vertical ? 'alignSelf' : 'justifySelf']: 'start',
-        [vertical ? 'height' : 'width']: `calc(100% / ${Math.max(count, 1)})`,
-        position: 'sticky',
-        [vertical ? 'top' : 'insetInlineStart']: 0,
-        // A stuck slide would snap wherever it is stuck: the targets snap.
-        scrollSnapAlign: 'none'
-      },
-      target: (index) => ({
-        [across]: '1',
-        [along]: String(index + 1),
-        scrollSnapAlign: 'start'
-      })
-    };
-  }
+  layout: stackedLayout
 };

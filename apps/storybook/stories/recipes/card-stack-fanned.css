@@ -1,0 +1,13 @@
+/* A fanned pile: behind the top card, each card shifts and turns by its
+   depth, alternately up-right and down-left, and grows a little. The cards
+   behind stick out on both sides, so the throw clears them by 24px. */
+.cards .card {
+  --throw: calc(100% + 24px);
+  --behind: translate(
+      calc(sin(var(--depth) * 120deg) * 14px),
+      calc(sin(var(--depth) * 120deg) * -10px)
+    )
+    rotate(calc(sin(var(--depth) * 120deg) * 9deg))
+    scale(calc(1 + min(var(--depth), 2) * 0.04));
+  transform-origin: 50% 50%;
+}

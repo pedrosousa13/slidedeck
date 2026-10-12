@@ -1,0 +1,62 @@
+/* Each slide fills the viewport, as stack lays them out: centre its card. */
+.cards [data-slidedeck-viewport] {
+  height: 320px;
+}
+.cards [data-slidedeck-slide] {
+  display: grid;
+  place-items: center;
+}
+.cards .card {
+  /* From progress: how far the card has been thrown (0 to 1); how far it
+     has come back in, past halfway (0 to 1); and its depth in the stack,
+     which on the way back in grows to the back, one less than the count. */
+  --p: var(--deck-slide-progress);
+  --exit: clamp(0, -1 * var(--p), 1);
+  --return: clamp(0, var(--exit) * 2 - 1, 1);
+  --depth: calc(
+    max(var(--p), 0) + var(--return) * (var(--deck-slide-count) - 1)
+  );
+  /* Thrown toward the inline start: at its furthest, halfway, clear of the
+     stack by 16px and tilted 6deg; back in place as it lands. */
+  --start: -1;
+  --throw: calc(100% + 16px);
+  --thrown: translateX(
+      calc(var(--start) * var(--throw) * sin(var(--exit) * 0.5turn))
+    )
+    rotate(calc(var(--start) * 6deg * sin(var(--exit) * 0.5turn)));
+  /* Behind: higher and smaller by depth, so each card peeks out above the
+     one in front of it. */
+  --behind: translateY(calc(-14px * var(--depth)))
+    scale(calc(1 - 0.06 * var(--depth)));
+
+  box-sizing: border-box;
+  width: 280px;
+  padding: 24px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  transform-origin: 50% 0;
+  transform: var(--thrown) var(--behind);
+  /* Dimmer by depth. Not opacity, which would show the cards through one
+     another. */
+  filter: brightness(calc(1 - 0.06 * var(--depth)));
+  /* No fade. A card outside the stack is hidden outright: one thrown all
+     the way (where its copy now sits, the same card in the same place) and
+     the loop's copies waiting their turn. The two overlap by a thousandth
+     of a slide, the precision the engine writes progress at: a scroll can
+     rest a thousandth short (Firefox does), and both hidden there would
+     leave a hole. */
+  opacity: calc(
+    clamp(0, (var(--p) + 1) * 1000, 1) *
+      clamp(0, (var(--deck-slide-count) - 0.998 - var(--p)) * 1000, 1)
+  );
+}
+.cards:dir(rtl) .card {
+  --start: 1;
+}
+/* No throw: the top card cuts to the back halfway. */
+@media (prefers-reduced-motion: reduce) {
+  .cards .card {
+    --exit: clamp(0, (-1 * var(--p) - 0.5) * 1000, 1);
+  }
+}

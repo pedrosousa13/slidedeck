@@ -10,6 +10,7 @@ read it while the deck scrolls:
 | --------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | Each slide            | `--deck-slide-progress`      | Signed distance from the focal position, in slides: 0 there, -1 one slide before, 2.25 two and a quarter after. Every frame. |
 | Each slide            | `--deck-slide-index`         | The slide's index. Static, so server HTML has it.                                                                            |
+| Each slide            | `--deck-slide-count`         | The number of slides, copies not counted. Static, so server HTML has it.                                                     |
 | Each slide            | `data-in-view`               | Any part of the slide is in the viewport. Hides nothing.                                                                     |
 | Each slide            | `data-focal`                 | The focal slide.                                                                                                             |
 | Each slide            | `data-current`               | The current slide.                                                                                                           |
@@ -19,9 +20,9 @@ read it while the deck scrolls:
 | `Deck.Dots`           | `data-index`, `data-count`   | The current page and the page count; each dot has `data-index`.                                                              |
 | `Deck.Counter`        | `data-index`, `data-count`   | The same.                                                                                                                    |
 | `Deck.AutoplayToggle` | `data-playing`               | Autoplay is on.                                                                                                              |
-| `Deck.Viewport`       | `data-slidedeck-effect`      | The effect's name, `fade` or `curve`, when it has one.                                                                       |
+| `Deck.Viewport`       | `data-slidedeck-effect`      | The effect's name, `fade`, `curve` or `stack`, when it has one.                                                              |
 | Loop copies           | `data-slidedeck-copy`        | `before` or `after` the slides. Copies are `inert` and `aria-hidden`.                                                        |
-| Snap targets          | `data-slidedeck-snap-target` | The empty elements fade lays out to snap to. Not slides.                                                                     |
+| Snap targets          | `data-slidedeck-snap-target` | The empty elements fade and stack lay out to snap to. Not slides.                                                            |
 
 Every primitive also carries a marker attribute to select it by, whatever
 your class names: `data-slidedeck-viewport`, `data-slidedeck-slide` (copies
