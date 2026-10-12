@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import * as Deck from '@slidedeck/react';
 import { curve } from '@slidedeck/react/curve';
 import { fade } from '@slidedeck/react/fade';
+import { stack } from '@slidedeck/react/stack';
 import theme from '@slidedeck/react/theme.css?inline';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import clip from './assets/clip.webm';
@@ -519,6 +520,47 @@ export const Fade: Story = {
   render: (args) => (
     <Deck.Root {...args}>
       <Deck.Viewport className="viewport" effect={fade}>
+        {slidesOf(4)}
+      </Deck.Viewport>
+      <Deck.Prev />
+      <Deck.Next />
+      <Deck.Dots />
+    </Deck.Root>
+  )
+};
+
+/**
+ * A stack of cards. `effect={stack}`, imported from `@slidedeck/react/stack`,
+ * stacks the slides in place as fade does, and orders them by progress: the
+ * focal slide on top, the slides after it behind it, and a slide leaving
+ * drops to the back halfway. It ships no appearance, so the slides here show
+ * only their background: the slide on top is the one shown, and Next cuts
+ * halfway to the next. The look and the throw are the consumer's CSS, as the
+ * card stack recipe shows. Only the slide on top can be reached; the others
+ * are inert.
+ */
+export const Stack: Story = {
+  decorators: [
+    (Story) => (
+      <>
+        <style>{`
+          .cards .slide {
+            display: grid;
+            place-content: center;
+            min-height: 240px;
+            background: #eef;
+          }
+          .cards .slide:nth-child(even) { background: #fee; }
+        `}</style>
+        <div className="cards">
+          <Story />
+        </div>
+      </>
+    )
+  ],
+  render: (args) => (
+    <Deck.Root {...args}>
+      <Deck.Viewport className="viewport" effect={stack}>
         {slidesOf(4)}
       </Deck.Viewport>
       <Deck.Prev />
