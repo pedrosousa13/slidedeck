@@ -325,6 +325,68 @@ describe('loop', () => {
     await expect.poll(counter).toBe('1 / 4');
   });
 
+  // A slide added to a looping deck adds a copy before the slides too, which
+  // moves every slide on by one under the viewport (#146).
+  test('slides added during a move across the seam end at its target', async () => {
+    const onIndexChange = vi.fn();
+    const { rerender } = render(
+      <TestDeck
+        loop
+        slides={3}
+        defaultIndex={2}
+        onIndexChange={onIndexChange}
+        controls={<Deck.Counter />}
+      />
+    );
+    const counter = () =>
+      document.querySelector('[data-slidedeck-counter]')?.textContent;
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await sleep(100);
+
+    rerender(
+      <TestDeck
+        loop
+        slides={4}
+        defaultIndex={2}
+        onIndexChange={onIndexChange}
+        controls={<Deck.Counter />}
+      />
+    );
+
+    await expectSettledTo(counter, '1 / 4');
+    expect(onIndexChange.mock.calls).toEqual([[0]]);
+  });
+
+  test('slides removed during a move across the seam end at its target', async () => {
+    const onIndexChange = vi.fn();
+    const { rerender } = render(
+      <TestDeck
+        loop
+        slides={4}
+        defaultIndex={3}
+        onIndexChange={onIndexChange}
+        controls={<Deck.Counter />}
+      />
+    );
+    const counter = () =>
+      document.querySelector('[data-slidedeck-counter]')?.textContent;
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await sleep(100);
+
+    rerender(
+      <TestDeck
+        loop
+        slides={3}
+        defaultIndex={3}
+        onIndexChange={onIndexChange}
+        controls={<Deck.Counter />}
+      />
+    );
+
+    await expectSettledTo(counter, '1 / 3');
+    expect(onIndexChange.mock.calls).toEqual([[0]]);
+  });
+
   test('the live region announces the slide, counting only the slides', async () => {
     const { root, prev } = renderLoop();
 
