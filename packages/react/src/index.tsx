@@ -798,8 +798,9 @@ const deckDefaults =
 const initialTarget = { scrollInitialTarget: 'nearest' } as CSSProperties;
 
 /** One slide, labelled "n of m". Its size and alignment are consumer CSS.
- * For CSS to read, it carries `--deck-slide-index`, its index, from the first
- * render; `--deck-slide-progress`, its signed distance from the focal position
+ * For CSS to read, it carries `--deck-slide-index`, its index, and
+ * `--deck-slide-count`, the number of slides, copies not counted, from the
+ * first render; `--deck-slide-progress`, its signed distance from the focal position
  * in slides, from the first render too, server HTML included, counted from
  * the slide the deck starts at; and once mounted, `data-in-view` while any of
  * it is in view. Progress and in-view are kept up to date as the deck scrolls
@@ -843,11 +844,14 @@ export function Slide({ style, ...props }: ComponentProps<'div'>) {
       inert={inert}
       style={{
         flexShrink: 0,
-        // A slide's place in the deck, for CSS such as an entry stagger.
-        // Static, so server HTML has it; the engine writes the values that
-        // change as the deck scrolls (`--deck-slide-progress`,
-        // `data-in-view`).
-        ...({ '--deck-slide-index': index } as CSSProperties),
+        // A slide's place in the deck, for CSS such as an entry stagger, and
+        // the number of slides, copies not counted. Static, so server HTML
+        // has them; the engine writes the values that change as the deck
+        // scrolls (`--deck-slide-progress`, `data-in-view`).
+        ...({
+          '--deck-slide-index': index,
+          '--deck-slide-count': count
+        } as CSSProperties),
         // Its progress as the deck starts, so server HTML paints progress
         // before the engine measures (ADR-0011, #125). The engine writes the
         // same property as the deck moves, and React writes a style only

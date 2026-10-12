@@ -17,6 +17,9 @@ part that carries them:
   `Deck.Slide` renders its starting value, and the engine writes it from then
   on, every frame (ADR-0011, amended for #125).
 - `--deck-index` is now `--deck-slide-index`, set inline by `Deck.Slide`.
+- `--deck-slide-count`, added later, is the number of slides, copies not
+  counted, set inline by `Deck.Slide` on every slide and copy (amended for
+  the stack effect).
 
 No alias is kept for the old names. Nothing has been published, so the
 rename breaks no consumer; after the first publish it would.

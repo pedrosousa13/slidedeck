@@ -10,6 +10,7 @@ read it while the deck scrolls:
 | --------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | Each slide            | `--deck-slide-progress`      | Signed distance from the focal position, in slides: 0 there, -1 one slide before, 2.25 two and a quarter after. Every frame. |
 | Each slide            | `--deck-slide-index`         | The slide's index. Static, so server HTML has it.                                                                            |
+| Each slide            | `--deck-slide-count`         | The number of slides, copies not counted. Static, so server HTML has it.                                                     |
 | Each slide            | `data-in-view`               | Any part of the slide is in the viewport. Hides nothing.                                                                     |
 | Each slide            | `data-focal`                 | The focal slide.                                                                                                             |
 | Each slide            | `data-current`               | The current slide.                                                                                                           |

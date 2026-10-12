@@ -241,6 +241,23 @@ describe('--deck-slide-index', () => {
   });
 });
 
+describe('--deck-slide-count', () => {
+  test('is the number of slides, on each slide and copy, in the server HTML', () => {
+    const html = renderToString(<ProgressDeck slides={3} loop />);
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    const slides = [...viewportOf(container).children] as HTMLElement[];
+
+    // Copies are not counted.
+    expect(
+      slides.filter((slide) => slide.hasAttribute('data-slidedeck-copy'))
+    ).toHaveLength(6);
+    expect(
+      slides.map((slide) => slide.style.getPropertyValue('--deck-slide-count'))
+    ).toEqual(Array(9).fill('3'));
+  });
+});
+
 describe('data-in-view', () => {
   test('marks only the slide in view at rest, before the first paint', () => {
     const { inView } = renderDeck();
