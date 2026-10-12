@@ -7,7 +7,8 @@
     "paths": {
       "@slidedeck/react": ["./src/index.tsx"],
       "@slidedeck/react/fade": ["./src/fade.ts"],
-      "@slidedeck/react/curve": ["./src/curve.ts"]
+      "@slidedeck/react/curve": ["./src/curve.ts"],
+      "@slidedeck/react/stack": ["./src/stack.ts"]
     },
     "tsBuildInfoFile": "dist/.tsbuildinfo.test"
   },

@@ -31,6 +31,9 @@ const config: StorybookConfig = {
         '@slidedeck/react/curve': fileURLToPath(
           new URL('../../../packages/react/src/curve.ts', import.meta.url)
         ),
+        '@slidedeck/react/stack': fileURLToPath(
+          new URL('../../../packages/react/src/stack.ts', import.meta.url)
+        ),
         '@slidedeck/react': fileURLToPath(
           new URL('../../../packages/react/src/index.tsx', import.meta.url)
         )

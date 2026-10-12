@@ -46,6 +46,7 @@ export default defineConfig({
         index: 'src/index.tsx',
         fade: 'src/fade.ts',
         curve: 'src/curve.ts',
+        stack: 'src/stack.ts',
         // The `react-server` entry: a server component's Deck.Root.
         server: 'src/server.tsx'
       },
