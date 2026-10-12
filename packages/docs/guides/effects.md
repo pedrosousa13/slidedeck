@@ -1,12 +1,12 @@
 ---
 title: 'Effects: fade and curve'
 label: Effects
-description: "slidedeck's two effects: fade crossfades slides in one place, curve fans them along an arc. Each is its own import, so a deck without one ships none of it."
+description: "slidedeck's effects: fade crossfades slides in one place, curve fans them along an arc, and stack orders them as a stack of cards. Each is its own import, so a deck without one ships none of it."
 ---
 
 An effect is a value you pass to `Deck.Viewport`'s `effect`, imported from
 its own entry point. A deck that imports none ships none of their code. The
-viewport keeps scrolling, snapping and dragging natively under both.
+viewport keeps scrolling, snapping and dragging natively under each.
 
 <!-- demo:example-fade -->
 
@@ -63,7 +63,17 @@ against the slide. Under reduced motion the content stays flat and only fades.
 To turn a radius in pixels into slides and leave the arc room in the
 viewport, see [size a curve](../recipes/size-a-curve.md).
 
-Both effects' styles are zero-specificity rules on `--deck-slide-progress`, so
+## Stack
+
+Stack stacks the slides in one place, as fade does, and orders them by
+progress: the focal slide on top, the slides after it behind it in order, and
+a slide leaving drops behind every slide halfway, to come back in at the back.
+Every slide but the focal one is `inert`. Stack ships no appearance: no
+transform, colour or opacity. The look of the cards and the throw that takes
+the top one off are your CSS on `--deck-slide-progress`, as
+[a card stack](../recipes/card-stack.md) shows.
+
+The effects' styles are zero-specificity rules on `--deck-slide-progress`, so
 your CSS overrides any of them. Server HTML already carries each slide's
 starting progress, so an effect draws from the first paint, before any script
 runs (see [server rendering](./server-rendering.md)). To use an
