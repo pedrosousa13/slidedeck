@@ -1,5 +1,20 @@
 # @slidedeck/react
 
+## 1.1.0
+
+### Minor Changes
+
+- ff73434: A new effect, `stack` from `@slidedeck/react/stack`, stacks the slides in one place, as cards, and orders them by progress: the focal slide on top, the slides after it behind it, and a slide leaving drops to the back halfway. It ships no appearance: the look and the throw are your CSS on `--deck-slide-progress`, as the card stack recipe in the docs shows.
+
+  Every slide and copy now carries `--deck-slide-count`, the number of slides, copies not counted, set inline from the first render, so server HTML has it.
+
+### Patch Changes
+
+- 688999f: The docs pages and the package README read more plainly, with the same facts, headings, code blocks and API.
+- 5b5b59f: The packages' `homepage` and the README's docs link now point at https://slide.deck.cool. No code changed.
+- Updated dependencies [c0d9e9e]
+  - @slidedeck/core@1.1.0
+
 ## 1.0.3
 
 ### Patch Changes

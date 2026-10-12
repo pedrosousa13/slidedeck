@@ -1,5 +1,11 @@
 # @slidedeck/core
 
+## 1.1.0
+
+### Patch Changes
+
+- c0d9e9e: A looping deck keeps its place when slides are added or removed. Before, a move across the seam that was still in flight could end on another slide, such as Next from the last slide ending back on it. A deck at rest also depended on the browser to re-snap after the change, which does not always happen in time.
+
 ## 1.0.3
 
 ### Patch Changes
