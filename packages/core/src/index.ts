@@ -1456,13 +1456,19 @@ function slidesOf(viewport: HTMLElement): {
 /**
  * Whether the viewport holds loop's copies, and whether it holds snap
  * targets: when either comes or goes, as when `loop` or an effect changes,
- * the snap points move under the viewport (ADR-0007, ADR-0009). Copies or
- * slides added to those already there leave it as it is.
+ * the snap points move under the viewport (ADR-0007, ADR-0009). So does a
+ * slide added to or removed from a looping deck, as its copy before the
+ * slides moves every slide by one (#146): the copies before the slides are
+ * counted. Slides added to a deck that does not loop, or snap targets added
+ * to those already there, leave it as it is.
  */
 const shapeOf = (viewport: HTMLElement) =>
-  [COPY, SNAP_TARGET]
-    .map((marker) => viewport.querySelector(`:scope > [${marker}]`) !== null)
-    .join();
+  [
+    ...[COPY, SNAP_TARGET].map(
+      (marker) => viewport.querySelector(`:scope > [${marker}]`) !== null
+    ),
+    slidesOf(viewport).first
+  ].join();
 
 /**
  * Gives each loop copy its slide's snap alignment, inline: CSS that picks the
