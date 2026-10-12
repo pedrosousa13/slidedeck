@@ -863,71 +863,74 @@ test('a fade deck crossfades in place on Next, settles with one slide shown, and
   await expect(deck.getByRole('button', { name: 'Action 3' })).toBeInViewport();
 });
 
-test('the card-stack recipe throws the top card on Next, and no frame of a full loop leaves a hole at the back of the stack', async ({
-  page
-}) => {
-  await openStory(page, 'recipes--card-stack');
-  const deck = page.getByRole('region', { name: 'Featured slides' });
-  const viewport = deck.locator('[data-slidedeck-viewport]');
-  const count = await deck
-    .locator('[data-slidedeck-slide]:not([data-slidedeck-copy])')
-    .count();
+for (const story of ['recipes--card-stack', 'recipes--card-stack-fanned']) {
+  test(`${story} throws the top card on Next, and every frame of a full loop shows each card once: no hole at the back of the stack, and no card doubled`, async ({
+    page
+  }) => {
+    await openStory(page, story);
+    const deck = page.getByRole('region', { name: 'Featured slides' });
+    const viewport = deck.locator('[data-slidedeck-viewport]');
+    const count = await deck
+      .locator('[data-slidedeck-slide]:not([data-slidedeck-copy])')
+      .count();
 
-  // Record, in the page, how many cards each frame the viewport scrolls in
-  // shows, and whether the first card, mid-throw, is left of where it rests,
-  // as the fade test does: its
-  // frame callback reads the cards after the deck writes their progress.
-  // Firefox's smooth scroll rests a thousandth of a slide short of the snap
-  // point for a few frames, so a hole there shows in this record.
-  await viewport.evaluate((el) => {
-    const cards = [...el.querySelectorAll<HTMLElement>('.card')];
-    const first = cards[0]!;
-    const home = first.getBoundingClientRect().left;
-    const shown: number[] = [];
-    let thrown = false;
-    let frame = 0;
-    const record = () => {
-      frame = 0;
-      shown.push(
-        cards.filter((card) => Number(getComputedStyle(card).opacity) > 0)
-          .length
-      );
-      const progress = Number(
-        first.parentElement!.style.getPropertyValue('--deck-slide-progress')
-      );
-      if (progress < 0 && progress > -1) {
-        thrown ||= first.getBoundingClientRect().left < home - 1;
-      }
-    };
-    el.addEventListener('scroll', () => {
-      frame ||= requestAnimationFrame(record);
+    // Record, in the page, how many cards each frame the viewport scrolls in
+    // shows, and whether the first card, mid-throw, is left of where it rests,
+    // as the fade test does: its
+    // frame callback reads the cards after the deck writes their progress.
+    // Firefox's smooth scroll rests a thousandth of a slide short of the snap
+    // point for a few frames, so a hole, or the thrown card shown with its
+    // copy, shows there in this record.
+    await viewport.evaluate((el) => {
+      const cards = [...el.querySelectorAll<HTMLElement>('.card')];
+      const first = cards[0]!;
+      const home = first.getBoundingClientRect().left;
+      const shown: number[] = [];
+      let thrown = false;
+      let frame = 0;
+      const record = () => {
+        frame = 0;
+        shown.push(
+          cards.filter((card) => Number(getComputedStyle(card).opacity) > 0)
+            .length
+        );
+        const progress = Number(
+          first.parentElement!.style.getPropertyValue('--deck-slide-progress')
+        );
+        if (progress < 0 && progress > -1) {
+          thrown ||= first.getBoundingClientRect().left < home - 1;
+        }
+      };
+      el.addEventListener('scroll', () => {
+        frame ||= requestAnimationFrame(record);
+      });
+      Object.assign(el, {
+        record: () => ({ shown, thrown })
+      });
     });
-    Object.assign(el, {
-      record: () => ({ shown, thrown })
-    });
+
+    for (let step = 1; step <= count; step++) {
+      await deck.locator('[data-focal] button', { hasText: 'Next' }).click();
+      await expect(deck).toHaveAttribute('data-index', String(step % count));
+    }
+    await expect(
+      deck.getByRole('group', { name: `1 of ${count}` })
+    ).toHaveAttribute('data-focal');
+
+    const { shown, thrown } = await viewport.evaluate((el) =>
+      (
+        el as unknown as {
+          record: () => { shown: number[]; thrown: boolean };
+        }
+      ).record()
+    );
+    // Under load, WebKit can scroll from one card to the next with one frame
+    // between them, so any frame mid-throw with the card out to the left
+    // counts.
+    expect(thrown).toBe(true);
+    expect(shown.filter((n) => n !== count)).toEqual([]);
   });
-
-  for (let step = 1; step <= count; step++) {
-    await deck.locator('[data-focal] button', { hasText: 'Next' }).click();
-    await expect(deck).toHaveAttribute('data-index', String(step % count));
-  }
-  await expect(
-    deck.getByRole('group', { name: `1 of ${count}` })
-  ).toHaveAttribute('data-focal');
-
-  const { shown, thrown } = await viewport.evaluate((el) =>
-    (
-      el as unknown as {
-        record: () => { shown: number[]; thrown: boolean };
-      }
-    ).record()
-  );
-  // Under load, WebKit can scroll from one card to the next with one frame
-  // between them, so any frame mid-throw with the card out to the left
-  // counts.
-  expect(thrown).toBe(true);
-  expect(shown.filter((n) => n < count)).toEqual([]);
-});
+}
 
 test('a curve deck fans its cards on an arc, settles upright on Next, and drags on with no page scrollbar', async ({
   page

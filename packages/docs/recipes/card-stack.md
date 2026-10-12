@@ -93,10 +93,13 @@ and the stack runs down to the last card.
 
 The cards do not fade. A card outside the stack is hidden outright: one
 thrown all the way, at progress -1, where its copy now sits, and the loop's
-copies waiting their turn, at the slide count or beyond. The two windows
-overlap by a thousandth of a slide, the precision the engine writes progress
-at. A scroll can rest a thousandth short of a snap point, as Firefox's does,
-and if both were hidden there the stack would show a hole at the back.
+copies waiting their turn, at the slide count or beyond. The engine writes
+progress in whole thousandths of a slide, and the two windows meet halfway
+between two of them: in a deck of three, the thrown card shows down to
+-0.998, and its copy from 2.001. So every frame shows exactly one of the two.
+A scroll can rest a thousandth short of a snap point, as Firefox's does: with
+both hidden there, the stack would show a hole at the back, and with both
+shown, its shadow would darken for a moment.
 
 ## Reduced motion
 
@@ -158,13 +161,15 @@ viewport clips the throw.
   filter: brightness(calc(1 - 0.06 * var(--depth)));
   /* No fade. A card outside the stack is hidden outright: one thrown all
      the way (where its copy now sits, the same card in the same place) and
-     the loop's copies waiting their turn. The two overlap by a thousandth
-     of a slide, the precision the engine writes progress at: a scroll can
-     rest a thousandth short (Firefox does), and both hidden there would
-     leave a hole. */
+     the loop's copies waiting their turn. The engine writes progress in
+     whole thousandths of a slide, and the two windows meet halfway between
+     two of them: the thrown card shows down to -0.998, its copy from 2.001
+     in a deck of three. So each frame shows one of them, never neither (a
+     hole, where Firefox's scroll rests a thousandth short) and never both
+     (a doubled shadow). */
   opacity: calc(
-    clamp(0, (var(--p) + 1) * 1000, 1) *
-      clamp(0, (var(--deck-slide-count) - 0.998 - var(--p)) * 1000, 1)
+    clamp(0, (var(--p) + 0.9985) * 2000, 1) *
+      clamp(0, (var(--deck-slide-count) - 0.9985 - var(--p)) * 2000, 1)
   );
 }
 .cards:dir(rtl) .card {
@@ -225,5 +230,5 @@ cards sit at the bottom of a taller viewport:
 ```
 
 The stories are `Recipes / Card Stack` and `Recipes / Card Stack Fanned`. An
-end-to-end test throws the top card through a full loop and checks that no
-frame shows fewer cards than the deck has.
+end-to-end test throws the top card through a full loop and checks that
+every frame shows each card once.

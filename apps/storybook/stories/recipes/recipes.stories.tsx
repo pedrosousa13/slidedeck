@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import * as Deck from '@slidedeck/react';
 import { curve } from '@slidedeck/react/curve';
 import { stack } from '@slidedeck/react/stack';
@@ -116,6 +115,34 @@ const cards = [
   { title: 'Ship', text: 'Send it out, then start the next one.' }
 ];
 
+// The cards' text, in both card stack stories; the recipe's CSS draws the
+// cards themselves.
+const cardText = `
+  .cards { font-family: system-ui, sans-serif; color: #222; }
+  .cards .card { display: grid; gap: 8px; }
+  .cards .card h3 { margin: 0; font-size: 1.05rem; }
+  .cards .card p { margin: 0; line-height: 1.5; }
+  .cards .card button { justify-self: start; }
+`;
+
+function Cards() {
+  return (
+    <Deck.Root aria-label="Featured slides" className="cards" loop>
+      <Deck.Viewport effect={stack}>
+        {cards.map((card) => (
+          <Deck.Slide key={card.title}>
+            <div className="card">
+              <h3>{card.title}</h3>
+              <p>{card.text}</p>
+              <Deck.Next>Next</Deck.Next>
+            </div>
+          </Deck.Slide>
+        ))}
+      </Deck.Viewport>
+    </Deck.Root>
+  );
+}
+
 /**
  * The recipe "a card stack": `effect={stack}` orders the cards, and the
  * recipe's CSS draws them on `--deck-slide-progress`. The cards behind the
@@ -127,107 +154,22 @@ const cards = [
 export const CardStack: Story = {
   render: () => (
     <>
-      <style>{`
-        .cards { font-family: system-ui, sans-serif; color: #222; }
-        .cards .card { display: grid; gap: 8px; }
-        .cards .card h3 { margin: 0; font-size: 1.05rem; }
-        .cards .card p { margin: 0; line-height: 1.5; }
-        .cards .card button { justify-self: start; }
-        ${cardStack}
-      `}</style>
-      <Deck.Root aria-label="Featured slides" className="cards" loop>
-        <Deck.Viewport effect={stack}>
-          {cards.map((card) => (
-            <Deck.Slide key={card.title}>
-              <div className="card">
-                <h3>{card.title}</h3>
-                <p>{card.text}</p>
-                <Deck.Next>Next</Deck.Next>
-              </div>
-            </Deck.Slide>
-          ))}
-        </Deck.Viewport>
-      </Deck.Root>
+      <style>{`${cardText}${cardStack}`}</style>
+      <Cards />
     </>
   )
 };
 
-const tips = [
-  {
-    title: 'Local tip',
-    body: 'Say sumimasen, which means excuse me, before asking for help at a Tokyo station, café or shop.',
-    tint: '#e7b9c9'
-  },
-  {
-    title: 'Getting around',
-    body: 'Load a Suica card once and tap through trains, buses and kiosks.',
-    tint: '#cdc5ef'
-  },
-  {
-    title: 'Etiquette',
-    body: 'Stand on the left on Tokyo escalators, on the right in Osaka.',
-    tint: '#bfe0d4'
-  }
-];
-
 /**
- * The same effect and recipe with another look: the recipe's fanned pile.
- * Behind the top card, each card turns and shows its tint by its depth. Only
- * the CSS changes.
+ * The same cards and recipe with another look: the recipe's fanned pile.
+ * Behind the top card, each card shifts and turns by its depth. Only the CSS
+ * changes: `card-stack-fanned.css` after the recipe's.
  */
 export const CardStackFanned: Story = {
   render: () => (
     <>
-      <style>{`
-        ${cardStack}
-        ${cardStackFanned}
-        .tips { font-family: system-ui, sans-serif; color: #222; }
-        .tips .card {
-          padding: 28px 22px;
-          border: 1.5px solid #555;
-          border-radius: 20px;
-          outline: 2px dotted #555;
-          outline-offset: -12px;
-          box-shadow: none;
-          filter: none;
-          background: color-mix(
-            in oklab,
-            var(--tint),
-            #f4f4f7 calc(clamp(0, 1 - var(--depth), 1) * 100%)
-          );
-          display: grid;
-          gap: 12px;
-          text-align: center;
-        }
-        .tips .card h3 { margin: 0; font-size: 1.05rem; }
-        .tips .card p { margin: 0; line-height: 1.55; }
-        .tips .card button {
-          justify-self: center;
-          border: 0;
-          padding: 0;
-          background: none;
-          font: inherit;
-          font-weight: 600;
-          text-decoration: underline;
-          cursor: pointer;
-        }
-      `}</style>
-      <Deck.Root aria-label="Featured slides" className="cards tips" loop>
-        <Deck.Viewport effect={stack}>
-          {tips.map((tip) => (
-            <Deck.Slide key={tip.title}>
-              <div
-                className="card"
-                style={{ '--tint': tip.tint } as CSSProperties}
-              >
-                <h3>{tip.title}</h3>
-                <p>{tip.body}</p>
-                <Deck.Next>Next</Deck.Next>
-              </div>
-            </Deck.Slide>
-          ))}
-        </Deck.Viewport>
-      </Deck.Root>
+      <style>{`${cardText}${cardStack}${cardStackFanned}`}</style>
+      <Cards />
     </>
   )
 };
