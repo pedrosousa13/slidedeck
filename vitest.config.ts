@@ -69,6 +69,8 @@ export default defineConfig({
   },
   test: {
     include: ['packages/*/test/**/*.test.{ts,tsx}'],
+    // React 18's tests run in `pnpm test:react-18`, on React 18.
+    exclude: ['packages/react-18/**'],
     setupFiles: ['packages/react/test/setup.ts'],
     // A real browser, not a DOM emulation: a scroll-snap carousel is layout
     // and scrolling, which happy-dom and jsdom do not implement.

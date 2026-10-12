@@ -11,7 +11,8 @@
 //   pnpm verify --only lint,typecheck   those steps, in list order
 //   pnpm verify --job unit              one CI job's steps
 //   pnpm verify --project=webkit ...    test:e2e in one Playwright project
-//   pnpm verify --shard=1/4 ...         test (vitest) in one shard of four
+//   pnpm verify --shard=1/4 ...         test and test:react-18 (vitest) in
+//                                       one shard of four
 //   pnpm verify --dry-run ...           print the steps, run none
 //   pnpm verify --ci-jobs ...           print `<job>=true|false` for each CI
 //                                       job: whether it has a step to run
@@ -31,6 +32,9 @@ export const STEPS = [
   'lint',
   'typecheck',
   'test',
+  // The React package's tests again, on React 18, against
+  // @slidedeck/react-18's build.
+  'test:react-18',
   'test:scripts',
   'build',
   // The README's and the docs package's code blocks against the built
@@ -45,6 +49,9 @@ export const STEPS = [
   'size',
   'test:e2e'
 ];
+
+/** The vitest steps, which `--shard` splits. */
+const SHARDED = ['test', 'test:react-18'];
 
 /**
  * CI's parallel jobs, by the steps each runs: `pnpm verify --job <name>` in
@@ -69,6 +76,8 @@ export const CI_JOBS = {
   // In Playwright's container, once per vitest shard: vitest drives chromium
   // and webkit.
   unit: ['test'],
+  // The same, for test:react-18: its own job, so `unit` takes no longer.
+  'unit-react-18': ['test:react-18'],
   // No browser. Apart from `unit`, whose vitest run is CI's longest job.
   packages: ['test:packages'],
   next: ['test:next'],
@@ -217,8 +226,8 @@ export function plan(argv, changed = changedSince) {
   if (project !== undefined && !wanted.includes('test:e2e')) {
     throw new Error('--project needs test:e2e among the steps');
   }
-  if (shard !== undefined && !wanted.includes('test')) {
-    throw new Error('--shard needs test among the steps');
+  if (shard !== undefined && !wanted.some((step) => SHARDED.includes(step))) {
+    throw new Error('--shard needs test or test:react-18 among the steps');
   }
   const steps = (
     since === undefined
@@ -230,7 +239,7 @@ export function plan(argv, changed = changedSince) {
     args:
       step === 'test:e2e' && project
         ? [...args, `--project=${project}`]
-        : step === 'test' && shard
+        : SHARDED.includes(step) && shard
           ? [...args, `--shard=${shard}`]
           : args
   }));

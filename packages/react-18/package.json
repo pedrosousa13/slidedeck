@@ -1,0 +1,58 @@
+{
+  "name": "@slidedeck/react-18",
+  "private": true,
+  "version": "1.0.3",
+  "description": "@slidedeck/react built for React 18: headless, composable carousel primitives on native scroll snap.",
+  "license": "MIT",
+  "homepage": "https://slide.deck.cool",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pedrosousa13/slidedeck.git",
+    "directory": "packages/react-18"
+  },
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./fade": {
+      "types": "./dist/fade.d.ts",
+      "default": "./dist/fade.js"
+    },
+    "./curve": {
+      "types": "./dist/curve.d.ts",
+      "default": "./dist/curve.js"
+    },
+    "./theme.css": {
+      "default": "./dist/theme.css"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@slidedeck/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18 <19",
+    "react-dom": ">=18 <19"
+  },
+  "devDependencies": {
+    "@slidedeck/react": "workspace:*",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "scripts": {
+    "build": "vite build"
+  }
+}

@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "test": "vitest run",
+    "test:react-18": "turbo run build --filter=@slidedeck/react-18 && tsc -p packages/react-18/tsconfig.test.json && vitest run -c vitest.react-18.config.ts",
     "test:scripts": "node --test scripts/*.test.mjs",
     "build": "turbo run build",
     "test:e2e": "playwright test",

@@ -195,8 +195,10 @@ jobs:
           fi
           # Trusted publishing is configured on a package that already exists,
           # so with no token every package must be on the registry already.
+          # A private package is never published, so it is not checked.
           missing=""
           for manifest in packages/*/package.json; do
+            [ "$(node -p "require('./$manifest').private === true")" = true ] && continue
             name=$(node -p "require('./$manifest').name")
             npm view "$name" name > /dev/null 2>&1 || missing="$missing $name"
           done
